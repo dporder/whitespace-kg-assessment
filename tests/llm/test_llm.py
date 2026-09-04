@@ -312,3 +312,75 @@ def test_a_one_character_value_is_not_redacted(monkeypatch):
     """Redacting a single character would blank out ordinary log text."""
     monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "a")
     assert llm.scrub("a plain sentence") == "a plain sentence"
+
+
+# --------------------------------------------------------------------------
+# parse_json shape fidelity. A list must come back a list, however short.
+# --------------------------------------------------------------------------
+def test_a_single_element_array_in_prose_stays_a_list():
+    """The bug the eval-builder's audit runner hit. Trying the object opener
+    first unwrapped the array, so one verdict arrived as a bare dict and was
+    dropped."""
+    out = llm.parse_json('Here are the verdicts: [{"i": 10, "agree": true}] done.')
+    assert isinstance(out, list), "a one-item array came back unwrapped"
+    assert out == [{"i": 10, "agree": True}]
+
+
+def test_a_fenced_two_element_array_stays_a_list():
+    """This one only ever worked by accident: the {...}, {...} slice is invalid
+    JSON, so it fell through to the array opener."""
+    out = llm.parse_json(
+        '```json\n[{"i": 0, "agree": true}, {"i": 1, "agree": false}]\n```')
+    assert isinstance(out, list) and len(out) == 2
+    assert out[1] == {"i": 1, "agree": False}
+
+
+def test_a_bare_object_is_still_a_dict():
+    out = llm.parse_json('{"considered": "x", "confidence": 0.5, "answer": "NONE"}')
+    assert isinstance(out, dict)
+    assert out["answer"] == "NONE"
+
+
+def test_an_object_in_prose_is_still_a_dict():
+    out = llm.parse_json('My answer: {"answer": "NONE", "confidence": 0.2} , final.')
+    assert out == {"answer": "NONE", "confidence": 0.2}
+
+
+def test_an_empty_array_in_prose_stays_a_list():
+    """Nothing found is a real answer for the span-extraction rung."""
+    assert llm.parse_json("I found no citations: []") == []
+
+
+def test_a_stray_bracket_before_the_object_still_parses():
+    """The earliest opener wins, but the other is still tried, so prose that
+    happens to contain a bracket first does not break an object reply."""
+    out = llm.parse_json('The answer [see below]: {"answer": "NONE"}')
+    assert out == {"answer": "NONE"}
+
+
+def test_a_stray_brace_before_the_array_still_parses():
+    out = llm.parse_json('Note {not json} then [{"i": 3}]')
+    assert out == [{"i": 3}]
+
+
+def test_an_array_of_scalars_keeps_its_shape():
+    assert llm.parse_json("ranked: [3, 1, 2]") == [3, 1, 2]
+
+
+def test_a_nested_array_inside_an_object_is_not_unwrapped():
+    out = llm.parse_json('{"considered": [{"path": "a"}], "answer": "a"}')
+    assert isinstance(out, dict)
+    assert out["considered"] == [{"path": "a"}]
+
+
+def test_prose_with_no_json_still_raises():
+    with pytest.raises(llm.LLMResponseError):
+        llm.parse_json("I think it is clause 3, but I am not sure.")
+
+
+def test_structured_returns_a_list_when_the_model_sends_one():
+    """structured() is what every caller uses, so the shape has to survive it.
+    This is the eval judge's exact call shape."""
+    llm.set_client(FakeClient(['Verdicts: [{"i": 0, "agree": true, "why": "ok"}]']))
+    out = llm.structured("eval_judge", "check these")
+    assert isinstance(out, list) and len(out) == 1

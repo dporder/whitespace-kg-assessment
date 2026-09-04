@@ -561,7 +561,20 @@ _FENCE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.S)
 
 def parse_json(raw: str) -> Any:
     """Strict-ish JSON out of a model's text: fences stripped, then the
-    outermost object or array. Raises LLMResponseError rather than guessing."""
+    outermost object or array. Raises LLMResponseError rather than guessing.
+
+    The openers are tried in the order they appear in the text, earliest first,
+    because trying `{` before `[` unconditionally silently unwraps a list. Given
+    `Here you go: [{"i": 10}]`, the object slice `{"i": 10}` parses cleanly on
+    its own, so the caller got the inner dict and the array around it vanished.
+    A two-element array only survived by luck: its `{...}, {...}` slice is
+    invalid JSON, so that fell through to the array opener and came back whole.
+    Any caller expecting a list therefore lost its shape exactly when the list
+    was short, which is the worst possible place for it to happen.
+
+    Whichever opener comes first wins, and the other is still tried afterwards,
+    so prose containing a stray brace before the real array still parses.
+    """
     text = (raw or "").strip()
     m = _FENCE.match(text)
     if m:
@@ -570,7 +583,9 @@ def parse_json(raw: str) -> Any:
         return json.loads(text)
     except Exception:                                     # noqa: BLE001
         pass
-    for opener, closer in (("{", "}"), ("[", "]")):
+    pairs = [("[", "]"), ("{", "}")]
+    present = [(text.find(opener), opener, closer) for opener, closer in pairs]
+    for _at, opener, closer in sorted(p for p in present if p[0] >= 0):
         start, end = text.find(opener), text.rfind(closer)
         if 0 <= start < end:
             try:
