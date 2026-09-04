@@ -85,6 +85,11 @@ class Inputs:
     def absences(self) -> list[Loaded]:
         return [r for r in self.records if r.state == "absent"]
 
+    def skipped(self) -> list[Loaded]:
+        """Files that were there but were not this stage's to read. Not a
+        failure: a manifest in tree/ is not a broken part."""
+        return [r for r in self.records if r.state == "skipped"]
+
 
 def walk(node: Node) -> Iterator[Node]:
     """Preorder walk, children in stored order. Deterministic."""
@@ -131,26 +136,84 @@ def newest_run(output_root: Path) -> Optional[str]:
     return sorted(runs, key=lambda d: (d.stat().st_mtime, d.name))[-1].name
 
 
-def discover_parts(source_root: Path) -> list[str]:
-    """Part ids present in the input source, from the stage 2 tree files."""
+# Files that live beside part files in a run directory and are not parts. SPEC
+# 2.1 puts stage 2's manifest at the run root, but a harness that trusts a
+# directory listing to be homogeneous will mis-report the day something else
+# lands there, and "1 input file failed to load" on a manifest is a false alarm
+# that degrades a whole section.
+MANIFEST_NAMES = frozenset({"violations.json", "manifest.json", "profile.json",
+                            "index.json", "quarantine.json"})
+
+
+def looks_like_a_part(payload: Any) -> bool:
+    """A stage 2 part file is a Node object: it has a kind and a path."""
+    return isinstance(payload, dict) and "kind" in payload and "path" in payload
+
+
+def classify_tree_file(path: Path) -> tuple[str, Optional[str]]:
+    """('part'|'manifest'|'unreadable', reason)."""
+    if path.name in MANIFEST_NAMES:
+        return "manifest", f"{path.name} is a known manifest name, not a part file"
+    try:
+        payload = _read_json(path)
+    except Exception as exc:                              # noqa: BLE001
+        return "unreadable", f"{type(exc).__name__}: {exc}"
+    if not looks_like_a_part(payload):
+        return "manifest", ("no kind/path at the top level, so this is not a part "
+                            "file; a manifest or index does not belong in tree/")
+    return "part", None
+
+
+def discover_parts(source_root: Path) -> tuple[list[str], list[Loaded]]:
+    """Part ids present in the input source, and the non-part files skipped.
+
+    A file in `tree/` is taken as a part only if it is a known-good part name
+    and its JSON looks like a Node. Anything else is skipped and reported as a
+    skip, which is a third state distinct from absent and from failed: a
+    manifest sitting in tree/ is not a broken part, and calling it one turns a
+    tidy run into a partial section for no reason.
+    """
     tree_dir = source_root / "tree"
     if not tree_dir.is_dir():
-        return []
-    return sorted(p.stem for p in tree_dir.glob("*.json"))
+        return [], []
+    parts: list[str] = []
+    skipped: list[Loaded] = []
+    for path in sorted(tree_dir.glob("*.json")):
+        kind, reason = classify_tree_file(path)
+        if kind == "manifest":
+            skipped.append(Loaded(kind="tree", key=path.stem, path=path,
+                                  state="skipped", error=reason))
+            continue
+        # "part" and "unreadable" both stay in the list. A file that will not
+        # even parse is a broken part, not a manifest, and must be reported as
+        # a failure by the loader rather than quietly dropped: silently skipping
+        # a corrupt part would hide a whole part from every section.
+        parts.append(path.stem)
+    return parts, skipped
 
 
 def load(source: str, source_root: Path, run: str, parts: list[str],
-         run_dir: Optional[Path] = None) -> Inputs:
+         run_dir: Optional[Path] = None,
+         skipped: Optional[list[Loaded]] = None) -> Inputs:
     """Load every stage output stage 8 reads, for the parts in scope.
 
     Never raises on bad input: a file that will not parse or validate becomes
     a `failed` record and the section that needed it degrades.
     """
     inputs = Inputs(source=source, root=source_root, run=run, scope_parts=list(parts))
+    inputs.records.extend(skipped or [])
 
     for part in parts:
-        rec = _load_one("tree", part, source_root / "tree" / f"{part}.json",
-                        lambda d: Node.model_validate(d))
+        path = source_root / "tree" / f"{part}.json"
+        # Guard again at load time, so a caller that assembled `parts` some
+        # other way cannot turn a manifest into a failed part either.
+        if path.exists():
+            kind, reason = classify_tree_file(path)
+            if kind == "manifest":
+                inputs.records.append(Loaded(kind="tree", key=part, path=path,
+                                             state="skipped", error=reason))
+                continue
+        rec = _load_one("tree", part, path, lambda d: Node.model_validate(d))
         inputs.records.append(rec)
         if rec.ok:
             inputs.trees[part] = rec.value

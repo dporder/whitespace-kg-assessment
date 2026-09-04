@@ -130,16 +130,17 @@ def build_context(args: argparse.Namespace) -> Context:
                   else inputs_mod.FIXTURES_SOURCE)
     source_root = run_dir if source == inputs_mod.OUTPUT_SOURCE else args.fixtures_dir
 
-    present = inputs_mod.discover_parts(source_root)
+    present, not_parts = inputs_mod.discover_parts(source_root)
     # Load everything present first, only to read the batch ids the output
     # carries, then narrow to the scope and reload. Two passes over a handful of
     # JSON files is cheaper than guessing the batch from the file names.
-    surveyed = inputs_mod.load(source, source_root, run, present, run_dir=run_dir)
+    surveyed = inputs_mod.load(source, source_root, run, present, run_dir=run_dir,
+                               skipped=not_parts)
     scope_mode, scope_parts, cross = resolve_scope(args, present, batches_in(surveyed))
 
     loaded = (surveyed if scope_parts == present
               else inputs_mod.load(source, source_root, run, scope_parts,
-                                   run_dir=run_dir))
+                                   run_dir=run_dir, skipped=not_parts))
     page_map_artifact = provided_mod.load_page_map()
     outline_artifact = (provided_mod.ProvidedOutline(state="absent",
                                                      error="--no-pdf: the PDF was not opened")
