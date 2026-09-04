@@ -40,3 +40,10 @@ def definitions_scan():
 def fs5_scan():
     """Framework Schedules 4 to 6, which is where the heading with no period is."""
     return scan(config.PDF, config.BATCHES, page_range=(78, 86))
+
+
+@pytest.fixture(scope="session")
+def cos9_scan():
+    """Call-Off Schedule 9, whose two parts each open with a heavy-ruled
+    definitions block."""
+    return scan(config.PDF, config.BATCHES, page_range=(340, 361))
