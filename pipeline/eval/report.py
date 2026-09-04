@@ -4,10 +4,17 @@ Two deliberate choices about the report itself:
 
 **No wall-clock timestamp anywhere in it.** EVALUATION.md section 4 says
 "regression is a diff between reports, not a feeling". A timestamp would make
-every diff non-empty and destroy that property, so identical inputs produce a
-byte-identical report. What replaces it is `inputs_fingerprint`, a hash over the
-exact files this run read, which distinguishes "same inputs, different answer"
-(a real regression) from "different inputs" without pretending to be a clock.
+every diff non-empty and destroy that property, so two cold runs over identical
+inputs produce a byte-identical report. What replaces it is
+`inputs_fingerprint`, a hash over the exact files this run read, which
+distinguishes "same inputs, different answer" (a real regression) from
+"different inputs" without pretending to be a clock.
+
+`resolution_transitions` is the one deliberate exception, and the header says
+so. It reads the ref-status snapshot the previous run wrote, so a second run in
+the same output directory reports history the first one did not have. That is
+the section doing its job, not the report being non-deterministic: given the
+same inputs *and* the same prior snapshot, it too is byte-identical.
 
 **Markdown headings are the bare section names.** `## invariants`, not a prettier
 paraphrase, so the SPEC 2.6 contract is greppable in both outputs. The
@@ -130,7 +137,11 @@ def render_markdown(ctx: Context, sections: list[Section],
     lines.append(f"- **inputs fingerprint**: `{payload['inputs_fingerprint']['combined']}` "
                  f"over {len(payload['inputs_fingerprint']['files'])} file(s). No timestamp "
                  f"is written anywhere in this report, so two runs over identical inputs "
-                 f"produce identical bytes and a regression is a diff.")
+                 f"and identical prior snapshot state produce identical bytes and a "
+                 f"regression is a diff. The one exception is `resolution_transitions`, "
+                 f"which is stateful by design: it reads the ref-status snapshot the "
+                 f"previous run wrote, so a second run in the same output directory "
+                 f"legitimately reports history the first one did not have.")
     failed_inputs = payload["input_source"]["failed"]
     if failed_inputs:
         lines.append("")

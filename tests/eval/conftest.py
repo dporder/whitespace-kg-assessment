@@ -2,15 +2,16 @@
 
 `fixtures/` is orchestrator-owned and must not be edited, so every test that
 needs a broken tree, a golden label or a second run works on a copy under
-tmp_path. The copy is also where the **green baseline** comes from.
+tmp_path. The copy is a faithful one: the shipped fixtures are the green
+baseline, and a seeded failure is the only difference between a passing run and
+a failing one.
 
-The baseline needs one addition the shipped fixtures do not carry. The fixture
-Core Terms tree is an excerpt holding clauses 3 and 9 with 4 to 8 left out, so
-its top-level siblings really do read "3 then 9" with no anomaly recorded, and
-the numbering-gap invariant correctly reports an unexplained violation. A real
-parse of the real part would either find 4 to 8 or record the gap. The baseline
-records it, exactly as stage 2 would, which is what makes "green, then seed a
-failure, then red" an honest demonstration rather than a rigged one.
+This used to inject a `numbering_gap` anomaly on `core-terms/9`, because the
+fixture Core Terms tree is an excerpt holding clauses 3 and 9 with 4 to 8 left
+out and the shipped tree recorded nothing about it. Master 95f326e records that
+anomaly in `fixtures/make_fixtures.py`, so the injection is gone; a test fixture
+that quietly repairs its own input is a trap the next reader would have to
+discover.
 """
 from __future__ import annotations
 
@@ -24,9 +25,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SHIPPED_FIXTURES = REPO_ROOT / "fixtures"
-
-EXCERPT_ANOMALY = ("numbering_gap_after_3: the fixture is an excerpt, Core Terms "
-                   "clauses 4 to 8 are not included")
 
 
 def _find(node: dict, path: str) -> Optional[dict]:
@@ -70,6 +68,20 @@ class Workspace:
         assert node is not None, f"{path} not in {part}"
         node.update(changes)
         self.write_tree(part, data)
+
+    def definition_sites(self) -> list[dict]:
+        return json.loads((self.fixtures / "vocab" / "definition_sites.json").read_text())
+
+    def write_definition_sites(self, sites: list[dict]) -> None:
+        (self.fixtures / "vocab" / "definition_sites.json").write_text(
+            json.dumps(sites, indent=2))
+
+    def drop_definition_site(self, term: str) -> None:
+        """Remove a term's definition site, leaving its uses pointing at nothing."""
+        sites = self.definition_sites()
+        remaining = [s for s in sites if s["term"] != term]
+        assert len(remaining) < len(sites), f"no definition site for {term!r} to drop"
+        self.write_definition_sites(remaining)
 
     # -- golden labels --------------------------------------------------------
     def label(self, **record: Any) -> None:
@@ -138,21 +150,7 @@ class Run:
 
 @pytest.fixture
 def workspace(tmp_path: Path) -> Workspace:
-    """A green baseline: the shipped fixtures plus the excerpt anomaly."""
-    fixtures = tmp_path / "fixtures"
-    shutil.copytree(SHIPPED_FIXTURES, fixtures)
-    ws = Workspace(root=tmp_path, fixtures=fixtures,
-                   output=tmp_path / "output", golden=tmp_path / "golden")
-    data = ws.tree("core-terms")
-    node = _find(data, "core-terms/9")
-    node.setdefault("anomalies", []).append(EXCERPT_ANOMALY)
-    ws.write_tree("core-terms", data)
-    return ws
-
-
-@pytest.fixture
-def shipped_workspace(tmp_path: Path) -> Workspace:
-    """The shipped fixtures exactly as committed, no baseline correction."""
+    """The shipped fixtures, copied verbatim. They are the green baseline."""
     fixtures = tmp_path / "fixtures"
     shutil.copytree(SHIPPED_FIXTURES, fixtures)
     return Workspace(root=tmp_path, fixtures=fixtures,

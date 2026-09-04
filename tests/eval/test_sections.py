@@ -83,19 +83,33 @@ def test_no_term_labels_reports_the_population_without_scoring(workspace):
 
 def test_discovery_precision_and_recall_against_the_declared_schedule(workspace):
     section = workspace.run().section("definitions_vs_provided")
-    assert section["declared_terms"] == 4
+    assert section["declared_terms"] == 5
     assert section["discovered_terms"] == 1
     assert section["discovery_precision_against_declared"] == {"count": 1, "of": 1,
                                                                "rate": 1.0}
-    assert section["discovery_recall_against_declared"] == {"count": 1, "of": 4,
-                                                            "rate": 0.25}
+    assert section["discovery_recall_against_declared"] == {"count": 1, "of": 5,
+                                                            "rate": 0.2}
     assert section["discovered_outside_the_declared_schedule"]["count"] == 0
 
 
+def test_the_shipped_fixtures_leave_no_term_use_pointing_at_nothing(workspace):
+    """Master 95f326e defined Outputs, so every use now has a site. Pinned so a
+    future fixture that reintroduces a dangling use is caught here."""
+    section = workspace.run().section("definitions_vs_provided")
+    assert section["term_uses_with_no_definition_site"] == []
+
+
 def test_a_term_used_with_no_definition_site_is_surfaced(workspace):
-    """The fixtures use Outputs twice and define it nowhere: a broken edge."""
+    """A USES_TERM edge pointing at nothing is a broken edge, not a metric.
+
+    The condition is seeded rather than borrowed from the fixtures: the shipped
+    set defines every term it uses, and a check that depends on that staying
+    untrue would rot the next time the fixtures improve.
+    """
+    workspace.drop_definition_site("Outputs")
     section = workspace.run().section("definitions_vs_provided")
     assert {"term": "Outputs", "uses": 2} in section["term_uses_with_no_definition_site"]
+    assert section["declared_terms"] == 4, "the dropped site is gone from the declared list"
 
 
 def test_defined_using_graph_is_derived_from_uses_inside_definition_texts(workspace):

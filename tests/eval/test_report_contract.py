@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 
 from pipeline.eval.sections import SECTION_NAMES
 
@@ -75,9 +76,24 @@ def test_no_clock_reading_anywhere_in_the_report(workspace):
     assert run.report["inputs_fingerprint"]["combined"]
 
 
-def test_two_runs_over_identical_inputs_agree_byte_for_byte(workspace):
-    """Everything except resolution_transitions, which is stateful on purpose:
-    the second run has a snapshot to compare against that the first did not."""
+def test_two_cold_runs_over_identical_inputs_are_byte_identical(workspace):
+    """The whole file, transitions included. This is the claim the report header
+    makes, so it is pinned rather than described."""
+    first = workspace.run()
+    first_bytes = (first.eval_dir / "report.json").read_bytes()
+    first_md = (first.eval_dir / "report.md").read_bytes()
+
+    shutil.rmtree(workspace.output)                # no prior snapshot, as on run one
+    second = workspace.run()
+
+    assert (second.eval_dir / "report.json").read_bytes() == first_bytes
+    assert (second.eval_dir / "report.md").read_bytes() == first_md
+
+
+def test_consecutive_runs_differ_only_where_the_harness_is_stateful(workspace):
+    """resolution_transitions reads the snapshot the previous run wrote, so a
+    second run in the same output directory legitimately reports history the
+    first did not have. Nothing else may move."""
     first = workspace.run().report
     second = workspace.run().report
     for name in SPEC_2_6_SECTIONS:
@@ -88,6 +104,13 @@ def test_two_runs_over_identical_inputs_agree_byte_for_byte(workspace):
     assert first["inputs_fingerprint"] == second["inputs_fingerprint"]
     assert first["sections"]["resolution_transitions"]["status"] == "no_data"
     assert second["sections"]["resolution_transitions"]["status"] == "measured"
+
+
+def test_the_report_header_does_not_overstate_determinism(workspace):
+    """The unqualified claim was wrong: consecutive runs are not byte-identical."""
+    markdown = workspace.run().markdown
+    assert "identical prior snapshot state" in markdown
+    assert "resolution_transitions`, which is stateful by design" in markdown
 
 
 def test_absent_and_failed_inputs_are_different_states(workspace):
