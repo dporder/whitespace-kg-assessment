@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; color: #ffffff; }
+    .step { font-size: 12.5px; line-height: 1.5; color: #c8c8ca; }
+    .found { font-size: 11.5px; color: #adafb7; }
+    .stagelbl { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #adafb7; }
+  </style>
+</helmet>
+<div style="width: 900px; height: 620px; background: #08090b; box-sizing: border-box; padding: 26px 28px; display: flex; flex-direction: column; gap: 16px;">
+
+  <div style="display: flex; align-items: baseline; gap: 10px;">
+    <svg width="9" height="7" viewBox="0 0 8 6" fill="none" style="transform: rotate(0deg);"><path d="M1 1.5L4 4.5L7 1.5" stroke="#adafb7" stroke-width="1.3" stroke-linecap="round"/></svg>
+    <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #adafb7;">How I found this</span>
+    <span style="font-size: 12px; color: #8c8c8c;">— open only if you want it</span>
+  </div>
+
+  <div style="border: 1px solid #3e3f47; border-radius: 10px; background: #1a1b22; padding: 20px 22px; display: flex; flex-direction: column; gap: 4px;">
+
+    <!-- stage 1 -->
+    <div style="display: flex; gap: 16px;">
+      <div style="width: 92px; flex-shrink: 0; padding-top: 2px;">
+        <div class="stagelbl">First</div>
+        <div style="font-size: 11px; color: #8c8c8c; margin-top: 2px;">both at once</div>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid #3e3f47; padding-left: 18px; padding-bottom: 18px; position: relative;">
+        <div style="position: absolute; left: -7px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: #1a1b22; border: 1px solid #5c5d64;"></div>
+        <div>
+          <div class="step">Looked for the clause about owning new intellectual property</div>
+          <div class="found">found Core Terms, Clause 9.2</div>
+        </div>
+        <div>
+          <div class="step">Looked up what “Central Buying Office” means</div>
+          <div class="found">found one definition, applying across the whole agreement</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- stage 2 -->
+    <div style="display: flex; gap: 16px;">
+      <div style="width: 92px; flex-shrink: 0; padding-top: 2px;">
+        <div class="stagelbl">Then</div>
+        <div style="font-size: 11px; color: #8c8c8c; margin-top: 2px;">needed the first</div>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid #3e3f47; padding-left: 18px; padding-bottom: 18px; position: relative;">
+        <div style="position: absolute; left: -7px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: #1a1b22; border: 1px solid #5c5d64;"></div>
+        <div>
+          <div class="step">Read Clause 9.2 in full and cut its page image</div>
+          <div class="found">one clause, page 2</div>
+        </div>
+        <div>
+          <div class="step">Followed everything that clause points at</div>
+          <div class="found">four pointers: two settled, one legislation, one unresolved</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- stage 3 -->
+    <div style="display: flex; gap: 16px;">
+      <div style="width: 92px; flex-shrink: 0; padding-top: 2px;">
+        <div class="stagelbl">Last</div>
+        <div style="font-size: 11px; color: #8c8c8c; margin-top: 2px;">needed the second</div>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px; padding-left: 18px; position: relative;">
+        <div style="position: absolute; left: -7px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: #1a1b22; border: 1px solid #30d3b1;"></div>
+        <div>
+          <div class="step">Read the two obligations that ownership is subject to</div>
+          <div class="found">Clause 3.1.1 paragraph (a), and Clause 3.1.2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: #adafb7;">
+    <span>Every statement above is drawn only from what these steps returned.</span>
+    <span style="flex-grow: 1;"></span>
+    <span style="font-size: 11px; color: #8c8c8c;">7 lookups · 4 rounds</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

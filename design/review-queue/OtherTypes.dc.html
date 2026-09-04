@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; color: #ffffff; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .card { background: #1a1b22; border: 1px solid #3e3f47; border-radius: 10px; }
+    .cite { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+    .where { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #8c8c8c; }
+    .quote { font-size: 13.5px; line-height: 1.8; color: #c8c8ca; border-left: 2px solid #3e3f47; padding-left: 16px; }
+    .question { font-size: 17px; font-weight: 600; line-height: 1.45; letter-spacing: -0.01em; }
+    .disc { font-size: 12px; color: #adafb7; }
+    .ansname { font-size: 13.5px; font-weight: 500; }
+    .anssub { font-size: 12px; color: #adafb7; line-height: 1.5; }
+    .state { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 999px;
+             color: #f99c00; background: rgba(249,156,0,0.12); border: 1px solid rgba(249,156,0,0.4); }
+    .tab { display: flex; align-items: center; gap: 9px; padding: 0 0 13px; font-size: 15px;
+           font-weight: 500; color: #adafb7; border-bottom: 2px solid transparent; }
+    .tab.on { color: #ffffff; border-bottom-color: #1f6feb; }
+    .tab .b { min-width: 22px; height: 21px; border-radius: 4px; background: rgba(255,255,255,0.07);
+              color: #adafb7; font-size: 11px; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+    .tab.on .b { background: rgba(31,111,235,0.18); color: #8ab4f8; }
+    .caption { font-size: 12px; color: #8c8c8c; font-style: italic; }
+  </style>
+</helmet>
+<div style="width: 1100px; height: 1080px; background: #08090b; box-sizing: border-box; padding: 26px 30px; display: flex; flex-direction: column; gap: 26px;">
+
+  <div class="caption">The same screen with a different tab selected. Only one review type is ever on the page.</div>
+
+  <!-- ===== Defined terms ===== -->
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; gap: 30px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div class="tab">Cross-references<span class="b">3</span></div>
+      <div class="tab on">Defined terms<span class="b">1</span></div>
+      <div class="tab">Flagged oddities<span class="b">3</span></div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em;">Defined terms</span>
+      <span style="font-size: 11px; color: #8c8c8c;">1 still to answer</span>
+    </div>
+    <div style="font-size: 13px; line-height: 1.65; color: #adafb7; max-width: 780px;">The agreement gives certain capitalised words a special meaning. These are places where the system is unsure whether the capitals signal that meaning or are just ordinary writing.</div>
+
+    <div class="card" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <span class="cite">Core Terms, Clause 3.1.1, paragraph (b)</span>
+        <span class="where">page 1</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="state">Awaiting review</span>
+      </div>
+      <div style="display: flex; gap: 24px; align-items: flex-start;">
+        <div style="width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;">
+          <div style="border: 1px solid #3e3f47; border-radius: 10px; overflow: hidden; background: #ffffff;">
+            <svg width="278" height="66" viewBox="0 0 278 66" fill="none" style="display: block;">
+              <rect width="278" height="66" fill="#ffffff"/>
+              <rect x="12" y="18" width="158" height="20" rx="2" fill="#e4f4f0" stroke="#30d3b1" stroke-width="1.6"/>
+              <rect x="19" y="26" width="144" height="5" rx="2.5" fill="#7cc4b2"/>
+              <rect x="180" y="26" width="78" height="5" rx="2.5" fill="#d5d2cc"/>
+              <rect x="18" y="48" width="126" height="5" rx="2.5" fill="#d5d2cc"/>
+            </svg>
+          </div>
+          <div style="font-size: 11px; color: #8c8c8c;">The page itself, with the words boxed</div>
+        </div>
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 14px;">
+          <div class="quote">“<span style="background: rgba(48,211,177,0.20); padding: 1px 3px; border-radius: 3px; color: #ffffff; font-weight: 500;">Good Working Practice</span> applies to everything supplied.”</div>
+          <div style="border: 1px solid #3e3f47; background: rgba(255,255,255,0.02); border-radius: 10px; padding: 13px 15px;">
+            <div class="mono" style="font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: #30d3b1; margin-bottom: 6px;">The definition that would apply here</div>
+            <div style="font-size: 13px; line-height: 1.65; color: #c8c8ca;">“standards which a skilled person would reasonably be expected to meet”</div>
+            <div style="font-size: 11px; color: #8c8c8c; margin-top: 6px;">from Joint Schedule 1 (Definitions), the definition of "Good Working Practice" — applies across the whole agreement</div>
+          </div>
+          <div class="question">Is this the defined term, or ordinary words?</div>
+          <div class="disc"><span class="mono">+</span> Why am I being asked?</div>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px; border: 1px solid #2d5791; background: rgba(31,111,235,0.10); border-radius: 10px; padding: 14px 16px;">
+              <div class="ansname">Yes, it means “Good Working Practice”</div>
+              <div class="anssub">the defined term applies here</div>
+            </div>
+            <div style="flex: 1; min-width: 236px; border: 1px solid #3e3f47; background: #28292f; border-radius: 10px; padding: 14px 16px;">
+              <div class="ansname">No, these are ordinary words</div>
+              <div class="anssub">the capitals do not signal the defined term</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Flagged oddities ===== -->
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; gap: 30px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div class="tab">Cross-references<span class="b">3</span></div>
+      <div class="tab">Defined terms<span class="b">1</span></div>
+      <div class="tab on">Flagged oddities<span class="b">3</span></div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em;">Flagged oddities</span>
+      <span style="font-size: 11px; color: #8c8c8c;">3 still to answer</span>
+    </div>
+    <div style="font-size: 13px; line-height: 1.65; color: #adafb7; max-width: 780px;">Things on the page that look wrong or unusual. The wording is always kept exactly as printed; nothing is corrected.</div>
+
+    <div class="card" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <span class="cite">Framework Award Form, row 3, the label</span>
+        <span class="where">page 1</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="state">Awaiting review</span>
+      </div>
+      <div style="display: flex; gap: 24px; align-items: flex-start;">
+        <div style="width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;">
+          <div style="border: 1px solid #3e3f47; border-radius: 10px; overflow: hidden; background: #ffffff;">
+            <svg width="278" height="66" viewBox="0 0 278 66" fill="none" style="display: block;">
+              <rect width="278" height="66" fill="#ffffff"/>
+              <rect x="12" y="20" width="124" height="20" rx="2" fill="#efefef" stroke="#5c5d64" stroke-width="1.6"/>
+              <rect x="19" y="28" width="110" height="5" rx="2.5" fill="#9a948f"/>
+              <rect x="148" y="28" width="112" height="5" rx="2.5" fill="#d5d2cc"/>
+              <rect x="148" y="48" width="84" height="5" rx="2.5" fill="#d5d2cc"/>
+            </svg>
+          </div>
+          <div style="font-size: 11px; color: #8c8c8c;">The page itself, with the label boxed</div>
+        </div>
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 14px;">
+          <div class="quote mono" style="font-size: 13px;">rFramework Contract</div>
+          <div class="question">Should this be read as “Framework Contract”?</div>
+          <div class="disc"><span class="mono">+</span> Why am I being asked?</div>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px; border: 1px solid #2d5791; background: rgba(31,111,235,0.10); border-radius: 10px; padding: 14px 16px;">
+              <div class="ansname">Yes, it means “Framework Contract”</div>
+              <div class="anssub">record the reading beside the original wording</div>
+            </div>
+            <div style="flex: 1; min-width: 236px; border: 1px solid #3e3f47; background: #28292f; border-radius: 10px; padding: 14px 16px;">
+              <div class="ansname">No, that reading is wrong</div>
+              <div class="anssub">leave it flagged with no accepted reading</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
