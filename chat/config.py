@@ -42,7 +42,12 @@ GRAPH_BACKEND = "fixtures"
 EMBEDDING_SEARCH = False
 
 # Bounded tool loop. The loop stops at whichever bound is hit first.
-MAX_TOOL_ROUNDS = 6
+# Raised from 6 after a live run showed the round bound, not the call budget,
+# was always what stopped research: richer plans need more rounds, and a longer
+# plan makes that worse. Hitting the bound is now survivable (the loop composes
+# a final answer from what it gathered), so this is a quality knob rather than a
+# safety one. MAX_TOOL_CALLS is the binding limit at this setting.
+MAX_TOOL_ROUNDS = 8
 MAX_TOOL_CALLS = 24
 
 # Where the interim LLM client writes its call log when pipeline/llm.py is

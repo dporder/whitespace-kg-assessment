@@ -268,6 +268,7 @@ class Neo4jBackend(ToolBackend):
             hits.append(
                 {
                     "path": path,
+                    "name": self._human_name(path),
                     "kind": r.get("kind"),
                     "label": r.get("label"),
                     "title": r.get("title"),

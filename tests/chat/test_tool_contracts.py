@@ -54,8 +54,9 @@ def test_find_provision_shape_and_vector_arm(backend):
     assert set(out) == {"query", "backend", "hits", "vector_arm"}
     assert out["backend"] == "fixtures"
     for h in out["hits"]:
-        assert set(h) == {"path", "kind", "label", "title", "unit_label",
+        assert set(h) == {"path", "name", "kind", "label", "title", "unit_label",
                           "page", "score", "matched_on"}
+        assert h["name"], "a hit the model may go on to cite must carry its name"
         assert 0.0 <= h["score"] <= 1.0
         assert h["matched_on"] in ("path", "title", "label", "text", "term")
 

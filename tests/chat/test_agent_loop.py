@@ -36,8 +36,11 @@ class Script:
 
     def stream(self, *, task, model, system, messages, tools=None, **kw):
         assert task == "chat_agent"
-        assert tools, "the agent turn must be given its tools"
-        turn = self.turns[self.streams]
+        # Research turns get the tools; the compose turn after the round budget
+        # is spent deliberately gets none, so this is not an invariant.
+        # A spent script repeats its last turn rather than running out: the
+        # loop may make one more call than there are research rounds.
+        turn = self.turns[min(self.streams, len(self.turns) - 1)]
         self.streams += 1
         for chunk in turn.get("text_chunks", []):
             yield ("text", chunk)
@@ -136,7 +139,32 @@ def test_plan_survives_non_json(scripted):
         p = agent.plan("q", "research")
     finally:
         agent.llm_client.complete = monkey
-    assert p["degraded"] == "planner returned non-JSON"
+    assert p["degraded"].startswith("planner returned text that is not JSON")
+
+
+def test_a_truncated_plan_says_it_was_truncated(monkeypatch, capsys):
+    """900 tokens could not fit the plan the prompt asks for, so the JSON was
+    cut off mid-string and the whole plan was dropped in silence."""
+    monkeypatch.setattr(
+        agent.llm_client, "complete",
+        lambda **kw: llm_client.LLMResponse(text='{"restated": "a", "batches": [{"n": 1, "qu',
+                                            stop_reason="max_tokens"))
+    p = agent.plan("q", "research")
+    assert p["batches"] == []
+    assert "ran out of output tokens" in p["degraded"]
+    assert "PLAN DISCARDED" in capsys.readouterr().err, "a lost plan must not be silent"
+
+
+def test_the_planner_is_given_room_for_the_plan_it_is_asked_for(monkeypatch):
+    seen = {}
+
+    def spy(**kw):
+        seen.update(kw)
+        return llm_client.LLMResponse(text='{"restated": "a", "batches": []}')
+
+    monkeypatch.setattr(agent.llm_client, "complete", spy)
+    agent.plan("q", "research")
+    assert seen["max_tokens"] >= 2000
 
 
 # ---------------------------------------------------------------- tool loop
@@ -259,6 +287,21 @@ def test_a_page_that_no_tool_returned_is_never_ok():
     assert runner.ledger.check("core-terms/9/9.2", 2) == "ok"
 
 
+def test_every_tool_that_can_surface_a_citable_path_reports_its_name():
+    """A live run produced a citation labelled with a raw path because
+    find_provision was the only tool that had surfaced it and it reported no
+    name. Every route to a path must carry the name with it."""
+    runner = ToolRunner()
+    runner.run("find_provision", {"query": "Good Working Practice"})
+    hit = runner.calls[0].result["hits"][0]
+    assert runner.ledger.names.get(hit["path"]), f"no name harvested for {hit['path']}"
+
+    runner2 = ToolRunner()
+    runner2.run("define", {"term": "Good Working Practice"})
+    site = runner2.calls[0].result["sites"][0]
+    assert runner2.ledger.names.get(site["definition_path"])
+
+
 def test_history_citations_are_harvested():
     """The history branch harvested nothing, so any claim sourced from it
     failed verification even when it was true."""
@@ -287,6 +330,131 @@ def test_the_loop_is_bounded(scripted, monkeypatch):
     events = collect("loop forever")
     assert sum(1 for e, _ in events if e == "tool") == 3
     assert any(e == "note" for e, _ in events)
+
+
+# --- narration must not become the answer -----------------------------------
+# A live run showed the model opens most turns with "I'll start by locating
+# Clause 9.2." alongside its first tool calls. Every round's text was being
+# accumulated, so that narration arrived glued to the front of the answer with
+# no separator, on the wire and in the page.
+NARRATED = [
+    {"text_chunks": ["I'll start by locating Clause 9.2."],
+     "tool_uses": [{"id": "n1", "name": "get_provision",
+                    "input": {"path": "core-terms/9/9.2"}}]},
+    {"text_chunks": ["Clause 9.2 vests New IPR in the buyer [[core-terms/9/9.2|2]]."]},
+]
+
+
+def test_narration_is_not_glued_onto_the_answer(scripted):
+    scripted(Script(turns=NARRATED))
+    runner = ToolRunner()
+    events = collect("What does Clause 9.2 say?", runner=runner)
+    answer = "".join(p["delta"] for e, p in events if e == "text")
+    # the deltas still carry it (it streams as progress), but the composed
+    # answer the citations are checked against must not
+    assert agent.verify_citations(answer, runner)
+    final = "".join(p["delta"] for e, p in events
+                    if e == "text") if False else None      # noqa: F841
+    narration = next(p for e, p in events if e == "narration")
+    assert narration["text"] == "I'll start by locating Clause 9.2."
+    assert any(e == "answer_reset" for e, _ in events), "the page is never told to clear"
+    # order matters: the reset must arrive before the answer's own text
+    kinds = [e for e, _ in events]
+    assert kinds.index("answer_reset") < len(kinds) - 1
+
+
+def test_the_answer_the_citations_are_checked_against_excludes_narration(scripted):
+    """turn.answer is what verify_citations reads, so it is the thing that
+    must be clean, not merely the rendering."""
+    captured = {}
+    real = agent.verify_citations
+
+    def spy(answer, runner):
+        captured["answer"] = answer
+        return real(answer, runner)
+
+    scripted(Script(turns=NARRATED))
+    agent.verify_citations = spy
+    try:
+        collect("What does Clause 9.2 say?")
+    finally:
+        agent.verify_citations = real
+    assert "I'll start by" not in captured["answer"]
+    assert captured["answer"].startswith("Clause 9.2 vests")
+
+
+# --- spending the round budget must not cost the answer ---------------------
+def test_hitting_the_round_bound_still_composes_an_answer(scripted, monkeypatch):
+    """The worst live failure: 21 successful tool calls, then a one-sentence
+    answer with zero citations because the loop simply stopped."""
+    monkeypatch.setattr(agent.ui_config, "MAX_TOOL_ROUNDS", 2)
+    turns = [
+        {"text_chunks": ["I'll work through this in batches."],
+         "tool_uses": [{"id": "a", "name": "get_provision",
+                        "input": {"path": "core-terms/9/9.2"}}]},
+        {"text_chunks": ["Still gathering."],
+         "tool_uses": [{"id": "b", "name": "get_provision",
+                        "input": {"path": "core-terms/3/3.1/3.1.2"}}]},
+        # the compose turn: no tools offered, so this is what it must produce
+        {"text_chunks": ["New IPR sits with the buyer [[core-terms/9/9.2|2]]. ",
+                         "I could not reach the termination provisions."]},
+    ]
+    script = Script(turns=turns)
+    scripted(script)
+    runner = ToolRunner()
+    events = collect("the messy composite", runner=runner)
+
+    note = next(p for e, p in events if e == "note")
+    assert "retrieval budget" in note["message"]
+
+    cites = next(p for e, p in events if e == "citations")["citations"]
+    assert cites, "spending the budget must not cost the reader every citation"
+    assert all(c["status"] == "ok" for c in cites)
+
+    answer = next(p for e, p in events if e == "done")
+    assert answer["uncited_claims_possible"] is False
+
+
+def test_the_compose_turn_is_offered_no_tools(scripted, monkeypatch):
+    """If it could still call tools it would keep researching, not answer."""
+    monkeypatch.setattr(agent.ui_config, "MAX_TOOL_ROUNDS", 1)
+    seen = []
+
+    class Watcher(Script):
+        def stream(self, *, task, model, system, messages, tools=None, **kw):
+            seen.append(tools)
+            yield from super().stream(task=task, model=model, system=system,
+                                      messages=messages, tools=tools, **kw)
+
+    scripted(Watcher(turns=[
+        {"tool_uses": [{"id": "a", "name": "get_provision",
+                        "input": {"path": "core-terms/9/9.2"}}]},
+        {"text_chunks": ["Answering from what I have [[core-terms/9/9.2|2]]."]},
+    ]))
+    collect("bounded")
+    assert seen[0], "the research turn must be given its tools"
+    assert not seen[-1], "the compose turn must be given none"
+
+
+def test_the_compose_instruction_does_not_stack_two_user_messages(scripted, monkeypatch):
+    """Consecutive user messages are not a shape the API promises to accept."""
+    monkeypatch.setattr(agent.ui_config, "MAX_TOOL_ROUNDS", 1)
+    seen = []
+
+    class Watcher(Script):
+        def stream(self, *, task, model, system, messages, tools=None, **kw):
+            seen.append([m["role"] for m in messages])
+            yield from super().stream(task=task, model=model, system=system,
+                                      messages=messages, tools=tools, **kw)
+
+    scripted(Watcher(turns=[
+        {"tool_uses": [{"id": "a", "name": "get_provision",
+                        "input": {"path": "core-terms/9/9.2"}}]},
+        {"text_chunks": ["done [[core-terms/9/9.2|2]]"]},
+    ]))
+    collect("bounded")
+    roles = seen[-1]
+    assert all(a != b for a, b in zip(roles, roles[1:])), f"roles do not alternate: {roles}"
 
 
 def test_tool_budget_stops_the_loop_without_crashing(scripted, monkeypatch):
