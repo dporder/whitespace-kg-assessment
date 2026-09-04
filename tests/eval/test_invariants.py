@@ -53,12 +53,12 @@ def clean_pair(child_box=(110, 130, 400, 145), parent_box=(100, 100, 400, 115),
 
 
 def failures(root: Node, check: str):
-    violations, _checked, _skipped = check_tree("p", root)
+    violations, *_ = check_tree("p", root)
     return [v for v in violations if v.check == check]
 
 
 def test_clean_tree_has_no_violations():
-    violations, checked, _ = check_tree("p", clean_pair())
+    violations, checked, *_ = check_tree("p", clean_pair())
     assert violations == []
     assert checked["child_left_edge"] >= 1
 
@@ -109,7 +109,7 @@ def test_table_cells_in_row_major_order_are_fine():
     table = mk("p/t", "table", 1, None, n_rows=2, n_cols=2, children=cells)
     root = mk("p", "part", 0, None, title="P", children=[table])
     extents(root)
-    violations, _, _ = check_tree("p", root)
+    violations, *_ = check_tree("p", root)
     assert violations == []
 
 
@@ -133,6 +133,81 @@ def test_a_sibling_entirely_above_its_predecessor_is_out_of_reading_order():
     extents(root)
     hits = failures(root, "siblings_ascend")
     assert len(hits) == 1 and "entirely above" in hits[0].detail
+
+
+# ------------------------------- own-box checks compare own ink only, SPEC 2.1
+
+def inked_parent_over_inkless_table():
+    """The real shape: joint-schedule-1/1.4/table, a container with no ink of
+    its own whose cells start left of the inked parent's number box."""
+    cells = [
+        mk("p/1/table/0/0", "cell", 3, (67.2, 140, 200, 155), text="a", row=0, col=0,
+           cell_role="label"),
+        mk("p/1/table/0/1", "cell", 4, (210, 140, 500, 155), text="b", row=0, col=1,
+           cell_role="value"),
+    ]
+    table = mk("p/1/table", "table", 2, None, n_rows=1, n_cols=2, children=cells)
+    parent = mk("p/1", "heading", 1, (72.0, 100, 400, 115), label="1", title="One",
+                children=[table])
+    root = mk("p", "part", 0, None, title="P", children=[parent])
+    extents(root)
+    return root
+
+
+def test_a_container_with_no_own_ink_is_not_examined_not_violated():
+    """The single unexplained violation on the parser's real batch trees:
+    "left edge 67.2 is left of parent's 72.0". The table has no bboxes_own, so
+    the comparison was against its extent, which is derived from the very cells
+    that stick out. A node with no own ink has no own edge."""
+    root = inked_parent_over_inkless_table()
+    violations, checked, skipped, reasons = check_tree("p", root)
+
+    assert [v for v in violations if v.check == "child_left_edge"] == []
+    assert reasons["child_left_edge"][invariants.NO_OWN_INK] >= 1
+    assert skipped["child_left_edge"] >= 1
+    assert "no own ink" in invariants.NO_OWN_INK
+
+
+def test_the_same_pair_is_still_covered_by_extent_nests():
+    """Nothing is lost: containment is extent_nests's question and it passes
+    this pair, so dropping the fallback removes a false positive, not a check."""
+    root = inked_parent_over_inkless_table()
+    violations, checked, _skipped, _reasons = check_tree("p", root)
+    assert checked["extent_nests"] >= 1
+    assert [v for v in violations if v.check == "extent_nests"] == []
+
+
+def test_own_ink_that_really_is_outdented_is_still_a_violation():
+    """The restriction must not become an amnesty for inked nodes."""
+    root = clean_pair(child_box=(60, 130, 400, 145), parent_box=(72, 100, 400, 115))
+    assert [v.path for v in failures(root, "child_left_edge")] == ["p/1/a"]
+
+
+def test_own_box_above_first_child_also_needs_own_ink_on_both_sides():
+    root = inked_parent_over_inkless_table()
+    violations, _checked, _skipped, reasons = check_tree("p", root)
+    assert [v for v in violations if v.check == "own_box_above_first_child"] == []
+    assert reasons["own_box_above_first_child"][invariants.NO_OWN_INK] >= 1
+
+
+def test_sibling_checks_keep_the_extent_fallback():
+    """Only the own-box checks are restricted. Two form rows hold no ink of
+    their own, and comparing their extents is like with like, so their reading
+    order is still checked rather than becoming invisible."""
+    def row(path, order, y):
+        cells = [mk(f"{path}/label", "cell", order + 1, (72, y, 180, y + 15),
+                    text="l", row=0, col=0, cell_role="label"),
+                 mk(f"{path}/value", "cell", order + 2, (200, y, 470, y + 15),
+                    text="v", row=0, col=1, cell_role="value")]
+        return mk(path, "form_row", order, None, children=cells)
+
+    root = mk("p", "part", 0, None, title="P",
+              children=[row("p/1", 1, 200), row("p/2", 4, 130)])
+    extents(root)
+    violations, checked, _skipped, _reasons = check_tree("p", root)
+    assert checked["siblings_ascend"] >= 1
+    assert [v.check for v in violations if v.check == "siblings_ascend"] == \
+        ["siblings_ascend"]
 
 
 # --------------------------------- geometry tolerances come from config, SPEC 2.1
@@ -339,7 +414,7 @@ def gapped_group(anomalies_92=(), parent_anomalies=(), labels=("9.1", "9.2", "9.
 
 
 def gap_violations(root):
-    violations, _, _ = check_tree("p", root)
+    violations, *_ = check_tree("p", root)
     return [v for v in violations if v.check == "numbering_gap"]
 
 

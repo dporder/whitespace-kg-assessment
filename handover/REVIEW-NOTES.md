@@ -244,6 +244,35 @@ the marketing register. The researcher verified its own subagent's claims and ca
 empirically, and lists every unverifiable thing (the real app's stylesheet is behind auth, so
 hover/focus/disabled states are unknown). Accepted; the ui-builder styles both surfaces from it.
 
+## 8. Closing the stage 2 to stage 8 seam (both builders, merged together)
+
+First contact between the parser's real output and the merged eval harness reported 261
+unexplained violations at batch scope where stage 2 reported zero, over identical trees. Neither
+side was broken alone: they had invented disjoint names for the same checks, used different
+geometry tolerances (the harness's spec-silent 0.5pt against the parser's configured 2.0), and
+the parser's manifest sat where the harness enumerates part files. The fix was contract, not
+code heroics: the check vocabulary, the complete tolerance map (read out of the parser's actual
+implementation, including a vertical tolerance that had lived as a module constant), and the
+manifest location are now pinned in SPEC 2.1 and config, with both stages reading one source.
+
+Two judgement calls worth the record. The parser named and avoided a trap while renaming: an
+unexplained violation stamped with a bare check-id key would prefix-match the harness's ledger
+and turn every complaint into its own excuse, so unexplained ones are keyed unresolved_<check_id>.
+And the final residual, one violation, was settled by the orchestrator enumerating the harness's
+own check over the real trees rather than another agent round: the JS1 definitions table has no
+ink of its own, the harness compared its cell-derived extent against the parent's own indent, and
+the ruling (own-box checks compare own ink only, containment is extent_nests's job) matched what
+the parser already did. The harness kept its extent fallback for sibling checks deliberately,
+extent against extent being like with like, with a test pinning that coverage.
+
+The combined check on the merged state: 435 tests, profile, parse and assemble at exit 0 over all
+four batch parts, and the structural gate passing at observed=0. The parser's reviewer cycle also
+belongs to this story: two blockers (intros inserted in reverse reading order, caught by the
+branch's own invariant checker; a per-part fit that ran two of five checks on cap-truncated
+evidence) fixed with regression tests, the verified-typesetting ledger re-keyed to node identity,
+and the honest outcome that the real five-check fit quarantines 6 of 48 parts, five of them for
+geometry the ledger independently verified as the document's own typesetting.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
