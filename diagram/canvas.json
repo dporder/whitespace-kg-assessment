@@ -1,18 +1,4 @@
 {
-  "pages": [
-    {
-      "id": "page-1",
-      "name": "Working set"
-    },
-    {
-      "id": "page-2",
-      "name": "Variations"
-    },
-    {
-      "id": "page-3",
-      "name": "Agentic process"
-    }
-  ],
   "artboards": [
     {
       "file": "Main.dc.html",
@@ -131,5 +117,19 @@
   "launch": {
     "view": "canvas",
     "page": "page-1"
-  }
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Working set"
+    },
+    {
+      "id": "page-2",
+      "name": "Variations"
+    },
+    {
+      "id": "page-3",
+      "name": "Agentic process"
+    }
+  ]
 }
