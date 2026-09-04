@@ -119,15 +119,15 @@
     <div class="node" style="left: 480px; top: 15px; width: 256px; height: 271px;">
       <div class="roleband" style="background: #3c3dcc;"></div>
       <div class="steprow"><div class="stepnum">03</div><div class="nt">Read the pages into words with positions</div></div>
-      <div class="nb">Every word keeps its box on the page. Headers and footers are stripped by position and repetition, but each part's printed page number is kept, it is what a lawyer quotes. Part boundaries are found where the footer signature changes. Columns come from box geometry rather than line order, and tables keep their cells, each with its own box.</div>
-      <div class="ex"><span class="exk">example</span>The definitions schedule is two columns and terms wrap mid cell. Reading by line order shreds it, reading by geometry does not.</div>
+      <div class="nb">Every word has its box on the page recorded. Headers and footers are found by position and repetition. Printed page numbers are kept alongside file ones.&nbsp; Part boundaries are found using domain heuristics, with other methods like where footer changes, font sizes, length distributions, and more. Tables, diagrams and illustrations have their own pipelines.</div>
+      <div class="ex"><span class="exk">PROTOTYPE example</span>The definitions schedule is two columns and text wraps mid cell, so reading in lines left-to write like with prose would shred it. It also contains tables within tables, and yellow highlights that are semantically meaningful.</div>
     </div>
 
     <!-- Step 04: assemble -->
     <div class="node" style="left: 763px; top: 15px; width: 271px; height: 271px;">
       <div class="roleband" style="background: #3c3dcc;"></div>
-      <div class="steprow"><div class="stepnum">04</div><div class="nt">Assemble the tree the numbering describes</div></div>
-      <div class="nb">Clause 3.1.2 nests under 3.1 under 3. A node holds text or holds children, never both, and a clause's lead-in sentence becomes its own child so every character has exactly one home. The tree is then checked against the printed page, a child's box must sit inside its parent's, and 3.1.2 must sit further right than 3.1. Oddities are recorded exactly as found, never repaired.</div>
+      <div class="steprow"><div class="stepnum">04</div><div class="nt">Assemble a hierarchy of nodes</div></div>
+      <div class="nb" style="width: 230px; height: 142px">In the example document, Clause 3.1.2 nests under 3.1 under 3, all within a page that's within a document. In my architecture, a node holds text or holds children, never both. The hierarchy is checked against the printed page (e.g. a child's box must sit inside its parent's). Oddities are recorded, never repaired.</div>
       <div class="ex"><span class="exk">example</span>The brief says 35 clauses, a plain pattern finds 34, so the odd heading is hunted and its difference logged. A stray typo, rFramework, stays verbatim.</div>
     </div>
 
