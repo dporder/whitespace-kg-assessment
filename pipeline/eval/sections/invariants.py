@@ -243,33 +243,39 @@ def _inside(inner: tuple, outer: tuple, eps: float = GEOMETRY_EPS) -> bool:
 
 # Geometry tolerances, SPEC 2.1: "one number, two readers, or the two reports
 # count different violations over the same ink". Stage 2 and stage 8 check the
-# same invariants over the same trees, so the slack has to come from the same
-# place, `config.PARSE_GEOMETRY`.
+# same invariants over the same trees, so the slack comes from the same place,
+# `config.PARSE_GEOMETRY`, and from the canonical map pinned beside it:
 #
-# `indent_tolerance` is the glyph-jitter allowance for a single-edge comparison
-# (3.1 sits at x=27.0 and its child 3.1.1 at 26.4). It applies to every check
-# with a stage 2 counterpart that compares one edge against another.
+#   child_left_edge, extent_nests              -> indent_tolerance   (2.0)
+#   own_box_above_first_child, siblings_ascend -> vertical_tolerance (1.0)
+#   sibling_overlap -> max(vertical_tolerance,
+#                          sibling_overlap_share * min(box heights))
 #
-# `sibling_overlap_share` is proportional, not absolute, because a line box
-# spans ascent plus descent and consecutive lines therefore overlap by 0.8 to
-# 2.9pt purely by construction. The amount scales with the line, so the
-# tolerance has to as well.
+# `indent_tolerance` is horizontal glyph jitter (3.1 sits at x=27.0 and its
+# child 3.1.1 at 26.4). `vertical_tolerance` is baseline jitter, a different and
+# smaller number: reusing the horizontal one here was a guess, and it was wrong.
+# `sibling_overlap_share` is proportional because a line box spans ascent plus
+# descent, so consecutive lines overlap by 0.8 to 2.9pt purely by construction
+# and the amount scales with the line.
 INDENT_TOLERANCE = float(config.PARSE_GEOMETRY["indent_tolerance"])
+VERTICAL_TOLERANCE = float(config.PARSE_GEOMETRY["vertical_tolerance"])
 SIBLING_OVERLAP_SHARE = float(config.PARSE_GEOMETRY["sibling_overlap_share"])
 
 
 def sibling_overlap_tolerance(prev_box: tuple, next_box: tuple) -> float:
     """Points of vertical overlap two stacked siblings may show before it counts.
 
-    A share of the *smaller* of the two line boxes. The reading matters: on the
-    preserved parser output the worst tolerated case, award-form/row-2 against
-    its sibling, overlaps 3.38pt on a 17.18pt box, which is 0.197 of it and sits
-    just inside the configured 0.2. Measured against the taller box it would be
-    0.07, and a threshold of 0.2 would be far looser than anything the trees
-    need. The tight fit is the evidence for which box the share is of.
+    A share of the *smaller* of the two line boxes, floored at
+    `vertical_tolerance`. The share settles the ordinary case: on the preserved
+    parser output the worst tolerated pair, award-form/row-2 against its
+    sibling, overlaps 3.38pt on a 17.18pt box, 0.197 of it, just inside the
+    configured 0.2. The floor covers the case the share cannot, a box short
+    enough that a proportional allowance falls below plain baseline jitter: it
+    binds only below a height of
+    `vertical_tolerance / sibling_overlap_share` = 5pt.
     """
     heights = (prev_box[3] - prev_box[1], next_box[3] - next_box[1])
-    return SIBLING_OVERLAP_SHARE * min(heights)
+    return max(VERTICAL_TOLERANCE, SIBLING_OVERLAP_SHARE * min(heights))
 
 
 def check_tree(part: str, root: Node,
@@ -418,7 +424,7 @@ def check_tree(part: str, root: Node,
                         f"first child starts on page {child_first_page}, before the "
                         f"node's own page {own_first_page}", first)
                 elif child_first_page == own_first_page and \
-                        first_box[child_first_page][1] < own[own_first_page][1] - INDENT_TOLERANCE:
+                        first_box[child_first_page][1] < own[own_first_page][1] - VERTICAL_TOLERANCE:
                     add("own_box_above_first_child", node,
                         f"own box top {own[own_first_page][1]:.1f} is below first child's "
                         f"{first_box[child_first_page][1]:.1f}", first)
@@ -446,13 +452,16 @@ def check_tree(part: str, root: Node,
             if n_page > p_page:
                 continue                                   # different pages, order is by page
             p, n = pb[p_page], nb[n_page]
-            tol = sibling_overlap_tolerance(p, n)
-            if n[3] <= p[1] + tol:
+            # Reading order is baseline jitter, vertical_tolerance. Overlap is
+            # the proportional line-box allowance. Two different numbers for two
+            # different questions, per the canonical map in config.
+            if n[3] <= p[1] + VERTICAL_TOLERANCE:
                 add("siblings_ascend", nxt,
                     f"sits entirely above sibling {prev.label or prev.path} on page {p_page}",
                     prev)
                 continue
             checked["sibling_overlap"] += 1
+            tol = sibling_overlap_tolerance(p, n)
             if n[1] >= p[3] - tol:
                 continue                                   # ascending, overlap within tolerance
             if n[0] >= p[2] - INDENT_TOLERANCE:
@@ -460,9 +469,10 @@ def check_tree(part: str, root: Node,
             overlap = p[3] - n[1]
             add("sibling_overlap", nxt,
                 f"overlaps sibling {prev.label or prev.path} vertically on page "
-                f"{p_page} by {overlap:.2f}pt, more than the "
-                f"{tol:.2f}pt allowed by config.PARSE_GEOMETRY "
-                f"sibling_overlap_share={SIBLING_OVERLAP_SHARE}: {p} then {n}", prev)
+                f"{p_page} by {overlap:.2f}pt, more than the {tol:.2f}pt allowed by "
+                f"max(vertical_tolerance={VERTICAL_TOLERANCE}, "
+                f"sibling_overlap_share={SIBLING_OVERLAP_SHARE} x smaller box): "
+                f"{p} then {n}", prev)
 
         # -- numbering gaps -------------------------------------------------------
         labelled = [c for c in anatomy if c.label]
@@ -713,11 +723,21 @@ def build(ctx: Context) -> Section:
     s.data = {
         "parts_checked": sorted(ctx.inputs.trees),
         "geometry_tolerances": {
-            "source": "config.PARSE_GEOMETRY for every check with a stage 2 counterpart, so both stages count the same violations over the same ink (SPEC 2.1)",
-            "indent_tolerance": INDENT_TOLERANCE,
-            "sibling_overlap_share": SIBLING_OVERLAP_SHARE,
+            "source": "config.PARSE_GEOMETRY and the canonical map pinned beside it, "
+                      "read identically by stage 2 and stage 8, so both count the same "
+                      "violations over the same ink (SPEC 2.1)",
+            "map": {
+                "child_left_edge": f"indent_tolerance = {INDENT_TOLERANCE}",
+                "extent_nests": f"indent_tolerance = {INDENT_TOLERANCE}",
+                "own_box_above_first_child": f"vertical_tolerance = {VERTICAL_TOLERANCE}",
+                "siblings_ascend": f"vertical_tolerance = {VERTICAL_TOLERANCE}",
+                "sibling_overlap": f"max(vertical_tolerance = {VERTICAL_TOLERANCE}, "
+                                   f"sibling_overlap_share = {SIBLING_OVERLAP_SHARE} "
+                                   f"x smaller box height)",
+            },
             "eval_only_slack_points": GEOMETRY_EPS,
             "eval_only_checks": ["extent_covers_own", "one_box_per_page"],
+            "stage_8_only_checks": ["label_nesting", "ref_span_integrity"],
         },
         "totals": {
             "nodes": sum(1 for _ in ctx.inputs.nodes()),

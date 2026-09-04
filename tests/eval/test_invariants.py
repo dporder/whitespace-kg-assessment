@@ -151,7 +151,34 @@ def test_the_tolerances_are_read_from_config_not_redefined_here():
     """SPEC 2.1: one number, two readers. Stage 2 and stage 8 check the same
     invariants over the same trees, so the slack has to come from one place."""
     assert invariants.INDENT_TOLERANCE == config.PARSE_GEOMETRY["indent_tolerance"]
+    assert invariants.VERTICAL_TOLERANCE == config.PARSE_GEOMETRY["vertical_tolerance"]
     assert invariants.SIBLING_OVERLAP_SHARE == config.PARSE_GEOMETRY["sibling_overlap_share"]
+
+
+def test_horizontal_and_vertical_jitter_are_different_numbers():
+    """Reusing indent_tolerance for the vertical comparisons was a guess and it
+    was wrong: the parser has a separate, smaller vertical_tolerance."""
+    assert invariants.VERTICAL_TOLERANCE != invariants.INDENT_TOLERANCE
+
+
+def test_own_box_above_first_child_uses_vertical_not_indent_tolerance():
+    """A 1.5pt dip is inside indent_tolerance (2.0) and outside
+    vertical_tolerance (1.0), so this pair distinguishes the two readings."""
+    child = mk("p/1/a", "item", 2, (110, 98.5, 400, 145), label="(a)", text="body")
+    parent = mk("p/1", "heading", 1, (100, 100, 400, 115), label="1", title="One",
+                children=[child])
+    root = mk("p", "part", 0, None, title="P", children=[parent])
+    extents(root)
+    assert [v.path for v in failures(root, "own_box_above_first_child")] == ["p/1"]
+
+
+def test_the_ascent_half_of_siblings_ascend_uses_vertical_tolerance():
+    """Next sits entirely above prev by a hair: inside vertical_tolerance it is
+    tolerated, beyond it it is a reading-order fault."""
+    within = stacked((100, 130, 400, 150), (100, 129.5, 400, 149.5))
+    assert failures(within, "siblings_ascend") == []
+    beyond = stacked((100, 130, 400, 150), (100, 100, 400, 128))
+    assert [v.check for v in failures(beyond, "siblings_ascend")] == ["siblings_ascend"]
 
 
 @pytest.mark.parametrize("name,prev_box,next_box", [
@@ -183,6 +210,30 @@ def test_overlap_beyond_the_configured_share_is_still_a_violation():
 def test_the_share_is_of_the_smaller_box():
     tol = invariants.sibling_overlap_tolerance((0, 0, 10, 100), (0, 0, 10, 10))
     assert tol == pytest.approx(config.PARSE_GEOMETRY["sibling_overlap_share"] * 10)
+
+
+def test_the_overlap_tolerance_is_floored_at_vertical_tolerance():
+    """Below a 5pt box the proportional allowance falls under plain baseline
+    jitter, so the floor takes over. 5pt is vertical_tolerance / share."""
+    share = config.PARSE_GEOMETRY["sibling_overlap_share"]
+    floor = config.PARSE_GEOMETRY["vertical_tolerance"]
+    assert invariants.sibling_overlap_tolerance((0, 0, 10, 2), (0, 0, 10, 2)) == floor
+    assert share * 2 < floor, "the floor is doing real work on a 2pt box"
+    # Just above the crossover the share wins again.
+    tall = invariants.sibling_overlap_tolerance((0, 0, 10, 20), (0, 0, 10, 20))
+    assert tall == pytest.approx(share * 20)
+    assert tall > floor
+
+
+def test_the_floor_does_not_change_the_preserved_parser_pairs():
+    """Every real pair is on a box far above the 5pt crossover, so adding the
+    floor left the three regression expectations above untouched."""
+    for prev_box, next_box in [((57.8, 631.33, 409.94, 689.91), (57.8, 687.53, 456.74, 751.9)),
+                               ((57.8, 432.33, 121.86, 449.51), (75.8, 446.13, 545.78, 492.77)),
+                               ((57.8, 470.53, 443.79, 501.51), (57.8, 499.13, 497.14, 516.31))]:
+        heights = (prev_box[3] - prev_box[1], next_box[3] - next_box[1])
+        share_only = config.PARSE_GEOMETRY["sibling_overlap_share"] * min(heights)
+        assert invariants.sibling_overlap_tolerance(prev_box, next_box) == share_only
 
 
 def test_an_indent_within_the_configured_tolerance_is_not_a_violation():
