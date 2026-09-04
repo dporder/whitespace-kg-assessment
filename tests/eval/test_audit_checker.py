@@ -138,8 +138,10 @@ def test_a_range_member_is_shown_as_one_of_n_with_its_siblings():
     prompt = stratified_audit._prompt_for([item], 0)
     assert "member 2 of 6" in prompt and "'27 to 32'" in prompt
     assert "sibling_targets" in prompt
-    assert "not whether one member covers the whole range" in prompt
     assert "1.3.10" in prompt
+    # The siblings are visible, so the checker can see the range was expanded
+    # without being told which question to answer. See the nudge test.
+    assert "other members of the same phrase" in prompt
 
 
 def test_the_term_prompt_cites_the_singular_includes_plural_stipulation():
@@ -171,6 +173,12 @@ def test_the_added_context_states_facts_and_never_asks_for_agreement():
                   "agree unless", "give the benefit", "therefore agree",
                   "this is a correct", "the pipeline is right"):
         assert nudge not in guidance, nudge
+    # Narrowing the question is a nudge too, and a subtler one: a clause saying
+    # "judge X, not Y" reads as neutral and cost this audit two real bugs the
+    # checker had already caught. The guidance states facts and asks nothing.
+    for directive in ("not whether", "do not judge", "ignore whether",
+                      "you need not", "no need to check", "rather than whether"):
+        assert directive not in guidance, directive
     # It states rules and what the pipeline did, and cites the document for both.
     assert "stipulates" in guidance and "1.3.1" in guidance
 
