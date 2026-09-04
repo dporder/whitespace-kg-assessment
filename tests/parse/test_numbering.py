@@ -51,12 +51,40 @@ def test_deepest_level_wins(rulebook):
     assert rulebook.match("3.1.2 Something").level == "subclause"
 
 
-def test_four_dotted_levels_match_nothing(rulebook):
-    """The rulebook caps dotted numbering at three levels and the pack has no
-    four-level numbers, so a four-level number is an unmatched anomaly rather
-    than a silently accepted fifth level."""
-    assert rulebook.max_dotted_depth == 3
-    assert rulebook.match("3.1.2.4 Something") is None
+def test_four_dotted_levels_are_items(rulebook):
+    """The pack really does number four levels deep: 46 lines across Call-Off
+    Schedule 6, Call-Off Schedule 22 and Joint Schedule 8, verbatim 2.1.1.1
+    (p193), 9.1.3.2 (p202) and 4.1.2.1. (p306). A four-level dotted number is
+    the deepest unit the document addresses, so it is an item, whatever it is
+    printed with: kind follows function, not punctuation."""
+    assert rulebook.max_dotted_depth == 4
+    for text, key in (
+        ("2.1.1.1 an executed Letter of Intent to Guarantee", "2.1.1.1"),
+        ("9.1.3.2 any existing law, statute, rule or regulation", "9.1.3.2"),
+        ("4.1.2.1. be free from material design and programming errors;", "4.1.2.1"),
+    ):
+        m = rulebook.match(text)
+        assert m is not None, text
+        assert (m.level, m.depth, m.key, m.variant) == ("item", 4, key, "item_dotted")
+        assert m.label == key, "the label is the dotted number, not a bracketed letter"
+
+
+def test_five_dotted_levels_still_match_nothing(rulebook):
+    """The rulebook stops at four, so a fifth level is an unmatched anomaly
+    rather than a silently accepted extra rung."""
+    assert rulebook.match("1.2.3.4.5 Something") is None
+
+
+def test_a_bare_heading_number_is_a_heading_candidate(rulebook):
+    """"1." alone on its line is a heading only if the part's typography says
+    so; the grammar just recognises the shape. It never fires on this document,
+    because the parser merges a number in a narrow left column with the
+    sentence beside it before the grammar sees either."""
+    m = rulebook.match("1.")
+    assert m is not None
+    assert (m.level, m.depth, m.variant, m.key) == ("heading", 1, "heading_bare", "1")
+    # A number with words after it is an ordinary heading, not the bare form.
+    assert rulebook.match("1. Definitions used in the contract").variant == "heading"
 
 
 def test_the_indent_sentinel_is_a_no_op_for_the_shipped_patterns():

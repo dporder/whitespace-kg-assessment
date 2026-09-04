@@ -211,6 +211,7 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
     heading_styles: list[tuple[float, float]] = []   # (size, left) of depth-1 blocks
     last_heading_number: Optional[int] = None
     seen_numbered = False
+    awaiting_title = False   # a confirmed bare heading needs the line that titles it
 
     def close() -> None:
         nonlocal open_block
@@ -261,6 +262,19 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                     expected_number=expected,
                     style_matches=_heading_style_matches(line, heading_styles, body_size, min_left),
                 )
+            if match is not None and match.variant == "heading_bare":
+                # A number alone on its line is only a heading if the part's own
+                # typography says so. Most of them are not: the pack prints
+                # "1." in a narrow left column with its sentence beside it, and
+                # the visual-line merge has already joined those into one line
+                # by the time this runs. What is left is a lone number, which is
+                # a heading only when it is set like one, and it takes its title
+                # from the line it is paired with rather than inventing one.
+                if not _heading_style_matches(line, heading_styles, body_size, min_left):
+                    match = None
+                else:
+                    awaiting_title = True
+
             if match is not None:
                 disagrees_with = _numeric_parent_ok(match, stack)
                 unsupported = not indents.supported(match.level, line.left)
@@ -283,6 +297,7 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                     continue
                 close()
                 seen_numbered = True
+                awaiting_title = match.variant == "heading_bare"
                 if match.depth == 1:
                     heading_styles.append((round(line.size_max, 1), round(line.left, 1)))
                     try:
@@ -290,6 +305,13 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                     except ValueError:
                         pass
                 open_block = _numbered_block(len(blocks), line, match, page, body_size)
+                if match.variant == "heading_bare":
+                    open_block.heading_like = True
+                    open_block.text = ""
+                    open_block.anomalies.append(
+                        "heading_number_alone_on_line: the number is printed on a line of "
+                        "its own and takes its title from the line paired with it"
+                    )
                 if disagrees_with is not None:
                     open_block.anomalies.append(
                         f"numbering_sequence_break: {match.label} follows {disagrees_with}, "
@@ -307,7 +329,13 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                 blocks.append(_simple_block(len(blocks), line, "part_title"))
                 continue
 
-            if open_block is not None and _continues(open_block, line):
+            if awaiting_title and open_block is not None and not open_block.text:
+                # Pairing, not continuation: the title of a bare heading is set
+                # differently from the number above it, so typography cannot be
+                # the test here.
+                _append_line(open_block, line)
+                awaiting_title = False
+            elif open_block is not None and _continues(open_block, line):
                 _append_line(open_block, line)
             else:
                 close()

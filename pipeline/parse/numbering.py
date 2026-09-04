@@ -1,8 +1,10 @@
 """Numbering grammar. The rulebook decides, the parser stays generic.
 
 Every pattern comes from `config.HIERARCHY_PROFILES[<profile>]["numbering"]`
-and the ordered level names from `["levels"]`. Nothing about RM6116's numbering
-is compiled in here, so a new document family is a config entry and a fixture
+and the ordered level names from `["levels"]`. A rulebook may declare several
+ways of printing one level, keyed `<level>_<variant>`, so "item_dotted" and
+"heading_bare" are an item and a heading. Nothing about RM6116's numbering is
+compiled in here, so a new document family is a config entry and a fixture
 test rather than an edit to this file.
 
 One recovery mechanism sits behind the grammar, and it is deliberately not a
@@ -11,27 +13,23 @@ to the headings the part has already produced and its leading integer continues
 that part's heading sequence, it is recovered as a heading and the deviation is
 recorded on the node. That is what saves Framework Schedule 5's second heading,
 which prints "2   Reporting period" with no period after the number while its
-six siblings print "1." through "7." normally: the rulebook's heading pattern
-finds six of seven, and the seventh is recorded rather than lost. The mechanism
+seven siblings print "1." through "8." normally: the rulebook's heading pattern
+finds seven of eight, and the eighth is recorded rather than lost. The mechanism
 is a property of the part's own observed style, not of this document.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
-# The rulebook's patterns are written against a line that carries its own
-# leading indentation as whitespace: three of the four allow it (`\s{0,4}`,
-# `\s{0,10}`, `\s{0,12}`) and the item pattern requires it (`^\s+\(`). A PDF
-# text layer expresses indentation as geometry, not as characters, so every
-# line arrives flush-left and the item pattern matches nothing at all: zero of
-# the 169 lettered items in Core Terms, against 169 when the same pattern is
-# anchored `^\s*`. Rather than edit the frozen rulebook, the grammar is applied
-# to the line prefixed with one space standing for the indent the layout holds
-# geometrically. One space satisfies `\s+` and stays inside every `\s{0,N}`
-# bound, so the rulebook's intent is preserved exactly and the adaptation
-# survives config.py being corrected. See the parser-builder report.
+# The rulebook's patterns allow leading indentation and none now requires it,
+# but a PDF text layer expresses indentation as geometry rather than as
+# characters, so every line arrives flush-left. The grammar is applied to the
+# line prefixed with one space standing for the indent the layout holds
+# geometrically: one space stays inside every `\s{0,N}` bound and satisfies a
+# `\s+` anchor, so a rulebook is free to require indentation the way this one
+# did before its item pattern was corrected.
 INDENT_SENTINEL = " "
 
 # A line that opens with something number-shaped. Used only to measure how much
@@ -61,8 +59,13 @@ class NumberMatch:
     key: str            # path segment: "3.1.2" or "a"
     dotted_depth: int   # how many dotted components, 0 for lettered/roman items
     rest_start: int = 0  # index into the line text where the node's own words begin
+    variant: str = ""    # the rulebook numbering key that matched
     recovered: bool = False
     anomaly: Optional[str] = None
+
+
+def _with_variant(match: "NumberMatch", key: str) -> "NumberMatch":
+    return replace(match, variant=key)
 
 
 class Rulebook:
@@ -75,8 +78,22 @@ class Rulebook:
         # levels[0] is "part", which the numbering grammar never produces.
         self.numbered_levels: list[str] = self.levels[1:]
         self.patterns: dict[str, re.Pattern] = {
-            level: re.compile(pattern) for level, pattern in profile["numbering"].items()
+            key: re.compile(pattern) for key, pattern in profile["numbering"].items()
         }
+        # A rulebook may declare several ways of printing one level. The key
+        # names the variant, the part before the first underscore names the
+        # level it belongs to, so "item_dotted" is an item and "heading_bare"
+        # is a heading. A four-level dotted number is the deepest unit the
+        # document addresses, which is what an item is, whatever it is printed
+        # with; kind follows function, not punctuation.
+        self.level_of_key: dict[str, str] = {}
+        for key in sorted(self.patterns):
+            level = key if key in self.numbered_levels else key.split("_", 1)[0]
+            if level not in self.numbered_levels:
+                raise ValueError(
+                    f"rulebook {name!r} numbering key {key!r} names no level in {self.numbered_levels}"
+                )
+            self.level_of_key[key] = level
         self.max_dotted_depth: int = int(profile["max_dotted_depth"])
         self.citable_kinds: list[str] = list(profile.get("citable_kinds", []))
         self.interpretation_cues: list[re.Pattern] = [
@@ -97,16 +114,20 @@ class Rulebook:
         """
         probe = INDENT_SENTINEL + text
         best: Optional[NumberMatch] = None
-        for level in self.numbered_levels:
-            pattern = self.patterns.get(level)
-            if pattern is None:
-                continue
-            m = pattern.match(probe)
+        best_rank: tuple = ()
+        # Deepest level wins; between two keys of the same depth the level's
+        # own name beats a variant, then alphabetical, so the choice is total
+        # and deterministic rather than dict-order dependent.
+        for key in sorted(self.patterns):
+            m = self.patterns[key].match(probe)
             if not m or not m.groups():
                 continue
+            level = self.level_of_key[key]
             candidate = _build(m.group(1), level, self.depth_of(level), probe, m)
-            if best is None or candidate.depth > best.depth:
-                best = candidate
+            rank = (candidate.depth, 0 if key == level else -1, key)
+            if best is None or rank > best_rank:
+                best, best_rank = candidate, rank
+                best = _with_variant(candidate, key)
         return best
 
     def looks_numbered(self, text: str) -> bool:

@@ -258,7 +258,14 @@ def _node_for_block(ctx: Context, parent: Node, block: dict) -> Node:
     heading_like = bool(block["heading_like"])
     text = block["text"].strip()
 
-    if block["depth"] == 4:
+    # The interpretation clause names Clause, Schedule, Part, Paragraph, Annex
+    # and Table and says nothing about lettered or roman items, so those take
+    # their label from the rulebook and record that they did. A four-level
+    # dotted item is not one of those: it is numbered exactly like the clause
+    # and subclause above it, so it takes the part's own unit label from the
+    # document like any other numbered provision.
+    lettered = bool(block["number"]) and block["number"].startswith("(")
+    if block["depth"] == 4 and lettered:
         unit_label, source = "Paragraph", ITEM_LABEL_SOURCE
     else:
         unit_label, source = ctx.unit_label, DOCUMENT_LABEL_SOURCE

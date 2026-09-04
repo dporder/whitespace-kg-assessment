@@ -164,13 +164,22 @@ def numbering_coverage(
 ) -> dict:
     """Check 2: numbering the rulebook's grammar does not cover.
 
-    Lines inside a ruled grid are excluded. A form row printed "3. rFramework"
-    and a table's row counters are numbering of a table, not of the provision
-    ladder, and scoring the rulebook's clause grammar against them measures the
-    wrong thing.
+    Measured on the visual lines the parser actually consumes, not on the raw
+    lines the text layer emits. The pack routinely sets a number in a narrow
+    left column with its sentence beside it — "1." at x=72 and "In this
+    Schedule, ..." at x=107 on the same baseline — and the parser merges those
+    into one line before the grammar ever sees them. Scoring the grammar
+    against the unmerged halves measures the PDF's column layout rather than
+    the rulebook: it reported 217 uncovered lines where the parser had covered
+    all but 64 of them.
+
+    Lines inside a ruled grid are excluded for the same reason: a form row
+    printed "3. rFramework" and a table's row counters are numbering of a
+    table, not of the provision ladder.
     """
     import pymupdf
     from pipeline.parse.tables import page_grids
+    from pipeline.parse.words import merge_visual_lines
 
     doc = pymupdf.open(pdf_path)
     total = 0
@@ -186,11 +195,17 @@ def numbering_coverage(
     }
     for page_no in sorted(document.pages):
         grids = page_grids(doc[page_no - 1], page_no)
-        for line in document.pages[page_no].furniture.body:
+        body = document.pages[page_no].furniture.body
+        in_grid = {
+            id(line)
+            for grid in grids
+            for line in body
+            if grid.locate(line.bbox) is not None
+        }
+        free = [l for l in body if id(l) not in in_grid]
+        for line in merge_visual_lines(free, page_no):
             text = line.text
             if not rulebook.looks_numbered(text):
-                continue
-            if any(grid.locate(line.bbox) is not None for grid in grids):
                 continue
             total += 1
             part = part_of.get(page_no, "?")
