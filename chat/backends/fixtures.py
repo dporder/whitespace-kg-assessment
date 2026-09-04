@@ -11,7 +11,7 @@ from .. import config as ui_config
 from .. import crops
 from ..naming import human_citation, name_for_path
 from ..source import Corpus, corpus, parent_path_of_ref, part_of
-from .base import VECTOR_PENDING, Direction, ToolBackend
+from .base import VECTOR_PENDING, Direction, ToolBackend, gap
 
 
 class FixturesBackend(ToolBackend):
@@ -179,14 +179,9 @@ class FixturesBackend(ToolBackend):
             # "not defined" is wrong when the definitions schedule simply is not
             # in the loaded slice. The two look identical from here unless we
             # check whether any vocabulary loaded at all, so say which it is.
-            if not self.c.definition_sites:
-                return {"term": term, "found": False, "sites": [], "governs": {},
-                        "gap": "vocabulary_not_loaded",
-                        "note": ("the schedule that defines terms is not loaded into "
-                                 "this document set yet")}
-            return {"term": term, "found": False, "sites": [], "governs": {},
-                    "gap": "term_not_defined",
-                    "note": "no definition of that term in this document set"}
+            kind = ("vocabulary_not_loaded" if not self.c.definition_sites
+                    else "term_not_defined")
+            return gap(kind, term=term, sites=[], governs={})
 
         rows = []
         for s in sites:
@@ -226,9 +221,7 @@ class FixturesBackend(ToolBackend):
     # --------------------------------------------------------------- concepts
     def find_by_concept(self, label: str) -> dict:
         if not self.c.concepts:
-            return {"label": label, "found": False, "concepts": [], "citable": False,
-                    "gap": "concepts_not_loaded",
-                    "note": "no topic tags have been generated for this document set yet"}
+            return gap("concepts_not_loaded", label=label, concepts=[], citable=False)
         names = [c.label for c in self.c.concepts]
         scored = process.extract(label, names, scorer=fuzz.WRatio, limit=len(names))
         out = []

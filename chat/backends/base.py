@@ -25,6 +25,30 @@ TOOL_NAMES = (
 
 VECTOR_PENDING = "vector index pending"
 
+# Why a lookup came back empty, in the words a reader sees. Both backends
+# import these so the two cannot drift: the same missing vocabulary must read
+# identically whether it is served from the JSON files or from Cypher, and a
+# term that is genuinely undefined must never be confused with one whose
+# defining schedule simply is not in the loaded slice.
+GAP_NOTES = {
+    "vocabulary_not_loaded":
+        "the schedule that defines terms is not loaded into this document set yet",
+    "definition_site_not_loaded":
+        "that term is defined, but the part defining it is not loaded into this "
+        "document set yet",
+    "term_not_defined":
+        "no definition of that term in this document set",
+    "concepts_not_loaded":
+        "no topic tags have been generated for this document set yet",
+}
+
+
+def gap(kind: str, **extra) -> dict:
+    """A not-found result that says which kind of absence it is."""
+    out = {"found": False, "gap": kind, "note": GAP_NOTES[kind]}
+    out.update(extra)
+    return out
+
 
 @runtime_checkable
 class ToolBackend(Protocol):

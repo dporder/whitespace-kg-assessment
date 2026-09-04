@@ -37,7 +37,9 @@ OUTPUT_RUN: str | None = os.environ.get("RM6116_OUTPUT_RUN") or None
 # "neo4j"    serves them from read-only parameterised Cypher.
 # "auto"     uses Neo4j when it is reachable and carries this document, else
 #            falls back to the file backend. Same tool contract either way.
-GRAPH_BACKEND = "fixtures"
+# Also settable as RM6116_GRAPH_BACKEND, so the demo can select the real graph
+# without editing code.
+GRAPH_BACKEND = os.environ.get("RM6116_GRAPH_BACKEND", "fixtures").strip() or "fixtures"
 
 # --- feature flags ----------------------------------------------------------
 # The embedding arm of find_provision. Off tonight: stage 6 has not run, so

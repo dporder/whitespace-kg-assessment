@@ -165,6 +165,38 @@ def test_the_trace_never_shows_internal_vocabulary():
             assert word not in line.lower(), f"{line!r} leaks {word!r}"
 
 
+def test_both_backends_report_the_same_gaps_in_the_same_words():
+    """The demo runs on Neo4j, so the gap wording has to come from there too.
+    Both backends build these from one table, and this is what keeps it so."""
+    import inspect
+
+    from chat.backends import neo4j_backend
+    from chat.backends.base import GAP_NOTES
+
+    src = inspect.getsource(neo4j_backend)
+    for kind in ("vocabulary_not_loaded", "definition_site_not_loaded",
+                 "term_not_defined", "concepts_not_loaded"):
+        assert f'"{kind}"' in src, f"the Neo4j backend never reports {kind}"
+        # the wording itself must not be restated anywhere
+        assert GAP_NOTES[kind] not in src, f"{kind} wording is duplicated, it will drift"
+
+    fixtures_src = inspect.getsource(__import__(
+        "chat.backends.fixtures", fromlist=["x"]))
+    for note in GAP_NOTES.values():
+        assert note not in fixtures_src, "gap wording is duplicated in the file backend"
+
+
+def test_the_neo4j_gap_queries_are_read_only_and_parameterised():
+    from chat.backends import neo4j_backend
+
+    for name in ("Q_VOCABULARY_LOADED", "Q_TERM_EXISTS"):
+        q = getattr(neo4j_backend, name)
+        assert isinstance(q, str)
+        for write in ("CREATE", "MERGE", "DELETE", "SET ", "REMOVE"):
+            assert write not in q.upper(), f"{name} is not read-only"
+    assert "$term" in neo4j_backend.Q_TERM_EXISTS, "term must arrive as a parameter"
+
+
 def test_the_search_line_explains_itself_in_plain_words():
     line = _summarise("find_provision", FixturesBackend().find_provision("IPR"), True)
     assert "keyword search only" in line and "semantic index not built yet" in line

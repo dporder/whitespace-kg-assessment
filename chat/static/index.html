@@ -278,9 +278,13 @@ const EXAMPLES_REAL = [
   'Which laws does this contract reference?'
 ];
 function examples() {
+  // The graph backend decides, not just DATA_SOURCE: the demo runs the real
+  // graph with DATA_SOURCE still on fixtures, and fixture vocabulary must not
+  // appear against it.
   const src = (health.loaded && health.loaded.data_root) || '';
-  return health.data_source === 'fixtures' && src.includes('fixtures')
-    ? EXAMPLES_FIXTURES : EXAMPLES_REAL;
+  const onFixtures = health.graph_backend === 'fixtures'
+    && health.data_source === 'fixtures' && src.includes('fixtures');
+  return onFixtures ? EXAMPLES_FIXTURES : EXAMPLES_REAL;
 }
 
 // A tool name is machinery. Say what it was doing instead.
