@@ -190,6 +190,37 @@ def test_an_alias_collision_verdict_picks_the_governing_term(tmp_path, monkeypat
     assert kept[0].term == "Handover Body"
 
 
+def test_a_fenced_json_reply_is_still_read(tmp_path, monkeypatch):
+    """Claude Haiku 4.5 wrapped its verdicts in a ```json fence on the first
+    live run and every one of them was thrown away as unparseable. A fence is a
+    formatting habit, not a different answer."""
+    def fenced(task, prompt):
+        return "```json\n" + reply_for("use")(task, prompt) + "\n```"
+    install(monkeypatch, FakeLLM(fenced))
+    matches = [make_match("typo_dense")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    assert "parse_error" not in queues["typo_dense"].batches[0]
+    kept, _rejected = routing.apply(matches, queues)
+    assert kept[0].status == "confident" and kept[0].method == "llm"
+
+
+def test_strip_fence_leaves_bare_json_alone():
+    assert llmio.strip_fence('[{"i": 0}]') == '[{"i": 0}]'
+    assert llmio.strip_fence('```json\n[{"i": 0}]\n```') == '[{"i": 0}]'
+    assert llmio.strip_fence('```\n{"a": 1}\n```') == '{"a": 1}'
+    assert llmio.strip_fence("not json") == "not json"
+
+
+def test_a_batch_whose_reply_would_not_parse_is_not_reported_as_checked(
+        tmp_path, monkeypatch):
+    """Calling it "checked" would claim an agreement nobody measured."""
+    install(monkeypatch, FakeLLM("still not json"))
+    queues = routing.route([make_match("heading")], runner(tmp_path),
+                           no_definition, no_candidates)
+    assert queues["heading"].state == "checked_with_parse_errors"
+    assert "unparseable" in queues["heading"].note
+
+
 def test_an_unparseable_reply_fails_the_batch_not_the_run(tmp_path, monkeypatch):
     install(monkeypatch, FakeLLM("not json at all"))
     matches = [make_match("heading")]

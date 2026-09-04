@@ -32,7 +32,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from pipeline.vocabulary.llmio import Runner
+from pipeline.vocabulary.llmio import Runner, strip_fence
 from pipeline.vocabulary.matching import Match
 
 # config.MODELS has no key for stage 4's routed checks. See the module docstring.
@@ -181,7 +181,7 @@ def build_prompt(kind: str, items: list[RoutedItem]) -> str:
 
 def parse_verdicts(raw: str, valid: set[int]) -> tuple[list[Verdict], Optional[str]]:
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(strip_fence(raw))
         if not isinstance(parsed, list):
             raise ValueError("checker did not return a JSON array")
     except Exception as exc:                               # noqa: BLE001
@@ -239,8 +239,16 @@ def route(matches: list[Match], runner: Runner,
                 record["verdicts"] = [v.__dict__ for v in verdicts]
             queue.batches.append(record)
         states = {b["call"]["state"] for b in queue.batches}
-        queue.state = "checked" if states <= {"replayed", "called"} else sorted(states)[0]
-        queue.note = "; ".join(sorted({b["call"]["note"] for b in queue.batches}))
+        parse_errors = [b for b in queue.batches if b.get("parse_error")]
+        if states <= {"replayed", "called"}:
+            # A batch whose reply would not parse was called but not checked;
+            # calling that "checked" would report an agreement nobody measured.
+            queue.state = "checked_with_parse_errors" if parse_errors else "checked"
+        else:
+            queue.state = sorted(states)[0]
+        queue.note = "; ".join(sorted(
+            {b["call"]["note"] for b in queue.batches}
+            | {b["parse_error"] for b in parse_errors}))
     return queues
 
 

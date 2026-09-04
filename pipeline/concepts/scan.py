@@ -30,7 +30,7 @@ from typing import Optional
 
 from pipeline.schemas import Node
 from pipeline.vocabulary import treeio
-from pipeline.vocabulary.llmio import Runner
+from pipeline.vocabulary.llmio import Runner, strip_fence
 
 TASK = "concepts"
 PROMPT_VERSION = "concept-scan-v1"
@@ -159,7 +159,7 @@ def build_prompt(unit: ScanUnit) -> str:
 def parse(raw: str, unit: ScanUnit, by_path: dict[str, Node]) -> ScanResult:
     result = ScanResult(unit=unit)
     try:
-        payload = json.loads(raw)
+        payload = json.loads(strip_fence(raw))
         proposals = payload["concepts"] if isinstance(payload, dict) else payload
         if not isinstance(proposals, list):
             raise ValueError("`concepts` is not a list")

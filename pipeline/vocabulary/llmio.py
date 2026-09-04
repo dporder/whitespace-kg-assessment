@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -77,6 +78,25 @@ class Call:
 def cache_key(model: Optional[str], task: str, prompt_version: str, prompt: str) -> str:
     material = f"{model}|{task}|{prompt_version}|{prompt}"
     return hashlib.sha1(material.encode()).hexdigest()
+
+
+_FENCE = re.compile(r"```(?:json|JSON)?\s*\n(?P<body>.*?)\n?```", re.S)
+
+
+def strip_fence(raw: str) -> str:
+    """Unwrap a markdown code fence around a JSON reply.
+
+    Prompts here ask for "a JSON array and nothing else", and models mostly
+    comply, but not always: the first live routing run came back fenced from
+    Claude Haiku 4.5 and every verdict was thrown away as unparseable. A fence
+    is a formatting habit, not a different answer, so it is unwrapped rather
+    than failing the batch. Anything else stays strict, and a reply that is not
+    JSON underneath still fails loudly.
+    """
+    if not raw:
+        return raw
+    match = _FENCE.search(raw)
+    return match.group("body") if match else raw.strip()
 
 
 def _classify(exc: BaseException) -> str:

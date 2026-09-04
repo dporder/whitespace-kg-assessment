@@ -138,6 +138,14 @@ def test_a_missing_confidence_is_zero_not_assumed_high(two_part_trees, tmp_path,
     assert [c.confidence for r in results for c in r.proposed][0] == 0.0
 
 
+def test_a_fenced_json_reply_is_still_read(two_part_trees, tmp_path, monkeypatch):
+    install_llm(monkeypatch, FakeClaude(
+        "```json\n" + reply(concept("termination triggers", 0.8,
+                                    ["clauses/1/1.1"])) + "\n```"))
+    results = scan_mod.scan(two_part_trees, runner(tmp_path))
+    assert [c.label for r in results for c in r.proposed][0] == "termination triggers"
+
+
 def test_an_unparseable_reply_fails_the_unit_not_the_run(two_part_trees, tmp_path,
                                                          monkeypatch):
     install_llm(monkeypatch, FakeClaude("sorry, I cannot do that"))
