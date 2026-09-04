@@ -1,27 +1,135 @@
 {
-  "pages": [
-    { "id": "page-1", "name": "Working set" },
-    { "id": "page-2", "name": "Variations" },
-    { "id": "page-3", "name": "Agentic process" }
-  ],
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1632, "h": 1056, "title": "System architecture", "page": "page-1" },
-    { "file": "QueryFlow.dc.html", "x": 1712, "y": 0, "w": 1632, "h": 1056, "title": "One question through the graph", "page": "page-1" },
-    { "file": "ArchFlowchart.dc.html", "x": 0, "y": 1420, "w": 1632, "h": 1056, "title": "Variation A, flowchart with trust lanes", "page": "page-2" },
-    { "file": "ArchCallouts.dc.html", "x": 1712, "y": 1420, "w": 1632, "h": 1056, "title": "Variation B, decision callouts", "page": "page-2" },
-    { "file": "DeepDiveIngestion.dc.html", "x": 3424, "y": 1420, "w": 1632, "h": 1056, "title": "Variation C, deep-dive sample", "page": "page-2" },
-    { "file": "AgenticProcess.dc.html", "x": 0, "y": 2900, "w": 1632, "h": 1056, "title": "How this was built", "page": "page-3" },
-    { "file": "FlowchartRich.dc.html", "x": 5136, "y": 1420, "w": 1632, "h": 1056, "title": "Variation D, rich flowchart, Whitespace styling", "page": "page-2" }
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1632,
+      "h": 1056,
+      "title": "System architecture",
+      "page": "page-1"
+    },
+    {
+      "file": "QueryFlow.dc.html",
+      "x": 1712,
+      "y": 0,
+      "w": 1632,
+      "h": 1056,
+      "title": "One question through the graph",
+      "page": "page-1"
+    },
+    {
+      "file": "ArchFlowchart.dc.html",
+      "x": 0,
+      "y": 1420,
+      "w": 1632,
+      "h": 1056,
+      "title": "Variation A, flowchart with trust lanes",
+      "page": "page-2"
+    },
+    {
+      "file": "ArchCallouts.dc.html",
+      "x": 1712,
+      "y": 1420,
+      "w": 1632,
+      "h": 1056,
+      "title": "Variation B, decision callouts",
+      "page": "page-2"
+    },
+    {
+      "file": "DeepDiveIngestion.dc.html",
+      "x": 3424,
+      "y": 1420,
+      "w": 1632,
+      "h": 1056,
+      "title": "Variation C, deep-dive sample",
+      "page": "page-2"
+    },
+    {
+      "file": "AgenticProcess.dc.html",
+      "x": 0,
+      "y": 2900,
+      "w": 1632,
+      "h": 1056,
+      "title": "How this was built",
+      "page": "page-3"
+    },
+    {
+      "file": "FlowchartRich.dc.html",
+      "x": 3424,
+      "y": 0,
+      "w": 1632,
+      "h": 1160,
+      "title": "Final flowchart, draft",
+      "page": "page-1"
+    }
   ],
   "annotations": [
-    { "id": "note-working", "page": "page-1", "x": 0, "y": -150, "w": 460, "text": "Working set, unchanged look. QueryFlow gained the route-traceability card you asked for. The originals before this round are saved in diagram/v1 and in git." },
-    { "id": "note-var-a", "page": "page-2", "x": 0, "y": 1256, "w": 500, "text": "A. Classic flowchart, swimlanes by trust: deterministic, model assisted, human.\nWins: reads instantly as an architecture, inputs and outputs explicit, shows at a glance where nondeterminism lives and that models are optional to correctness.\nTrade: less prose depth on the sheet itself, the speaker notes and deep-dive pages carry it." },
-    { "id": "note-var-b", "page": "page-2", "x": 1712, "y": 1256, "w": 500, "text": "B. Keep the current five-column shape but compress it to a strip, and spend the sheet on six numbered decision callouts, the FP and FN cost asymmetry, refuse-before-guess, derive-then-diff, the trust gradient, scale.\nWins: your cleverest thinking becomes the visual centrepiece, numbered anchors to point at live.\nTrade: text-heavy, the pipeline itself is only a summary strip." },
-    { "id": "note-var-c", "page": "page-2", "x": 3424, "y": 1256, "w": 500, "text": "C. A clean overview sheet backed by one deep-dive page per pipeline area. This is the ingestion sample, intake, rulebook and fit checks, the extraction ladder, parse and assemble, with concrete examples from the document on every card.\nWins: room for every idea with examples, nothing lost, jargon decoded in place.\nTrade: a multi-page deliverable, more to maintain and print.\nMix and match is fine, for example A as the overview plus C pages behind it, with B's callouts folded into either." }
-,
-    { "id": "note-var-d", "page": "page-2", "x": 5136, "y": 1256, "w": 520, "text": "D, built from your feedback on A. Plain names instead of stage codes, numbered steps 01 to 06 so order reads instantly, rich Deep-Dive-grade text with an example in nearly every box, hard-case escalation drawn as an inset inside the step instead of floating arrows, branches only where a true decision exists, arrows anchored to box edges, and your three chosen highlights as labelled callouts with dashed leaders.\nAlso the first board in Whitespace's own visual language, from the brand research: their off-white and ink, Inter with JetBrains Mono for technical labels, weights capped at 600, the trailing underscore title, bracketed mono eyebrows, zero-padded step numerals, and their lavender dashed connectors for the parallel band. Trust colours remapped to their palette. If this styling works, I roll it across the other boards and the slides." }
-  ,
-    { "id": "note-process", "page": "page-3", "x": 0, "y": 2740, "w": 520, "text": "Proposed board: your agentic engineering method, this assignment's six phases across the top, your standing practices, model economics and the teaching credential below.\nSourced from what you actually did here plus the protocols and conventions read from your other repos this session. Submission-safe as written, no internal product names, no interview references.\nIt answers the brief's 'how you work with an agent' criterion visually, so it could ship in the repo, or stay presentation-only. Your call.\nArchitecture variations are on the Variations page, the live sheets on Working set." }
+    {
+      "id": "note-working",
+      "page": "page-1",
+      "x": 0,
+      "y": -150,
+      "w": 460,
+      "text": "Working set, now your two final boards plus the original architecture sheet. The rich flowchart joined from the variations page with more breathing room. Edit any text directly, then Save. I have paused my own publishing until you say done, so your Save will not be fought by reloads."
+    },
+    {
+      "id": "note-var-a",
+      "page": "page-2",
+      "x": 0,
+      "y": 1256,
+      "w": 500,
+      "text": "A. Classic flowchart, swimlanes by trust: deterministic, model assisted, human.\nWins: reads instantly as an architecture, inputs and outputs explicit, shows at a glance where nondeterminism lives and that models are optional to correctness.\nTrade: less prose depth on the sheet itself, the speaker notes and deep-dive pages carry it."
+    },
+    {
+      "id": "note-var-b",
+      "page": "page-2",
+      "x": 1712,
+      "y": 1256,
+      "w": 500,
+      "text": "B. Keep the current five-column shape but compress it to a strip, and spend the sheet on six numbered decision callouts, the FP and FN cost asymmetry, refuse-before-guess, derive-then-diff, the trust gradient, scale.\nWins: your cleverest thinking becomes the visual centrepiece, numbered anchors to point at live.\nTrade: text-heavy, the pipeline itself is only a summary strip."
+    },
+    {
+      "id": "note-var-c",
+      "page": "page-2",
+      "x": 3424,
+      "y": 1256,
+      "w": 500,
+      "text": "C. A clean overview sheet backed by one deep-dive page per pipeline area. This is the ingestion sample, intake, rulebook and fit checks, the extraction ladder, parse and assemble, with concrete examples from the document on every card.\nWins: room for every idea with examples, nothing lost, jargon decoded in place.\nTrade: a multi-page deliverable, more to maintain and print.\nMix and match is fine, for example A as the overview plus C pages behind it, with B's callouts folded into either."
+    },
+    {
+      "id": "note-var-d",
+      "page": "page-2",
+      "x": 5136,
+      "y": 1256,
+      "w": 520,
+      "text": "D was chosen and promoted to the Working set page. The A, B and C boards stay here as archive, B's callout content already lives in the flowchart highlights and your interview notes."
+    },
+    {
+      "id": "note-process",
+      "page": "page-3",
+      "x": 0,
+      "y": 2740,
+      "w": 520,
+      "text": "Proposed board: your agentic engineering method, this assignment's six phases across the top, your standing practices, model economics and the teaching credential below.\nSourced from what you actually did here plus the protocols and conventions read from your other repos this session. Submission-safe as written, no internal product names, no interview references.\nIt answers the brief's 'how you work with an agent' criterion visually, so it could ship in the repo, or stay presentation-only. Your call.\nArchitecture variations are on the Variations page, the live sheets on Working set."
+    }
   ],
-  "launch": { "view": "canvas", "page": "page-3" }
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Working set"
+    },
+    {
+      "id": "page-2",
+      "name": "Variations"
+    },
+    {
+      "id": "page-3",
+      "name": "Agentic process"
+    }
+  ]
 }

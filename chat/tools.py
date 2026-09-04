@@ -134,43 +134,54 @@ class CitationLedger:
 
     pairs: set[tuple[str, int]] = field(default_factory=set)
     paths: set[str] = field(default_factory=set)
+    # How the agreement names each path, as the tools reported it. Nothing here
+    # is looked up: a name the tools never returned is a name we do not have.
+    names: dict[str, str] = field(default_factory=dict)
 
-    def record(self, path: str | None, page: Any) -> None:
+    def record(self, path: str | None, page: Any, name: str | None = None) -> None:
         if not path:
             return
         self.paths.add(path)
         if isinstance(page, int):
             self.pairs.add((path, page))
+        if name and path not in self.names:
+            self.names[path] = name
 
     def harvest(self, tool: str, result: dict) -> None:
         if tool == "find_provision":
             for h in result.get("hits", []):
-                self.record(h.get("path"), h.get("page"))
+                self.record(h.get("path"), h.get("page"), h.get("name"))
         elif tool == "get_provision":
             if result.get("found"):
-                self.record(result.get("path"), (result.get("page") or {}).get("start"))
+                self.record(result.get("path"), (result.get("page") or {}).get("start"),
+                            result.get("name"))
                 for b in result.get("boxes", []):
-                    self.record(result.get("path"), b.get("page"))
+                    self.record(result.get("path"), b.get("page"), result.get("name"))
         elif tool == "follow_references":
             for r in result.get("references", []):
                 # The ref's page is sound for the citing node too: the pointing
                 # words are part of that node's own text, so the node occupies
                 # that page even when its extent spans several.
                 self.record(r.get("ref_path"), r.get("page"))
-                self.record(r.get("from_path"), r.get("page"))
+                self.record(r.get("from_path"), r.get("page"), r.get("from_name"))
+                if r.get("target_path") and r.get("target_name"):
+                    self.names.setdefault(r["target_path"], r["target_name"])
+                for cd in r.get("candidates", []):
+                    if cd.get("path") and cd.get("name"):
+                        self.names.setdefault(cd["path"], cd["name"])
         elif tool == "define":
             for s in result.get("sites", []):
-                self.record(s.get("definition_path"), s.get("page"))
+                self.record(s.get("definition_path"), s.get("page"), s.get("definition_name"))
         elif tool == "find_by_concept":
             for c in result.get("concepts", []):
                 for m in c.get("members", []):
-                    self.record(m.get("path"), m.get("page"))
+                    self.record(m.get("path"), m.get("page"), m.get("name"))
         elif tool == "history":
             for v in result.get("versions", []):
                 self.record(v.get("path"), v.get("page"))
         elif tool == "cite":
             if result.get("found"):
-                self.record(result.get("path"), result.get("page"))
+                self.record(result.get("path"), result.get("page"), result.get("name"))
 
     def check(self, path: str, page: int | None) -> str:
         """'ok', 'page_mismatch', 'page_unparseable' or 'unknown_path'.

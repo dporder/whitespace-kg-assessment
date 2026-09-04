@@ -72,6 +72,13 @@ HIERARCHY_PROFILES = {
         "unit_labels": {"core-terms": "Clause", "_schedule_default": "Paragraph"},
         "unit_labels_from_document": ["Clause", "Schedule", "Part", "Paragraph", "Annex", "Table"],
         "unit_labels_from_profile": ["item"],   # interpretation clause is silent on (a) and (i)
+        # Labels for the item kinds the interpretation clause does not name,
+        # per UK drafting convention (research memo section 2): lettered items
+        # are paragraphs of their clause, roman items sub-paragraphs. The same
+        # string "Paragraph" can carry source=document on a dotted schedule
+        # provision (JS1 1.3.9 names those) and source=profile here; the source
+        # field records where THIS node's label came from, not string identity.
+        "item_labels": {"letter": "Paragraph", "roman": "Sub-paragraph"},
         "interpretation_cues": [
             r"unless the context otherwise requires",
             r"[Ii]n this Schedule[,:]?\s",
@@ -91,11 +98,16 @@ DEFAULT_PROFILE = "uk-ccs-framework"
 # guessed (see pipeline/parse/geometry.py for the per-constant evidence).
 PARSE_GEOMETRY = {
     "indent_tolerance": 2.0,       # glyph jitter: 3.1 at x=27.0, its child 3.1.1 at 26.4
+    "vertical_tolerance": 1.0,     # baseline jitter for ascent and own-above comparisons
     "min_indent_step": 6.0,
-    "sibling_overlap_share": 0.2,  # line boxes span ascent+descent, so lines overlap 0.8-2.9pt
+    "sibling_overlap_share": 0.2,  # of the SMALLER box; line boxes overlap 0.8-2.9pt by construction
     "header_band": 0.09,           # share of page height treated as header furniture
     "footer_band": 0.89,           # start of the footer band
 }
+# Canonical tolerance map, both stage 2 and stage 8 read exactly this:
+#   child_left_edge, extent_nests            -> indent_tolerance
+#   own_box_above_first_child, siblings_ascend -> vertical_tolerance
+#   sibling_overlap -> max(vertical_tolerance, sibling_overlap_share * min(box heights))
 
 # Any one of these firing quarantines the document rather than ingesting a guessed tree.
 QUARANTINE_THRESHOLDS = {

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import pytest
 
+import config
+from pipeline.eval.sections import invariants
 from pipeline.eval.sections.invariants import (CHECKS, AnomalyLedger, anomaly_key,
                                                check_tree, label_sequence_value,
                                                numbering_mode)
@@ -118,7 +120,7 @@ def test_siblings_that_overlap_vertically_are_a_violation():
                 children=[a, b])
     root = mk("p", "part", 0, None, title="P", children=[parent])
     extents(root)
-    hits = failures(root, "siblings_ascend")
+    hits = failures(root, "sibling_overlap")
     assert len(hits) == 1 and "overlaps sibling" in hits[0].detail
 
 
@@ -131,6 +133,128 @@ def test_a_sibling_entirely_above_its_predecessor_is_out_of_reading_order():
     extents(root)
     hits = failures(root, "siblings_ascend")
     assert len(hits) == 1 and "entirely above" in hits[0].detail
+
+
+# --------------------------------- geometry tolerances come from config, SPEC 2.1
+
+def stacked(prev_box, next_box):
+    a = mk("p/1/a", "item", 2, prev_box, label="(a)", text="one")
+    b = mk("p/1/b", "item", 3, next_box, label="(b)", text="two")
+    parent = mk("p/1", "heading", 1, (40, 40, 600, 55), label="1", title="One",
+                children=[a, b])
+    root = mk("p", "part", 0, None, title="P", children=[parent])
+    extents(root)
+    return root
+
+
+def test_the_tolerances_are_read_from_config_not_redefined_here():
+    """SPEC 2.1: one number, two readers. Stage 2 and stage 8 check the same
+    invariants over the same trees, so the slack has to come from one place."""
+    assert invariants.INDENT_TOLERANCE == config.PARSE_GEOMETRY["indent_tolerance"]
+    assert invariants.VERTICAL_TOLERANCE == config.PARSE_GEOMETRY["vertical_tolerance"]
+    assert invariants.SIBLING_OVERLAP_SHARE == config.PARSE_GEOMETRY["sibling_overlap_share"]
+
+
+def test_horizontal_and_vertical_jitter_are_different_numbers():
+    """Reusing indent_tolerance for the vertical comparisons was a guess and it
+    was wrong: the parser has a separate, smaller vertical_tolerance."""
+    assert invariants.VERTICAL_TOLERANCE != invariants.INDENT_TOLERANCE
+
+
+def test_own_box_above_first_child_uses_vertical_not_indent_tolerance():
+    """A 1.5pt dip is inside indent_tolerance (2.0) and outside
+    vertical_tolerance (1.0), so this pair distinguishes the two readings."""
+    child = mk("p/1/a", "item", 2, (110, 98.5, 400, 145), label="(a)", text="body")
+    parent = mk("p/1", "heading", 1, (100, 100, 400, 115), label="1", title="One",
+                children=[child])
+    root = mk("p", "part", 0, None, title="P", children=[parent])
+    extents(root)
+    assert [v.path for v in failures(root, "own_box_above_first_child")] == ["p/1"]
+
+
+def test_the_ascent_half_of_siblings_ascend_uses_vertical_tolerance():
+    """Next sits entirely above prev by a hair: inside vertical_tolerance it is
+    tolerated, beyond it it is a reading-order fault."""
+    within = stacked((100, 130, 400, 150), (100, 129.5, 400, 149.5))
+    assert failures(within, "siblings_ascend") == []
+    beyond = stacked((100, 130, 400, 150), (100, 100, 400, 128))
+    assert [v.check for v in failures(beyond, "siblings_ascend")] == ["siblings_ascend"]
+
+
+@pytest.mark.parametrize("name,prev_box,next_box", [
+    # Real boxes from the preserved parser run, which stage 2 reports clean.
+    ("award-form/8 vs 7, 2.38pt on a 58.58pt box",
+     (57.8, 631.33, 409.94, 689.91), (57.8, 687.53, 456.74, 751.9)),
+    ("award-form/row-2 vs 10, 3.38pt on a 17.18pt box, share 0.197",
+     (57.8, 432.33, 121.86, 449.51), (75.8, 446.13, 545.78, 492.77)),
+    ("award-form/12 vs 11, 2.38pt on a 17.18pt box",
+     (57.8, 470.53, 443.79, 501.51), (57.8, 499.13, 497.14, 516.31)),
+])
+def test_line_box_overlap_within_the_configured_share_is_not_a_violation(
+        name, prev_box, next_box):
+    """A line box spans ascent plus descent, so consecutive lines overlap by
+    0.8 to 2.9pt purely by construction. Flagging that produced 117 sibling
+    violations against stage 2's 0 over identical trees."""
+    assert failures(stacked(prev_box, next_box), "sibling_overlap") == [], name
+
+
+def test_overlap_beyond_the_configured_share_is_still_a_violation():
+    """The tolerance must not swallow a real collision: half a 20pt box."""
+    root = stacked((100, 100, 400, 120), (100, 110, 400, 130))
+    hits = failures(root, "sibling_overlap")
+    assert len(hits) == 1
+    assert "10.00pt" in hits[0].detail
+    assert "sibling_overlap_share=0.2" in hits[0].detail
+
+
+def test_the_share_is_of_the_smaller_box():
+    tol = invariants.sibling_overlap_tolerance((0, 0, 10, 100), (0, 0, 10, 10))
+    assert tol == pytest.approx(config.PARSE_GEOMETRY["sibling_overlap_share"] * 10)
+
+
+def test_the_overlap_tolerance_is_floored_at_vertical_tolerance():
+    """Below a 5pt box the proportional allowance falls under plain baseline
+    jitter, so the floor takes over. 5pt is vertical_tolerance / share."""
+    share = config.PARSE_GEOMETRY["sibling_overlap_share"]
+    floor = config.PARSE_GEOMETRY["vertical_tolerance"]
+    assert invariants.sibling_overlap_tolerance((0, 0, 10, 2), (0, 0, 10, 2)) == floor
+    assert share * 2 < floor, "the floor is doing real work on a 2pt box"
+    # Just above the crossover the share wins again.
+    tall = invariants.sibling_overlap_tolerance((0, 0, 10, 20), (0, 0, 10, 20))
+    assert tall == pytest.approx(share * 20)
+    assert tall > floor
+
+
+def test_the_floor_does_not_change_the_preserved_parser_pairs():
+    """Every real pair is on a box far above the 5pt crossover, so adding the
+    floor left the three regression expectations above untouched."""
+    for prev_box, next_box in [((57.8, 631.33, 409.94, 689.91), (57.8, 687.53, 456.74, 751.9)),
+                               ((57.8, 432.33, 121.86, 449.51), (75.8, 446.13, 545.78, 492.77)),
+                               ((57.8, 470.53, 443.79, 501.51), (57.8, 499.13, 497.14, 516.31))]:
+        heights = (prev_box[3] - prev_box[1], next_box[3] - next_box[1])
+        share_only = config.PARSE_GEOMETRY["sibling_overlap_share"] * min(heights)
+        assert invariants.sibling_overlap_tolerance(prev_box, next_box) == share_only
+
+
+def test_an_indent_within_the_configured_tolerance_is_not_a_violation():
+    """3.1 at x=27.0 with its child 3.1.1 at 26.4 is glyph jitter, not a fault."""
+    assert failures(clean_pair(child_box=(99.0, 130, 400, 145),
+                               parent_box=(100.0, 100, 400, 115)),
+                    "child_left_edge") == []
+
+
+def test_an_indent_beyond_the_configured_tolerance_is_still_a_violation():
+    root = clean_pair(child_box=(96.0, 130, 400, 145), parent_box=(100.0, 100, 400, 115))
+    assert [v.path for v in failures(root, "child_left_edge")] == ["p/1/a"]
+
+
+def test_reading_order_and_overlap_are_separate_check_ids():
+    """SPEC 2.1 pins both; they are different faults and stage 2 reports them
+    apart, so a report that merges them cannot be diffed against stage 2's."""
+    assert "siblings_ascend" in CHECKS and "sibling_overlap" in CHECKS
+    above = stacked((100, 200, 400, 220), (100, 130, 400, 150))
+    assert [v.check for v in failures(above, "siblings_ascend")] == ["siblings_ascend"]
+    assert failures(above, "sibling_overlap") == []
 
 
 def test_extent_must_nest_inside_the_parents():
