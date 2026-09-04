@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask the graph — RM6116</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Tokens lifted from diagram/Main.dc.html so the trust gradient means the
+     same thing here as on the architecture canvas. */
+  :root {
+    --paper:#fbfaf8; --card:#fff; --line:#d8d5cf; --hair:#ece9e4; --sunk:#f5f4f1;
+    --ink:#1c1e21; --body:#3a3d42; --muted:#6b6f76; --faint:#9a948f;
+    --det:#3f6396; --det-bg:#eef3fa; --det-line:#c6d2e3;
+    --rule:#2e7373; --rule-bg:#f2f8f8; --rule-line:#c3d9d9;
+    --model:#a16b16; --model-bg:#fbf7ef; --model-line:#e0d0b2;
+    --human:#75589b; --human-bg:#faf7fd; --human-line:#d9cbe8;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+         font-family:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif; font-size:13px; }
+  a { color:var(--det); } a:hover { color:#2d4a73; }
+  .mono { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; }
+
+  .wrap { max-width:1440px; margin:0 auto; padding:26px 30px 20px; min-height:100vh; display:flex; flex-direction:column; gap:14px; }
+  header { display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+           border-bottom:2px solid var(--ink); padding-bottom:11px; flex-wrap:wrap; }
+  h1 { font-size:21px; font-weight:700; letter-spacing:-.01em; margin:0; }
+  .sub { font-size:11px; color:var(--muted); }
+  .badges { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+
+  .kick { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.08em;
+          text-transform:uppercase; padding:2px 7px; border-radius:3px; color:#fff; }
+  .chip { display:inline-block; font-size:10px; font-weight:500; padding:2px 8px;
+          border-radius:3px; border:1px solid var(--line); color:var(--body); }
+  .colhead { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:4px; }
+  .li { font-size:11.5px; line-height:1.5; color:var(--body); }
+
+  .body { display:flex; gap:18px; flex:1; min-height:0; align-items:flex-start; }
+  .col { flex:1; display:flex; flex-direction:column; gap:12px; min-width:0; }
+  .rail { width:344px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; position:sticky; top:20px; }
+  @media (max-width:1080px) { .body { flex-direction:column; } .rail { width:100%; position:static; } }
+
+  .q { display:flex; gap:10px; align-items:flex-start; }
+  .q .txt { font-size:14px; line-height:1.5; font-weight:500; }
+
+  .gate { display:flex; align-items:center; gap:8px; padding-left:46px; flex-wrap:wrap; }
+
+  .plan { border-top:3px solid var(--model); padding:12px 14px; display:flex; flex-direction:column; gap:9px; }
+  .batches { display:flex; gap:12px; flex-wrap:wrap; }
+  .batch { flex:1; min-width:220px; border:1px solid var(--model-line); background:var(--model-bg);
+           border-radius:3px; padding:9px 10px; }
+  .batch h4 { margin:0 0 6px; font-size:10px; font-weight:700; color:var(--model);
+              text-transform:uppercase; letter-spacing:.06em; }
+  .batch .qs { display:flex; flex-direction:column; gap:4px; }
+  .batch .qs div { font-size:10.5px; line-height:1.45; }
+
+  .answer { border-top:3px solid var(--det); padding:14px 16px; display:flex; flex-direction:column; gap:11px; }
+  .prose { font-size:13.5px; line-height:1.75; white-space:pre-wrap; }
+  .cite { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:10px; color:var(--det);
+          background:var(--det-bg); border:1px solid var(--det-line); border-radius:3px;
+          padding:1px 5px; cursor:pointer; white-space:nowrap; }
+  .cite:hover, .cite.on { color:var(--human); background:var(--human-bg); border-color:var(--human-line); }
+  .cite.bad { color:var(--model); background:var(--model-bg); border-color:var(--model-line); cursor:not-allowed; }
+
+  .ask { display:flex; gap:9px; align-items:center; }
+  .ask input { flex:1; border:1px solid var(--line); border-radius:3px; background:#fff;
+               padding:9px 11px; font:inherit; font-size:12.5px; color:var(--ink); }
+  .ask input:focus { outline:2px solid var(--det-line); outline-offset:-1px; }
+  .ask button { font:inherit; font-size:11px; font-weight:600; background:var(--ink); color:#fff;
+                border:0; border-radius:3px; padding:9px 16px; cursor:pointer; }
+  .ask button:disabled { background:var(--faint); cursor:default; }
+
+  .cropbox { border:1px solid var(--line); border-radius:3px; overflow:hidden; background:#fff; min-height:60px; }
+  .cropbox img { display:block; width:100%; }
+  .empty { padding:18px 12px; text-align:center; }
+
+  .trace { display:flex; flex-direction:column; gap:3px; border-left:2px solid var(--det-line); padding-left:9px; }
+  .trace.err { border-left-color:var(--model-line); }
+  .traces { display:flex; flex-direction:column; gap:8px; }
+
+  .err { border:1px solid var(--model-line); background:var(--model-bg); border-radius:3px;
+         padding:9px 11px; font-size:11.5px; line-height:1.5; color:var(--body); }
+  .examples { display:flex; gap:6px; flex-wrap:wrap; }
+  .examples button { font:inherit; font-size:10.5px; background:#fff; border:1px solid var(--line);
+                     border-radius:3px; padding:4px 9px; cursor:pointer; color:var(--body); }
+  .examples button:hover { border-color:var(--det); color:var(--det); }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+      <h1>Ask the graph</h1>
+      <span class="sub mono" id="src">RM6116</span>
+    </div>
+    <div class="badges" id="badges"></div>
+  </header>
+
+  <div class="ask">
+    <input id="q" placeholder="Ask about a clause, a term, or what depends on a schedule…" autocomplete="off">
+    <button id="send">Send</button>
+  </div>
+  <div class="examples" id="examples"></div>
+
+  <div class="body">
+    <div class="col" id="convo"></div>
+
+    <div class="rail">
+      <div class="card" style="border-top:3px solid var(--human);padding:11px 12px;display:flex;flex-direction:column;gap:7px;">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span class="kick" style="background:var(--human)">Citation</span>
+          <span class="mono" style="font-size:10px;color:var(--body)" id="citepath">click a citation</span>
+        </div>
+        <div class="cropbox" id="cropbox">
+          <div class="empty li" style="color:var(--faint)">Every citation resolves to a page crop, rendered from the stored box at request time.</div>
+        </div>
+        <div class="mono" style="font-size:9.5px;color:var(--muted)" id="citemeta"></div>
+      </div>
+
+      <div class="card" style="padding:11px 12px;display:flex;flex-direction:column;gap:8px;">
+        <div class="colhead">Tool trace</div>
+        <div class="traces" id="traces">
+          <div class="li" style="color:var(--faint)">No calls yet.</div>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--sunk);padding:11px 12px;">
+        <div class="colhead" style="margin-bottom:5px;">No tool, no claim</div>
+        <div class="li">Citations are copied from tool results, never composed by the model. Each one is checked against what the tools actually returned.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+const EXAMPLES = [
+  "Who owns New IPR created under a Contract, and what is that ownership subject to?",
+  "What does Clause 9.2 say?",
+  "What does Central Buying Office mean, and which definition governs?",
+  "What cites Clause 3.1.2?"
+];
+
+let health = {};
+
+async function boot() {
+  try {
+    health = await (await fetch('/api/health')).json();
+    const cfg = await (await fetch('/api/config')).json();
+    $('#src').textContent = `RM6116 · data ${health.data_source} · graph ${health.graph_backend}`;
+    const b = $('#badges');
+    b.append(mkChip(`gate ${'haiku'}`), mkChip('plan opus'), mkChip('agent opus'));
+    if (!health.llm_available) {
+      const warn = mkChip('model unavailable'); warn.style.borderColor = 'var(--model)'; warn.style.color = 'var(--model)';
+      b.append(warn);
+    }
+    if (!health.embedding_search) {
+      const v = mkChip('vector arm pending'); v.style.borderColor = 'var(--model-line)'; v.style.color = 'var(--model)';
+      b.append(v);
+    }
+  } catch (e) { /* health is advisory */ }
+  const ex = $('#examples');
+  EXAMPLES.forEach(t => { const btn = el('button', null, t); btn.onclick = () => { $('#q').value = t; ask(); }; ex.append(btn); });
+}
+const mkChip = t => el('span', 'chip', t);
+
+function renderProse(node, raw) {
+  node.replaceChildren();
+  const re = /\[\[([^\]|]+)\|([^\]]*)\]\]/g;
+  let last = 0, m;
+  while ((m = re.exec(raw)) !== null) {
+    if (m.index > last) node.append(document.createTextNode(raw.slice(last, m.index)));
+    const path = m[1].trim(), page = m[2].trim();
+    const c = el('span', 'cite', `${path} · p${page}`);
+    c.dataset.path = path; c.dataset.page = page;
+    c.onclick = () => showCrop(path, page, c);
+    node.append(c);
+    last = re.lastIndex;
+  }
+  if (last < raw.length) node.append(document.createTextNode(raw.slice(last)));
+}
+
+function showCrop(path, page, chip) {
+  document.querySelectorAll('.cite.on').forEach(n => n.classList.remove('on'));
+  if (chip) chip.classList.add('on');
+  $('#citepath').textContent = path;
+  $('#citemeta').textContent = `page ${page} · rendered from the stored box`;
+  const box = $('#cropbox');
+  box.replaceChildren();
+  const img = new Image();
+  img.alt = `page crop for ${path}`;
+  img.onerror = () => { box.replaceChildren(el('div', 'empty li', 'No crop: this node carries no box.')); };
+  img.src = `/api/crop?path=${encodeURIComponent(path)}`;
+  box.append(img);
+}
+
+function ask() {
+  const q = $('#q').value.trim();
+  if (!q) return;
+  $('#send').disabled = true;
+  $('#traces').replaceChildren();
+  const convo = $('#convo');
+  convo.replaceChildren();
+
+  const qRow = el('div', 'q');
+  qRow.append(el('span', 'kick', 'You'), el('div', 'txt', q));
+  qRow.querySelector('.kick').style.background = 'var(--ink)';
+  qRow.querySelector('.kick').style.marginTop = '2px';
+  convo.append(qRow);
+
+  const gateRow = el('div', 'gate hide');
+  convo.append(gateRow);
+
+  const planCard = el('div', 'card plan hide');
+  convo.append(planCard);
+
+  const ansCard = el('div', 'card answer hide');
+  const ansHead = el('div'); ansHead.style.cssText = 'display:flex;align-items:center;gap:8px';
+  const kick = el('span', 'kick', 'Answer'); kick.style.background = 'var(--det)';
+  const ansMeta = el('span', 'li'); ansMeta.style.color = 'var(--muted)';
+  ansHead.append(kick, ansMeta);
+  const prose = el('div', 'prose');
+  ansCard.append(ansHead, prose);
+  convo.append(ansCard);
+
+  let raw = '';
+  const es = new EventSource(`/api/ask?q=${encodeURIComponent(q)}`);
+
+  es.addEventListener('gate', e => {
+    const d = JSON.parse(e.data);
+    gateRow.classList.remove('hide');
+    const c = el('span', 'chip', `gate · ${d.route}`);
+    c.style.color = d.route === 'research' ? 'var(--model)' : 'var(--det)';
+    c.style.borderColor = d.route === 'research' ? 'var(--model)' : 'var(--det)';
+    c.style.background = d.route === 'research' ? 'var(--model-bg)' : 'var(--det-bg)';
+    const why = el('span', 'li', d.reason); why.style.color = 'var(--muted)';
+    gateRow.append(c, why);
+    if (d.failed_open) { const f = el('span', 'chip', 'failed open'); f.style.color = 'var(--model)'; gateRow.append(f); }
+  });
+
+  es.addEventListener('plan', e => {
+    const d = JSON.parse(e.data);
+    planCard.classList.remove('hide');
+    const head = el('div'); head.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+    const k = el('span', 'kick', 'Working on'); k.style.background = 'var(--model)';
+    const r = el('span', 'li', d.restated || ''); r.style.color = 'var(--body)';
+    head.append(k, r);
+    planCard.append(head);
+    if (d.degraded) { planCard.append(el('div', 'err', d.degraded)); return; }
+    const wrap = el('div', 'batches');
+    (d.batches || []).forEach(b => {
+      const bx = el('div', 'batch');
+      const h = el('h4', null, `Batch ${b.n}`);
+      bx.append(h);
+      if (b.why) { const w = el('div', 'li', b.why); w.style.color = 'var(--muted)'; w.style.marginBottom = '5px'; bx.append(w); }
+      const qs = el('div', 'qs');
+      (b.queries || []).forEach(x => {
+        const line = el('div');
+        const t = el('span', 'mono', x.tool ? `${x.tool}` : '');
+        t.style.color = 'var(--model)';
+        line.append(t, document.createTextNode(x.tool ? '  ' : ''), document.createTextNode(x.ask || ''));
+        qs.append(line);
+      });
+      bx.append(qs);
+      wrap.append(bx);
+    });
+    planCard.append(wrap);
+  });
+
+  es.addEventListener('tool', e => {
+    const d = JSON.parse(e.data);
+    const t = el('div', 'trace' + (d.ok ? '' : ' err'));
+    const n = el('div', 'mono', d.name); n.style.cssText = 'font-size:10px';
+    const s = el('div', 'li', d.summary); s.style.color = 'var(--muted)';
+    const a = el('div', 'li', Object.entries(d.args).map(([k, v]) => `${k}=${v}`).join(' · '));
+    a.style.cssText = 'color:var(--faint);word-break:break-all';
+    t.append(n, a, s);
+    $('#traces').append(t);
+  });
+
+  es.addEventListener('text', e => {
+    ansCard.classList.remove('hide');
+    raw += JSON.parse(e.data).delta;
+    renderProse(prose, raw);
+  });
+
+  es.addEventListener('citations', e => {
+    const d = JSON.parse(e.data);
+    const bad = (d.citations || []).filter(c => c.status !== 'ok');
+    ansMeta.textContent = `${(d.citations || []).length} citation(s)` + (bad.length ? ` · ${bad.length} unverified` : ' · all verified against tool output');
+    if (bad.length) {
+      ansCard.append(el('div', 'err', 'Unverified: ' + bad.map(c => `${c.path} (${c.status})`).join(', ')));
+      document.querySelectorAll('.cite').forEach(n => {
+        if (bad.some(b => b.path === n.dataset.path)) n.classList.add('bad');
+      });
+    }
+    const first = (d.citations || []).find(c => c.status === 'ok');
+    if (first) showCrop(first.path, first.page, document.querySelector(`.cite[data-path="${CSS.escape(first.path)}"]`));
+  });
+
+  es.addEventListener('note', e => { convo.append(el('div', 'err', JSON.parse(e.data).message)); });
+  es.addEventListener('error', e => {
+    let msg = 'stream failed';
+    try { msg = JSON.parse(e.data).message; } catch (_) {}
+    convo.append(el('div', 'err', msg));
+  });
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    const foot = el('div', 'li', `${d.tool_calls} tool call(s) · ${d.rounds} round(s) · graph ${d.backend} · llm ${d.llm}`);
+    foot.style.cssText = 'color:var(--muted);border-top:1px solid var(--hair);padding-top:8px';
+    ansCard.append(foot);
+  });
+  es.addEventListener('close', () => { es.close(); $('#send').disabled = false; });
+  es.onerror = () => { es.close(); $('#send').disabled = false; };
+}
+
+$('#send').onclick = ask;
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+boot();
+</script>
+</body>
+</html>
