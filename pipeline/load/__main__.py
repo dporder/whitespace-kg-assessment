@@ -1,0 +1,563 @@
+"""Stage 7, `python -m pipeline.load --batch <id>`. The join.
+
+    output/<run>/graph/nodes.jsonl        one row per graph node
+    output/<run>/graph/edges.jsonl        GraphEdge rows, SPEC 2.5
+    output/<run>/graph/graph.json         the NetworkX export, same producer
+    output/<run>/graph/audit.jsonl        merges, sweeps, rollbacks, dedups
+    output/<run>/graph/load_report.json   counts, reconciled against the inputs
+
+Reads every stage output through `pipeline.eval.inputs`, which already answers
+the three questions that matter separately: was the file there, did it parse,
+did it validate. Stage 7 is the one place that sees stages 2 to 6 at once, so it
+is where `ASSOCIATED_TERM` and `DEFINED_USING` are computed (SPEC 2.4: the
+aggregation joins stage 4 and stage 5 outputs, which must not read each other).
+
+The loader reports its own node and edge counts against the stage outputs it
+read, because a count that does not reconcile is the failure EVALUATION 4 makes
+a release gate.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Optional
+
+import config
+from pipeline.eval import inputs as inputs_mod
+from pipeline.schemas import Legislation, Node, node_id, lineage_key
+
+from pipeline import llm
+
+from . import associated, export, salience as salience_mod
+from .audit import Audit
+from .neo4j_loader import Graph, duplicate_edge_keys
+from .rows import (Rows, concept_rows, dangling_endpoints, dedupe, legislation_rows,
+                   load_id_for, term_rows, tree_rows, walk)
+
+
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        prog="python -m pipeline.load",
+        description="Stage 7, the graph load (handover/SPEC.md 2.5).")
+    p.add_argument("--batch", metavar="ID",
+                   help=f"the batch being loaded, one of {sorted(config.BATCHES)}, or "
+                        f"any id for a throwaway load. default: inferred from the "
+                        f"stage output's own batch ids")
+    p.add_argument("--run", metavar="ID",
+                   help="run id under output/. default: the newest run holding stage "
+                        "output, else 'dev'")
+    p.add_argument("--input", choices=["auto", "output", "fixtures"], default="auto")
+    p.add_argument("--parts", metavar="IDS", help="comma-separated part ids to load")
+    p.add_argument("--output-dir", type=Path, default=config.OUTPUT)
+    p.add_argument("--fixtures-dir", type=Path, default=config.ROOT / "fixtures")
+    p.add_argument("--no-neo4j", action="store_true",
+                   help="write the JSONL and the NetworkX export, load nothing")
+    p.add_argument("--no-sweep", action="store_true",
+                   help="skip the sweep; the load then only avoids duplicates rather "
+                        "than converging on state")
+    p.add_argument("--no-salience", action="store_true")
+    p.add_argument("--rollback", metavar="BATCH",
+                   help="remove a batch completely and exit")
+    p.add_argument("--sweep-only", action="store_true",
+                   help="run the sweep for --batch over --parts and exit")
+    p.add_argument("--load-id", default=None,
+                   help="with --sweep-only, the load id to keep; everything else in "
+                        "scope goes. Without it the sweep would remove everything in "
+                        "scope, so it must be given explicitly")
+    p.add_argument("--document-path", default=None,
+                   help="path for the document root node when the trees carry none")
+    p.add_argument("--access-label", default=None,
+                   help="access classification inherited by every node (DESIGN 4)")
+    p.add_argument("--quiet", action="store_true")
+    return p.parse_args(argv)
+
+
+def write_jsonl(path: Path, rows) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+    return len(rows)
+
+
+def write_json(path: Path, value) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str) + "\n")
+
+
+# The document root's version is the document's, never a part's. Stage 2 mints
+# every node id with `version=part["template_version"]`, so inferring the root's
+# version from whichever tree happened to come first gave Core Terms a root
+# under v3.0.11 and the Award Form one under v3.10: two Document nodes at one
+# path the moment a second batch landed. This pack binds about forty-eight
+# separately versioned templates and none of those versions is the document's,
+# so promoting one would assert something the document does not say. A neutral,
+# stable label is used instead and recorded as the root's `version_label`; each
+# part keeps its own `template_version`, which is where that fact belongs.
+DOCUMENT_VERSION_LABEL = "as-bound"
+
+
+def document_root(trees: dict[str, Node], path: Optional[str], batch_id: str,
+                  version_label: str = DOCUMENT_VERSION_LABEL
+                  ) -> tuple[Optional[Node], Optional[dict]]:
+    """The graph's root. Synthesised only when no tree carries one.
+
+    SPEC 2.5 lists `CONTAINS` from document to part, but stage 2 writes one file
+    per part and no document node, so unless a part tree carries a `document`
+    root there is nothing for those edges to start from. Rather than drop the
+    edges or invent a root silently, one is synthesised, flagged in its own
+    `anomalies`, and reported.
+    """
+    for root in trees.values():
+        if root.kind == "document":
+            return root, None
+    if not trees:
+        return None, None
+    sample = next(iter(trees.values()))
+    document = _infer_document_id(sample)
+    root_path = path or document
+    note = {"kind": "document_root_synthesised",
+            "path": root_path,
+            "version_label": version_label,
+            "detail": "no tree carried a node of kind 'document', so stage 7 minted the "
+                      "root that CONTAINS the parts, under the pinned document version "
+                      f"{version_label!r} rather than any one part's template version, "
+                      "so every batch mints the same root. Stage 2 writes one file per "
+                      "part; if it later emits a document root, this stops happening."}
+    node = Node(id=node_id(document, version_label, root_path),
+                lineage_key=lineage_key(document, root_path),
+                path=root_path, kind="document", citable=False,
+                version_label=version_label,
+                page_start=min(r.page_start for r in trees.values()),
+                page_end=max(r.page_end for r in trees.values()),
+                order=0, batch_id=batch_id,
+                anomalies=[f"document_root_synthesised_by_stage_7: {note['detail']}"])
+    return node, note
+
+
+def _infer_document_id(sample: Node) -> str:
+    for candidate in (config.DOCUMENT_ID, f"{config.DOCUMENT_ID}-fixture"):
+        if lineage_key(candidate, sample.path) == sample.lineage_key:
+            return candidate
+    return config.DOCUMENT_ID
+
+
+def load_legislation_records(source_root: Path) -> list[Legislation]:
+    path = source_root / "refs" / "legislation.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except Exception:                                     # noqa: BLE001
+        return []
+    out = []
+    for row in data.get("records", []):
+        try:
+            out.append(Legislation.model_validate(row))
+        except Exception:                                 # noqa: BLE001
+            continue
+    return out
+
+
+def build_rows(inputs, source_root: Path, batch_id: str, *,
+               document_path: Optional[str], access_label: Optional[str],
+               load_id: str = "") -> tuple[Rows, list[dict], Optional[Node]]:
+    document, note = document_root(inputs.trees, document_path, batch_id)
+    notes = [note] if note else []
+    rows = tree_rows(inputs.trees, inputs.refs, batch_id=batch_id, document=document,
+                     access_label=access_label, load_id=load_id)
+    nodes_by_id = {n.id: n for part in inputs.trees for n in walk(inputs.trees[part])}
+
+    leg = legislation_rows(inputs.refs, load_legislation_records(source_root),
+                           batch_id=batch_id, load_id=load_id)
+    rows.nodes.extend(leg.nodes)
+    rows.edges.extend(leg.edges)
+    rows.notes.extend(leg.notes)
+
+    if inputs.definition_sites is not None or inputs.term_uses is not None:
+        terms = term_rows(inputs.definition_sites or [], inputs.term_uses or [],
+                          nodes_by_id, batch_id=batch_id, load_id=load_id)
+        rows.nodes.extend(terms.nodes)
+        rows.edges.extend(terms.edges)
+        rows.notes.extend(terms.notes)
+
+    if inputs.concepts:
+        concepts = concept_rows(inputs.concepts, nodes_by_id, batch_id=batch_id,
+                                load_id=load_id)
+        rows.nodes.extend(concepts.nodes)
+        rows.edges.extend(concepts.edges)
+        rows.notes.extend(concepts.notes)
+        joined = associated.build(inputs.concepts, inputs.term_uses or [], nodes_by_id,
+                                  batch_id=batch_id)
+        rows.edges.extend(joined.edges)
+        rows.notes.extend(joined.notes)
+
+    rows.notes.extend(notes)
+    return rows, notes, document
+
+
+def build_rows_with_load_id(inputs, source_root: Path, batch_id: str, *,
+                            document_path: Optional[str], access_label: Optional[str]
+                            ) -> tuple[Rows, list[dict], Optional[Node], str]:
+    """Two passes: the load id is a hash of the rows, and then goes on them.
+
+    Cheap, and it keeps the id honest. Building the rows once to hash them and
+    once to stamp them is a few milliseconds; deriving the id from anything less
+    than the whole asserted set would let two different loads collide and the
+    sweep would then spare rows it should remove.
+    """
+    draft, _notes, _document = build_rows(inputs, source_root, batch_id,
+                                          document_path=document_path,
+                                          access_label=access_label)
+    load_id = load_id_for(batch_id, draft)
+    rows, notes, document = build_rows(inputs, source_root, batch_id,
+                                       document_path=document_path,
+                                       access_label=access_label, load_id=load_id)
+    return rows, notes, document, load_id
+
+
+def reconcile(inputs, rows: Rows, document: Optional[Node],
+              written: Optional[dict] = None, deferred: Optional[list[dict]] = None
+              ) -> dict:
+    """The loader's own counts against the stage outputs it read.
+
+    SPEC 5 makes node AND edge counts a release gate, so both are formed here
+    and both can fail. Edges deliberately not written because the far endpoint's
+    batch has not arrived are reported as deferred, which is an expected state
+    during batched ingestion, and are excluded from what the database was asked
+    to write rather than quietly counted as merged.
+    """
+    tree_nodes = sum(1 for part in inputs.trees for _ in walk(inputs.trees[part]))
+    ref_nodes = sum(len(v) for v in inputs.refs.values())
+    expected_nodes = tree_nodes + ref_nodes + (1 if document is not None else 0)
+    counted = rows.counts()
+    referents = sum(counted["nodes_by_label"].get(label, 0)
+                    for label in ("Term", "Legislation", "Concept"))
+    deferred = deferred or []
+    edges_expected = counted["edges"] - len(deferred)
+    edge_block: dict = {
+        "rows_built": counted["edges"],
+        "deferred_far_endpoint_absent": len(deferred),
+        "expected_to_write": edges_expected,
+        "written": None if written is None else written.get("edges_written"),
+        "reconciles": True if written is None
+        else written.get("edges_written") == edges_expected,
+        "deferred_detail": deferred[:50],
+    }
+    node_block: dict = {
+        "expected_to_write": counted["nodes"],
+        "written": None if written is None else written.get("nodes_written"),
+        "reconciles": True if written is None
+        else written.get("nodes_written") == counted["nodes"],
+    }
+    return {
+        "nodes_in_database": node_block,
+        "edges_in_database": edge_block,
+        "stage_inputs": {
+            "tree_nodes": tree_nodes, "refs": ref_nodes,
+            "definition_sites": len(inputs.definition_sites or []),
+            "term_uses": len(inputs.term_uses or []),
+            "concepts": len(inputs.concepts or []),
+            "document_root": 1 if document is not None else 0,
+        },
+        "graph_rows": counted,
+        "tree_and_ref_nodes_expected": expected_nodes,
+        "tree_and_ref_nodes_written": counted["nodes"] - referents,
+        "referent_nodes_written": referents,
+        "reconciles": (counted["nodes"] - referents == expected_nodes
+                       and node_block["reconciles"] and edge_block["reconciles"]),
+        "edge_types_skipped": edge_types_skipped(inputs, counted),
+    }
+
+
+# Which stage each edge type needs, so an absent stage explains its own gap
+# rather than showing up as a silently missing edge type.
+EDGE_TYPE_SOURCES = {
+    "USES_TERM": ("stage 4", "vocab/term_uses.json"),
+    "DEFINED_IN": ("stage 4", "vocab/definition_sites.json"),
+    "DEFINED_USING": ("stage 4", "vocab/definition_sites.json and vocab/term_uses.json"),
+    "ABOUT": ("stage 5", "concepts.json"),
+    "CONCEPT_REL": ("stage 5", "concepts.json"),
+    "ASSOCIATED_TERM": ("stages 4 and 5", "vocab/term_uses.json and concepts.json"),
+}
+
+
+def edge_types_skipped(inputs, counted: dict) -> list[dict]:
+    """Edge types this load could not produce, and the input that was missing.
+
+    A load over trees and refs alone is a legitimate state, not a failure: the
+    enrichment stages run in parallel with references and may not have landed.
+    But "no ASSOCIATED_TERM edges" must never be readable as "the join found
+    nothing", so the absent input is named next to every type it starves.
+    """
+    have_terms = bool(inputs.term_uses) or bool(inputs.definition_sites)
+    have_concepts = bool(inputs.concepts)
+    out = []
+    for edge_type, (stage, files) in EDGE_TYPE_SOURCES.items():
+        if counted["edges_by_type"].get(edge_type):
+            continue
+        needs_terms = edge_type in ("USES_TERM", "DEFINED_IN", "DEFINED_USING",
+                                    "ASSOCIATED_TERM")
+        needs_concepts = edge_type in ("ABOUT", "CONCEPT_REL", "ASSOCIATED_TERM")
+        missing = []
+        if needs_terms and not have_terms:
+            missing.append(files if not needs_concepts else "vocab/term_uses.json")
+        if needs_concepts and not have_concepts:
+            missing.append("concepts.json")
+        if missing:
+            out.append({"edge_type": edge_type, "needs": stage,
+                        "missing_input": ", ".join(missing),
+                        "note": "the input this edge type is computed from is not in "
+                                "this run directory, so no edge of this type could be "
+                                "produced; this is an absent stage, not an empty join"})
+    return out
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    args = parse_args(argv)
+    output_root: Path = args.output_dir
+    run = args.run or inputs_mod.newest_run(output_root) or "dev"
+    run_dir = output_root / run
+    graph_dir = run_dir / "graph"
+
+    source = args.input
+    if source == "auto":
+        source = (inputs_mod.OUTPUT_SOURCE if inputs_mod.has_stage_output(run_dir)
+                  else inputs_mod.FIXTURES_SOURCE)
+    source_root = run_dir if source == inputs_mod.OUTPUT_SOURCE else args.fixtures_dir
+
+    # `discover_parts` returns the part files and the non-part files it skipped
+    # (a manifest in tree/ is not a broken part). Both are reported.
+    present, not_parts = inputs_mod.discover_parts(source_root)
+    parts = present
+    if args.batch in config.BATCHES:
+        parts = [p for p in present if p == config.BATCHES[args.batch]["part"]]
+    if args.parts:
+        wanted = {p.strip() for p in args.parts.split(",") if p.strip()}
+        parts = [p for p in present if p in wanted]
+
+    inputs = inputs_mod.load(source, source_root, run, parts, run_dir=run_dir,
+                             skipped=not_parts)
+    batch_id = args.batch or _infer_batch(inputs) or "B0"
+    audit = Audit(graph_dir / "audit.jsonl", run=run, batch_id=batch_id)
+
+    # -- the two operations that do nothing else ----------------------------
+    if args.rollback:
+        graph = Graph()
+        result = graph.rollback(args.rollback)
+        audit.record("rollback", reason="operator asked for a batch to be removed",
+                     counts=result, target_batch=args.rollback)
+        audit.flush()
+        graph.close()
+        print(json.dumps(result, indent=2))
+        return 0
+    if args.sweep_only:
+        graph = Graph()
+        result = graph.sweep(parts or present, batch_id, load_id=args.load_id or "",
+                             referent_keys=None)
+        audit.record("sweep", reason="operator asked for a sweep",
+                     affected=result["affected_ids"], counts=result, scope=parts)
+        audit.flush()
+        graph.close()
+        print(json.dumps({k: v for k, v in result.items()
+                          if k not in ("affected", "affected_ids")}, indent=2))
+        return 0
+
+    if not inputs.trees:
+        print(f"no trees under {source_root / 'tree'}; nothing to load", file=sys.stderr)
+        return 1
+
+    rows, doc_notes, document, load_id = build_rows_with_load_id(
+        inputs, source_root, batch_id, document_path=args.document_path,
+        access_label=args.access_label)
+    duplicates = duplicate_edge_keys(rows.edges)
+    rows, collapsed = dedupe(rows)
+    if collapsed:
+        audit.record("dedup", reason="rows sharing one MERGE key were collapsed before "
+                                     "the load, so a rerun cannot grow a twin",
+                     affected=[c.get("key") or f"{c['type']}:{c['src']}->{c['dst']}"
+                               for c in collapsed],
+                     counts={"collapsed": len(collapsed),
+                             "duplicate_edge_keys": len(duplicates)})
+
+    dangling = dangling_endpoints(rows)
+    # Every load is an event in the graph's history, including one that only
+    # wrote files: an audit log that starts at the database cannot explain where
+    # a row came from.
+    audit.record("build", reason=f"rows built for batch {batch_id} from {source}",
+                 counts={**rows.counts(), "parts": len(parts),
+                         "dangling_edge_endpoints": len(dangling)},
+                 parts=parts, source=str(source_root))
+    node_rows = [r.as_dict() for r in rows.nodes]
+    edge_rows = [e.model_dump() for e in rows.edges]
+    write_jsonl(graph_dir / "nodes.jsonl", node_rows)
+    write_jsonl(graph_dir / "edges.jsonl", edge_rows)
+    exported = export.write(rows, graph_dir / "graph.json",
+                            {"run": run, "batch_id": batch_id, "parts": parts,
+                             "source": source,
+                             "load_id": load_id,
+                             "note": "the rows of this load, not the whole graph"})
+
+    tree_nodes = [n for part in inputs.trees for n in walk(inputs.trees[part])]
+    scores = salience_mod.compute(tree_nodes, inputs.all_refs(), inputs.term_uses or [])
+
+    report = {
+        "stage": 7,
+        "run": run,
+        "batch_id": batch_id,
+        "input": {"source": source, "root": str(source_root), "parts": parts,
+                  "failures": [r.as_dict() for r in inputs.failures()],
+                  "absent": [r.as_dict() for r in inputs.absences()],
+                  "skipped_not_parts": [r.as_dict() for r in inputs.skipped()]},
+        "reconciliation": reconcile(inputs, rows, document),
+        "associated_term": associated.summary(rows.edges),
+        "salience": scores.report,
+        "export": exported,
+        "notes": rows.notes,
+        "dedup": {"collapsed_rows": len(collapsed), "detail": collapsed[:50]},
+        "dangling_edge_endpoints": {"count": len(dangling),
+                                    "detail": dangling[:50],
+                                    "note": "an edge endpoint with no node row: the "
+                                            "JSON export would invent the node and the "
+                                            "Neo4j load would drop the edge"},
+        "config_keys_requested": ["SALIENCE.furniture_min_repeats",
+                                  "SALIENCE.furniture_min_parts",
+                                  "SALIENCE.outlier_sigma"],
+        "neo4j": None,
+    }
+
+    if not args.no_neo4j:
+        graph = Graph()
+        try:
+            schema = graph.ensure_schema()
+            known = {r.key_value for r in rows.nodes}
+            writable, deferred = graph.partition_edges(rows.edges, known)
+            nodes_written = graph.merge_nodes(rows.nodes)
+            edges_written = graph.merge_edges(writable, load_id=load_id)
+            audit.record("merge", reason=f"batch {batch_id} loaded, MERGE only",
+                         counts={"nodes": nodes_written, "edges": edges_written,
+                                 "edges_deferred": len(deferred), **schema},
+                         load_id=load_id)
+            report["reconciliation"] = reconcile(
+                inputs, rows, document,
+                written={"nodes_written": nodes_written["written"],
+                         "edges_written": edges_written["written"]},
+                deferred=deferred)
+            swept = None
+            if not args.no_sweep:
+                referent_keys = [r.key_value for r in rows.nodes
+                                 if r.key_field in ("name", "key")
+                                 or "Concept" in r.labels]
+                swept = graph.sweep(parts, batch_id, load_id=load_id,
+                                    referent_keys=referent_keys)
+                audit.record("sweep",
+                             reason="anything in this batch's scope that this load did "
+                                    "not assert; keyed on load_id so a rerun of the "
+                                    "same batch converges too",
+                             affected=swept["affected_ids"], counts=swept, scope=parts,
+                             load_id=load_id)
+            applied = None
+            if not args.no_salience:
+                applied = graph.recompute_salience(salience_mod.settings())
+                report["salience"] = applied
+                audit.record("salience",
+                             reason="recomputed from the whole graph: breadth * log(1 + "
+                                    "frequency), repeated furniture excluded, so every "
+                                    "batch loaded so far contributes breadth",
+                             counts={k: v for k, v in applied.items()
+                                     if k != "top_nodes"})
+            report["neo4j"] = {"schema": schema, "load_id": load_id,
+                               "nodes": nodes_written, "edges": edges_written,
+                               "edges_deferred": len(deferred), "sweep": swept,
+                               "salience": applied, "counts": graph.counts(batch_id)}
+        except Exception as exc:                          # noqa: BLE001
+            # Driver exceptions quote the connection, which carries the password.
+            report["neo4j"] = {"error": llm.scrub(f"{type(exc).__name__}: {exc}")}
+        finally:
+            graph.close()
+
+    audit.flush()
+    write_json(graph_dir / "load_report.json", report)
+    if not args.quiet:
+        _print_summary(report)
+    failed = (report["neo4j"] or {}).get("error") if report["neo4j"] else None
+    if failed:
+        return 1
+    return 0 if report["reconciliation"]["reconciles"] else 2
+
+
+def _infer_batch(inputs) -> Optional[str]:
+    seen = {n.batch_id for _p, n in inputs.nodes() if n.batch_id}
+    seen |= {r.batch_id for r in inputs.all_refs() if r.batch_id}
+    return sorted(seen)[0] if len(seen) == 1 else None
+
+
+def _print_summary(report: dict) -> None:
+    rec = report["reconciliation"]
+    print(f"stage 7  run={report['run']}  batch={report['batch_id']}  "
+          f"source={report['input']['source']}  parts={','.join(report['input']['parts'])}")
+    print(f"  ROWS       nodes={rec['graph_rows']['nodes']} "
+          f"edges={rec['graph_rows']['edges']}")
+    print(f"             by label {rec['graph_rows']['nodes_by_label']}")
+    print(f"             by type  {rec['graph_rows']['edges_by_type']}")
+    print(f"  RECONCILE  stage inputs {rec['stage_inputs']}")
+    print(f"             tree+ref nodes expected={rec['tree_and_ref_nodes_expected']} "
+          f"written={rec['tree_and_ref_nodes_written']} "
+          f"referents={rec['referent_nodes_written']}")
+    nodes_db, edges_db = rec["nodes_in_database"], rec["edges_in_database"]
+    if nodes_db["written"] is not None:
+        print(f"             database nodes {nodes_db['written']}/"
+              f"{nodes_db['expected_to_write']} "
+              f"edges {edges_db['written']}/{edges_db['expected_to_write']} "
+              f"(deferred {edges_db['deferred_far_endpoint_absent']})")
+    print(f"             reconciles={rec['reconciles']}")
+    a = report["associated_term"]
+    print(f"  ASSOC_TERM edges={a['edges']} min_share={a['min_share']} "
+          f"concepts={a['concepts_with_terms']}")
+    skipped = rec.get("edge_types_skipped") or []
+    if skipped:
+        print(f"  SKIPPED    {len(skipped)} edge type(s), input not in this run: "
+              + ", ".join(f"{s['edge_type']} (needs {s['needs']})" for s in skipped))
+    s = report["salience"]
+    if "nodes_scored" in s:
+        print(f"  SALIENCE   scored={s['nodes_scored']} "
+              f"nonzero={s['nodes_with_salience']} terms={s['terms_scored']} "
+              f"furniture excluded={s['furniture_nodes_excluded']} "
+              f"flagged={s['flagged_out_of_distribution']}")
+    print(f"  EXPORT     {report['export']['nodes']} nodes, "
+          f"{report['export']['edges']} edges -> {report['export']['path']}")
+    neo = report["neo4j"]
+    if neo is None:
+        print("  NEO4J      skipped (--no-neo4j)")
+    elif neo.get("error"):
+        print(f"  NEO4J      FAILED: {neo['error']}")
+    else:
+        print(f"  NEO4J      merged nodes={neo['nodes']['written']}/"
+              f"{neo['nodes']['submitted']} edges={neo['edges']['written']}/"
+              f"{neo['edges']['submitted']} deferred={neo['edges_deferred']}")
+        if neo.get("sweep"):
+            print(f"             sweep deleted nodes={neo['sweep']['nodes_deleted']} "
+                  f"rels={neo['sweep']['relationships_deleted']} "
+                  f"orphan referents={neo['sweep']['orphan_referents_deleted']}")
+        if neo.get("salience"):
+            sal = neo["salience"]
+            print(f"             salience from the graph: nodes="
+                  f"{sal['nodes_with_salience']} terms={sal['terms_with_salience']} "
+                  f"furniture excluded={sal['furniture_nodes_excluded']} "
+                  f"flagged={sal['flagged']}")
+        print(f"             graph now nodes={neo['counts']['nodes_total']} "
+              f"rels={neo['counts']['relationships_total']}")
+    if report["dangling_edge_endpoints"]["count"]:
+        print(f"  DANGLING   {report['dangling_edge_endpoints']['count']} edge endpoint(s) "
+              f"have no node row")
+    if report["notes"]:
+        kinds: dict[str, int] = {}
+        for note in report["notes"]:
+            kinds[note["kind"]] = kinds.get(note["kind"], 0) + 1
+        print(f"  NOTES      {kinds}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
