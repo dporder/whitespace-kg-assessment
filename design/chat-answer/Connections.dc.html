@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; }
+    .lbl { font-size: 9.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 900px; background: #08090b; box-sizing: border-box; padding: 30px 34px; display: flex; flex-direction: column; gap: 6px; position: relative; overflow: hidden;">
+
+  <!-- header -->
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; position: relative; z-index: 3;">
+    <div>
+      <div style="font-size: 18px; font-weight: 600; color: #ffffff; letter-spacing: -0.01em;">How these provisions connect</div>
+      <div style="font-size: 12.5px; color: #adafb7; margin-top: 4px;">Every part of the agreement this answer drew on, and how they point at one another.</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 7px; border: 1px solid #2a2c36; border-radius: 7px; padding: 6px 11px;">
+      <svg width="10" height="10" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1l-9 9" stroke="#adafb7" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span style="font-size: 11.5px; color: #adafb7;">Close</span>
+    </div>
+  </div>
+
+  <!-- canvas -->
+  <div style="flex: 1; position: relative;">
+    <svg width="1372" height="700" viewBox="0 0 1372 700" fill="none" style="position: absolute; inset: 0;">
+      <defs>
+        <filter id="glow" x="-60%" y="-160%" width="220%" height="420%">
+          <feGaussianBlur stdDeviation="13" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#c094ff" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="#c094ff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <ellipse cx="360" cy="330" rx="300" ry="180" fill="url(#halo)"/>
+
+      <!-- edges, dashed lavender -->
+      <path d="M600 330 C 700 330, 720 176, 830 176" stroke="#c094ff" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.75" fill="none"/>
+      <path d="M600 330 C 700 330, 720 330, 830 330" stroke="#c094ff" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.75" fill="none"/>
+      <path d="M600 348 C 700 380, 720 470, 830 470" stroke="#c094ff" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.75" fill="none"/>
+      <path d="M600 360 C 690 440, 700 600, 830 606" stroke="#5c5d64" stroke-width="1.3" stroke-dasharray="4 7" opacity="0.6" fill="none"/>
+      <path d="M330 268 C 330 200, 330 160, 330 122" stroke="#c094ff" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.55" fill="none"/>
+
+      <!-- edge labels -->
+      <text x="716" y="238" fill="#8c8c8c" font-size="10.5" font-family="Inter" text-anchor="middle">is subject to</text>
+      <text x="716" y="320" fill="#8c8c8c" font-size="10.5" font-family="Inter" text-anchor="middle">is subject to</text>
+      <text x="712" y="418" fill="#8c8c8c" font-size="10.5" font-family="Inter" text-anchor="middle">uses the term</text>
+      <text x="700" y="520" fill="#8c8c8c" font-size="10.5" font-family="Inter" text-anchor="middle">points at — unsettled</text>
+      <text x="348" y="200" fill="#8c8c8c" font-size="10.5" font-family="Inter" text-anchor="start">sits inside</text>
+    </svg>
+
+    <!-- parent -->
+    <div style="position: absolute; left: 178px; top: 88px; display: flex; align-items: center; gap: 9px; padding: 9px 15px; border-radius: 999px; background: #1a1b22; border: 1px solid #3e3f47;">
+      <span style="font-size: 12.5px; color: #c8c8ca;">Core Terms, Clause 9 — Intellectual Property Rights</span>
+    </div>
+
+    <!-- highlighted centre -->
+    <div style="position: absolute; left: 178px; top: 300px; display: flex; align-items: center; gap: 11px; padding: 13px 20px; border-radius: 999px; background: #1d1a2b; border: 1.5px solid #c094ff; box-shadow: 0 0 34px rgba(192,148,255,0.5);">
+      <span style="width: 21px; height: 21px; border-radius: 50%; background: #c094ff; color: #08090b; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">1</span>
+      <span style="font-size: 14px; font-weight: 600; color: #ffffff;">Core Terms, Clause 9.2</span>
+      <span style="font-size: 11px; color: #c094ff;">the answer starts here</span>
+    </div>
+
+    <!-- right column -->
+    <div style="position: absolute; left: 830px; top: 152px; display: flex; align-items: center; gap: 10px; padding: 11px 17px; border-radius: 999px; background: #1a1b22; border: 1px solid #3e3f47;">
+      <span style="width: 19px; height: 19px; border-radius: 50%; background: rgba(255,255,255,0.06); color: #c094ff; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;">3</span>
+      <span style="font-size: 12.5px; color: #c8c8ca;">Core Terms, Clause 3.1.1, paragraph (a)</span>
+    </div>
+
+    <div style="position: absolute; left: 830px; top: 306px; display: flex; align-items: center; gap: 10px; padding: 11px 17px; border-radius: 999px; background: #1a1b22; border: 1px solid #3e3f47;">
+      <span style="width: 19px; height: 19px; border-radius: 50%; background: rgba(255,255,255,0.06); color: #c094ff; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;">4</span>
+      <span style="font-size: 12.5px; color: #c8c8ca;">Core Terms, Clause 3.1.2</span>
+    </div>
+
+    <div style="position: absolute; left: 830px; top: 446px; display: flex; align-items: center; gap: 10px; padding: 11px 17px; border-radius: 999px; background: #1a1b22; border: 1px solid #3e3f47;">
+      <span style="width: 19px; height: 19px; border-radius: 50%; background: rgba(48,211,177,0.14); color: #30d3b1; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;">2</span>
+      <span style="font-size: 12.5px; color: #c8c8ca;">“Central Buying Office”</span>
+      <span style="font-size: 11px; color: #8c8c8c;">defined in Joint Schedule 1</span>
+    </div>
+
+    <!-- unsettled, deliberately dim -->
+    <div style="position: absolute; left: 830px; top: 588px; display: flex; align-items: center; gap: 10px; padding: 11px 17px; border-radius: 999px; background: transparent; border: 1px dashed #5c5d64;">
+      <span style="font-size: 12.5px; color: #8c8c8c;">“Schedule 2” — more than one match, in the review queue</span>
+    </div>
+  </div>
+
+  <!-- legend -->
+  <div style="display: flex; align-items: center; gap: 26px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 13px; position: relative; z-index: 3;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="width: 15px; height: 15px; border-radius: 50%; background: #c094ff;"></span>
+      <span class="lbl" style="color: #adafb7;">numbered to match the answer</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <svg width="26" height="4"><line x1="0" y1="2" x2="26" y2="2" stroke="#c094ff" stroke-width="1.5" stroke-dasharray="6 5"/></svg>
+      <span class="lbl" style="color: #adafb7;">points at</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="width: 13px; height: 13px; border-radius: 999px; border: 1px dashed #5c5d64;"></span>
+      <span class="lbl" style="color: #adafb7;">not settled</span>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <span style="font-size: 11px; color: #8c8c8c;">Click any provision to open its page.</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

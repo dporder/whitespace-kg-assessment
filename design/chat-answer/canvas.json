@@ -1,32 +1,106 @@
 {
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "The screen"
+    },
+    {
+      "id": "page-2",
+      "name": "How we got here"
+    }
+  ],
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 940, "title": "Chat answer — approved build" },
-    { "file": "DirectionA.dc.html", "x": 1560, "y": 0, "w": 520, "h": 420, "title": "A · Inline chips, crop rail (chosen)" },
-    { "file": "DirectionB.dc.html", "x": 2160, "y": 0, "w": 520, "h": 420, "title": "B · Margin citations" },
-    { "file": "DirectionC.dc.html", "x": 2760, "y": 0, "w": 520, "h": 420, "title": "C · Footnotes and filmstrip" }
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1000,
+      "title": "Chat \u2014 the screen being built (evidence panel shown open)",
+      "page": "page-1"
+    },
+    {
+      "file": "HowIFoundThis.dc.html",
+      "x": 0,
+      "y": 1120,
+      "w": 900,
+      "h": 620,
+      "title": "Detail: \u201cHow I found this\u201d, expanded \u2014 closed by default on the screen above",
+      "page": "page-1"
+    },
+    {
+      "file": "Connections.dc.html",
+      "x": 980,
+      "y": 1120,
+      "w": 1440,
+      "h": 900,
+      "title": "Detail: \u201cSee the connections\u201d, opened \u2014 closed by default",
+      "page": "page-1"
+    },
+    {
+      "file": "DirectionA.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 520,
+      "h": 420,
+      "title": "A \u00b7 Inline chips \u2014 explored, superseded this round",
+      "page": "page-2"
+    },
+    {
+      "file": "DirectionB.dc.html",
+      "x": 600,
+      "y": 0,
+      "w": 520,
+      "h": 420,
+      "title": "B \u00b7 Margin citations \u2014 explored, not chosen",
+      "page": "page-2"
+    },
+    {
+      "file": "DirectionC.dc.html",
+      "x": 1200,
+      "y": 0,
+      "w": 520,
+      "h": 420,
+      "title": "C \u00b7 Footnotes \u2014 explored, and this is what we moved to",
+      "page": "page-2"
+    }
   ],
   "annotations": [
     {
-      "id": "decision-chat-citation",
-      "x": 1560,
-      "y": 560,
+      "id": "legend",
+      "x": -580,
+      "y": 0,
       "w": 520,
-      "text": "CHOSE A — Inline chips, crop rail.\n\nA citation is only worth anything if you can tell which claim it holds up, and A is the only direction where that binding cannot be misread — the path sits inside the sentence, and the rail gives the crop enough room to actually be read.\n\nB is prettier until a claim carries three citations. C decouples claim from proof, which is the one failure this screen exists to prevent."
+      "page": "page-1",
+      "text": "WHAT THIS BOARD IS\nOne screen: the chat, where someone asks a question about the agreement in plain English. This is a single design, already agreed \u2014 nothing here is asking you to choose between options.\n\nThe two boards below the main screen are ZOOMED DETAILS of parts that are CLOSED by default. They are not separate screens. You only see them if you click.\n\nWHO IT IS FOR\nSomeone who needs an answer out of a 475-page agreement and has no interest in how the system works.\n\nWHAT CHANGED THIS ROUND\n\u00b7 Far less on screen. The answer is a plain column of text with nothing competing with it. No rail of statistics, no visible trace.\n\u00b7 Citations are now numbered footnotes, one per claim, instead of paths crowded into the sentence.\n\u00b7 Clicking a footnote opens ONE panel on the right \u2014 the page image and the exact words. That panel is the only place evidence appears.\n\u00b7 Highlighted terms stay, and are deliberately a different shape from footnotes: a filled pill opens a definition, a small raised number opens evidence.\n\u00b7 The trace is closed, and opens as a flow you can read rather than a log.\n\u00b7 New: \u201cSee the connections\u201d opens a map of the provisions behind the answer, numbered to match the footnotes.\n\nWHAT I WOULD VALUE YOUR EYES ON\n1. Is the answer text itself pitched right \u2014 plain enough, short enough?\n2. Footnote number vs filled pill: is the difference obvious without being told?\n3. Is the connections map worth the space it takes?"
     },
     {
-      "id": "note-honesty",
-      "x": 2160,
-      "y": 560,
+      "id": "note-detail-1",
+      "x": -580,
+      "y": 700,
       "w": 520,
-      "text": "The amber block in the answer is deliberate, not filler. An unresolved or ambiguous ref is a fact about the corpus, so the answer states what it could not close and hands it to the review queue, rather than quietly picking a candidate. Same amber the queue uses for model-derived and ambiguous."
+      "page": "page-1",
+      "text": "ON THE TWO DETAIL BOARDS BELOW\nLeft: what opens when you click \u201cHow I found this\u201d. Written as steps in ordinary words \u2014 what was looked for and what came back \u2014 rather than tool names and timings.\n\nRight: what opens when you click \u201cSee the connections\u201d. Dark ground, one glowing provision where the answer starts, dashed lines out to what it depends on. The numbers on the nodes are the same numbers as the footnotes in the answer. A dashed, dimmed node is something the system could not settle \u2014 shown rather than hidden."
     },
     {
-      "id": "note-plan",
-      "x": 2760,
-      "y": 560,
+      "id": "note-brand-chat",
+      "x": -580,
+      "y": 1000,
       "w": 520,
-      "text": "The plan panel is the SPEC 6 planning step made visible: the question restated as sub-queries with an explicit parallel batch structure, batch 2 showing its dependency on batch 1. This is what streams to the user as \"working on\" before any tool runs."
+      "page": "page-1",
+      "text": "ON THE VISUAL STYLING\nNow built in the Whitespace product register from the brand memo: a neutral near-black ground, cards a step up from it, one flat action blue for anything you can act on, Inter for text and JetBrains Mono for references and page numbers. Status is a small pill, never a wash across a row.\n\nThe marketing lavender and the gradient appear only where the memo allows them: the soft glow in the corner behind the composer, and the connectors on the connections view. Nothing else borrows from the marketing look.\n\nBritish English throughout, sentence case on product labels."
+    },
+    {
+      "id": "history-chat",
+      "x": 0,
+      "y": -320,
+      "w": 760,
+      "page": "page-2",
+      "text": "HOW WE GOT HERE \u2014 reference only, no decision needed.\n\nThree ways of attaching evidence to a claim were sketched before the first build. A (inline chips) was chosen then, and built.\n\nOn seeing it working, the chips proved too dense: a path and a page number inside every sentence competes with the sentence. So this round moved to C, numbered footnotes, with the evidence in a single panel \u2014 which is also the pattern the reference chat UI settled on.\n\nA is kept here because it was the earlier decision and the reasoning for changing it only makes sense beside it. Nothing on this page needs your approval."
     }
   ],
-  "launch": { "view": "canvas" }
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
 }
