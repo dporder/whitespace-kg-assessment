@@ -70,17 +70,33 @@ def _label_forms(unit: str, number: str) -> list[str]:
     """
     unit = (unit or "").strip().rstrip("s").title()
     if unit in ("Annex", "Part", "Table"):
-        return [f"{unit} {number}", f"{unit.upper()} {number}", number]
+        # No bare number: a paragraph numbered 2 is not "Annex 2". Those units
+        # are found by the division index, which reads the drafters' own titles.
+        return [f"{unit} {number}", f"{unit.upper()} {number}"]
     return [number, f"{unit} {number}"]
 
 
 def _lookup_any(corpus: Corpus, part: str, unit: str, number: str,
-                item: Optional[str]) -> Optional[str]:
+                item: Optional[str], within: Optional[str] = None) -> Optional[str]:
+    """`within` is the citing provision's path: it picks the namespace the
+    number is read in, so a drafter-named Part's own numbering wins locally."""
     for form in _label_forms(unit, number):
-        found = corpus.lookup(part, form, item)
+        found = corpus.lookup(part, form, item, within=within)
         if found:
             return found
     return None
+
+
+def _note_crossing(corpus: Corpus, part: str, target: Optional[str],
+                   pointer: Pointer, notes: list[str]) -> None:
+    """Record a resolution that left the citing division, so it is visible."""
+    if not target:
+        return
+    crossed = corpus.crossed_sub_part(part, target, pointer.parent_path)
+    if crossed:
+        here, there = crossed
+        notes.append(f"resolved_across_sub_part: cited from {here} and resolved into "
+                     f"{there}; the citing division has no {pointer.number} of its own")
 
 
 def _ancestor_candidate(corpus: Corpus, part: str, number: str) -> Optional[Candidate]:
@@ -182,11 +198,14 @@ def _resolve_clause(corpus: Corpus, pointer: Pointer) -> Resolution:
     context_part, notes = _schedule_from_context(corpus, pointer)
     target_part = context_part or CORE_PART
     scope = "js1_1.3.8"
-    stipulated = _lookup_any(corpus, target_part, "clause", number, item)
+    stipulated = _lookup_any(corpus, target_part, "clause", number, item,
+                             within=(pointer.parent_path
+                                     if target_part == pointer.part else None))
     citing = corpus.enclosing_part(pointer.parent_path)
     local = None
     if citing is not None and not citing.is_core and citing.id != target_part:
-        local = _lookup_any(corpus, citing.id, "clause", number, item)
+        local = _lookup_any(corpus, citing.id, "clause", number, item,
+                            within=pointer.parent_path)
 
     if stipulated and local:
         reason = (f"the pack writes 'Clause {number}' inside {citing.id}, where "
@@ -298,7 +317,8 @@ def _resolve_paragraph(corpus: Corpus, pointer: Pointer) -> Resolution:
         else:
             candidates = []
             if citing is not None:
-                local = _lookup_any(corpus, citing.id, "paragraph", number, item)
+                local = _lookup_any(corpus, citing.id, "paragraph", number, item,
+                                    within=pointer.parent_path)
                 if local:
                     candidates.append(_cand(local, SCORE_LOCAL,
                                             "a provision of that number in the citing part"))
@@ -313,8 +333,11 @@ def _resolve_paragraph(corpus: Corpus, pointer: Pointer) -> Resolution:
                                             "the Schedule this paragraph belongs to has "
                                             "not been ingested")],
                           notes=notes + [f"target_part_not_ingested: {target_part}"])
-    found = _lookup_any(corpus, target_part, "paragraph", number, item)
+    found = _lookup_any(corpus, target_part, "paragraph", number, item,
+                        within=(pointer.parent_path if target_part == pointer.part
+                                else None))
     if found:
+        _note_crossing(corpus, target_part, found, pointer, notes)
         return Resolution(status="resolved", scope_rule="js1_1.3.9", target_path=found,
                           notes=notes)
     candidates = []
@@ -343,12 +366,21 @@ def _resolve_inside_schedule(corpus: Corpus, pointer: Pointer) -> Resolution:
                           candidates=[_cand(target_part, SCORE_CONVENTIONAL,
                                             "the part this belongs to is not ingested")],
                           notes=notes + [f"target_part_not_ingested: {target_part}"])
-    found = _lookup_any(corpus, target_part, pointer.ref_kind, number, pointer.item)
+    here = pointer.parent_path if target_part == pointer.part else None
+    found = corpus.lookup_division(target_part, pointer.unit or pointer.ref_kind,
+                                   number, within=here)
+    if found is None:
+        found = _lookup_any(corpus, target_part, pointer.ref_kind, number,
+                            pointer.item, within=here)
     if found:
+        _note_crossing(corpus, target_part, found, pointer, notes)
         return Resolution(status="resolved", scope_rule=scope, target_path=found,
                           notes=notes)
-    return Resolution(status="unresolved", scope_rule=scope,
-                      notes=notes + [f"no {pointer.ref_kind} {number} in {target_part}"])
+    return Resolution(
+        status="unresolved", scope_rule=scope,
+        notes=notes + [f"no {pointer.ref_kind} {number} in {target_part}: the part "
+                       f"names no such division, and a provision merely numbered "
+                       f"{number} is not one"])
 
 
 def resolve_pointer(corpus: Corpus, pointer: Pointer) -> Resolution:

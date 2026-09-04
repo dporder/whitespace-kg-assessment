@@ -309,3 +309,223 @@ def test_a_deduped_duplicate_does_not_fail_the_run(tmp_path, monkeypatch):
 
     assert main(["--input", "fixtures", "--run", "t", "--no-llm", "--quiet",
                  "--output-dir", str(tmp_path)]) == 0
+
+
+# --------------------------------------------------------------------------
+# drafter-named sub-parts: the audit's finding, SPEC 2.2
+# --------------------------------------------------------------------------
+def co9_shaped_tree(doc_id, version):
+    """Call-Off Schedule 9's shape: Part A's paragraphs sit directly under the
+    part, Part B is a heading the drafters named and restarts the numbering."""
+    from pipeline.schemas import Node, content_hash, lineage_key, node_id
+
+    def node(path, kind, **kw):
+        text = kw.pop("text", None)
+        return Node(id=node_id(doc_id, version, path),
+                    lineage_key=lineage_key(doc_id, path),
+                    content_hash=content_hash(text) if text else None,
+                    path=path, kind=kind, text=text, page_start=1, page_end=1, **kw)
+
+    pid = "call-off-schedule-9"
+    # Part A, unnamed: its paragraphs hang off the part itself
+    a34 = node(f"{pid}/3/3.4", "subclause", label="3.4", order=3,
+               text="Part A's own paragraph 3.4.")
+    a3 = node(f"{pid}/3", "heading", label="3", title="Security Standards", order=2,
+              children=[a34])
+    a5 = node(f"{pid}/5", "heading", label="5", title="Security breach", order=4,
+              children=[node(f"{pid}/5/5.1", "subclause", label="5.1", order=5,
+                             text="Only Part A has a 5.1.")])
+    # Part B, named by the drafters, numbering restarts
+    b = f"{pid}/part-b-long-form-security-requirements"
+    b34 = node(f"{b}/3/3.4", "subclause", label="3.4", order=8,
+               text="Part B's own paragraph 3.4, a different obligation.")
+    b3 = node(f"{b}/3", "heading", label="3", title="Security Standards", order=7,
+              children=[b34])
+    b_cite = node(f"{b}/2/2.1", "subclause", label="2.1", order=10,
+                  text="The Supplier shall comply with Paragraph 3.4.")
+    b_cross = node(f"{b}/2/2.2", "subclause", label="2.2", order=11,
+                   text="Nothing in Paragraph 5.1 is affected.")
+    b2 = node(f"{b}/2", "heading", label="2", title="Compliance", order=9,
+              children=[b_cite, b_cross])
+    part_b = node(b, "heading", title="Part B: Long Form Security Requirements",
+                  order=6, children=[b2, b3])
+    a_cite = node(f"{pid}/2/2.1", "subclause", label="2.1", order=1,
+                  text="The Supplier shall comply with Paragraph 3.4.")
+    a2 = node(f"{pid}/2", "heading", label="2", title="Complying", order=0,
+              children=[a_cite])
+    return node(pid, "part", order=0, children=[a2, a3, a5, part_b],
+                title="Call-Off Schedule 9", part_family="call-off-schedule",
+                unit_label="Paragraph", batch_id="B4")
+
+
+def test_a_part_b_citation_resolves_inside_part_b(doc_id, version, identity):
+    """The audit's exact finding: 17 refs inside Part B citing Paragraph 3.4
+    resolved to Part A's 3.4, deterministically and confidently."""
+    from pipeline.references.corpus import Corpus
+
+    tree = co9_shaped_tree(doc_id, version)
+    corpus = Corpus.from_trees({"call-off-schedule-9": tree})
+    refs = resolved_refs("call-off-schedule-9", tree, corpus, identity)
+    b = "call-off-schedule-9/part-b-long-form-security-requirements"
+
+    from_b = [r for r in refs["Paragraph 3.4"] if r.path.startswith(b)]
+    assert len(from_b) == 1
+    ref = from_b[0]
+    assert ref.target_path == f"{b}/3/3.4", "resolved outside its own Part"
+    assert ref.target_path != "call-off-schedule-9/3/3.4"
+    assert (ref.status, ref.scope_rule) == ("resolved", "js1_1.3.9")
+
+
+def test_a_part_a_citation_still_resolves_inside_part_a(doc_id, version, identity):
+    """The same number cited from outside the named division stays outside it."""
+    from pipeline.references.corpus import Corpus
+
+    tree = co9_shaped_tree(doc_id, version)
+    corpus = Corpus.from_trees({"call-off-schedule-9": tree})
+    refs = resolved_refs("call-off-schedule-9", tree, corpus, identity)
+    b = "call-off-schedule-9/part-b-long-form-security-requirements"
+
+    from_a = [r for r in refs["Paragraph 3.4"] if not r.path.startswith(b)]
+    assert len(from_a) == 1
+    assert from_a[0].target_path == "call-off-schedule-9/3/3.4"
+
+
+def test_a_number_only_outside_the_sub_part_falls_through(doc_id, version, identity):
+    """A citation reaching across a Part boundary is ordinary and still
+    resolves; it is the ones that could have stayed home that were the bug."""
+    from pipeline.references.corpus import Corpus
+
+    tree = co9_shaped_tree(doc_id, version)
+    corpus = Corpus.from_trees({"call-off-schedule-9": tree})
+    refs = resolved_refs("call-off-schedule-9", tree, corpus, identity)
+    ref = refs["Paragraph 5.1"][0]
+    assert ref.status == "resolved"
+    assert ref.target_path == "call-off-schedule-9/5/5.1"
+    assert any(a.startswith("resolved_across_sub_part") for a in ref.anomalies), \
+        "a resolution that left its division was not recorded"
+
+
+def test_the_sub_part_index_reads_the_drafters_own_naming(doc_id, version):
+    from pipeline.references.corpus import Corpus
+
+    tree = co9_shaped_tree(doc_id, version)
+    info = Corpus.from_trees({"call-off-schedule-9": tree}).parts["call-off-schedule-9"]
+    b = "call-off-schedule-9/part-b-long-form-security-requirements"
+    assert info.sub_parts == [b]
+    assert info.sub_part_for(f"{b}/2/2.1") == b
+    assert info.sub_part_for("call-off-schedule-9/3/3.4") is None
+    assert info.sub_part_labels[b]["3.4"] == f"{b}/3/3.4"
+    assert info.outside_labels["3.4"] == "call-off-schedule-9/3/3.4"
+
+
+def test_the_named_part_rule_is_shared_with_the_vocabulary_tier():
+    """One definition of what a drafter-named Part looks like, so reference
+    scoping and definition scoping cannot drift apart."""
+    from pipeline.references import corpus as refs_corpus
+
+    assert refs_corpus.NAMED_SUB_PART.match("Part B: Long Form Security Requirements")
+    assert refs_corpus.NAMED_SUB_PART.match("Part A")
+    assert not refs_corpus.NAMED_SUB_PART.match("Particulars of the Supplier")
+    assert not refs_corpus.NAMED_SUB_PART.match("3 Security Standards")
+    try:
+        from pipeline.vocabulary.declared import NAMED_SUB_PART as theirs
+    except Exception:                                     # noqa: BLE001
+        return                                            # mirrored, reported in the run
+    assert refs_corpus.NAMED_SUB_PART.pattern == theirs.pattern
+
+
+def test_one_expanded_range_resolves_in_one_namespace(doc_id, version, identity):
+    """The eval side's single-line demonstration of the bug.
+
+    Call-Off Schedule 9 Part B cites "3.4 to 3.6". Under the flat part-wide
+    reading, member 1 resolved to Part A's 3.4 while members 2 and 3 went to
+    Part B's 3.5 and 3.6, because Part A has no 3.5 or 3.6 for them to hit.
+    One range, two namespaces, and nothing in the output said so. The
+    nearest-sub-part rule lands all three in Part B with no special case.
+    """
+    from pipeline.references.corpus import Corpus
+    from pipeline.schemas import Node, content_hash, lineage_key, node_id
+
+    def node(path, kind, **kw):
+        text = kw.pop("text", None)
+        return Node(id=node_id(doc_id, version, path),
+                    lineage_key=lineage_key(doc_id, path),
+                    content_hash=content_hash(text) if text else None,
+                    path=path, kind=kind, text=text, page_start=1, page_end=1, **kw)
+
+    pid = "call-off-schedule-9"
+    b = f"{pid}/part-b-long-form-security-requirements"
+    # Part A has 3.4 and no 3.5 or 3.6, which is what split the range
+    part_a = node(f"{pid}/3", "heading", label="3", title="Security Standards", order=1,
+                  children=[node(f"{pid}/3/3.4", "subclause", label="3.4", order=2,
+                                 text="Part A's 3.4.")])
+    b3 = node(f"{b}/3", "heading", label="3", title="Security Standards", order=4,
+              children=[node(f"{b}/3/3.{n}", "subclause", label=f"3.{n}", order=4 + n,
+                             text=f"Part B's 3.{n}.") for n in (4, 5, 6)])
+    citing = node(f"{b}/2/2.1", "subclause", label="2.1", order=8,
+                  text="The Supplier shall comply with Paragraphs 3.4 to 3.6.")
+    b2 = node(f"{b}/2", "heading", label="2", title="Compliance", order=7,
+              children=[citing])
+    part_b = node(b, "heading", title="Part B: Long Form Security Requirements",
+                  order=3, children=[b2, b3])
+    tree = node(pid, "part", order=0, children=[part_a, part_b],
+                title="Call-Off Schedule 9", part_family="call-off-schedule",
+                unit_label="Paragraph", batch_id="B4")
+
+    corpus = Corpus.from_trees({pid: tree})
+    refs = resolved_refs(pid, tree, corpus, identity)
+    members = [r for group in refs.values() for r in group
+               if r.group_id and r.ref_kind == "paragraph"]
+
+    assert len(members) == 3, "the range did not expand to three members"
+    assert len({r.group_id for r in members}) == 1, "one phrase, one group"
+    targets = sorted(r.target_path for r in members)
+    assert targets == [f"{b}/3/3.4", f"{b}/3/3.5", f"{b}/3/3.6"]
+    assert all(r.status == "resolved" for r in members)
+    assert f"{pid}/3/3.4" not in targets, "member 1 still crossed into Part A"
+    namespaces = {corpus.parts[pid].sub_part_for(r.target_path) for r in members}
+    assert namespaces == {b}, f"one range resolved across {len(namespaces)} namespaces"
+
+
+def test_an_annex_citation_never_lands_on_a_paragraph(doc_id, version, identity):
+    """Found checking the sub-part fix. "Annex 2" was resolving onto whatever
+    provision happened to be numbered 2, because the label forms for Annex and
+    Part ended in a bare number. An Annex the part does not have must stay
+    unresolved, not resolve to something else of the same number."""
+    from pipeline.references.corpus import Corpus
+    from pipeline.schemas import Node, content_hash, lineage_key, node_id
+
+    def node(path, kind, **kw):
+        text = kw.pop("text", None)
+        return Node(id=node_id(doc_id, version, path),
+                    lineage_key=lineage_key(doc_id, path),
+                    content_hash=content_hash(text) if text else None,
+                    path=path, kind=kind, text=text, page_start=1, page_end=1, **kw)
+
+    pid = "call-off-schedule-9"
+    annex = node(f"{pid}/part-b-annex-1-baseline", "heading", order=3,
+                 title="Part B - Annex 1: Baseline security requirements",
+                 children=[node(f"{pid}/part-b-annex-1-baseline/1", "clause",
+                                label="1", order=4, text="Baseline.")])
+    two = node(f"{pid}/2", "heading", label="2", title="Security Requirements", order=1,
+               children=[node(f"{pid}/2/2.1", "clause", label="2.1", order=2,
+                              text="A provision merely numbered 2.")])
+    citing = node(f"{pid}/1", "clause", label="1", order=0,
+                  text="See Annex 1 and also Annex 2 for detail.")
+    tree = node(pid, "part", order=0, children=[citing, two, annex],
+                title="Call-Off Schedule 9", part_family="call-off-schedule",
+                unit_label="Paragraph", batch_id="B4")
+
+    corpus = Corpus.from_trees({pid: tree})
+    refs = resolved_refs(pid, tree, corpus, identity)
+
+    annex_1 = refs["Annex 1"][0]
+    assert annex_1.status == "resolved"
+    assert annex_1.target_path == f"{pid}/part-b-annex-1-baseline", \
+        "Annex 1 did not find the division the drafters named"
+
+    annex_2 = refs["Annex 2"][0]
+    assert annex_2.status == "unresolved", "a missing Annex resolved to something"
+    assert annex_2.target_path is None
+    assert annex_2.target_path != f"{pid}/2"
+    assert any("names no such division" in a for a in annex_2.anomalies)
