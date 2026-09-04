@@ -1,6 +1,24 @@
 {
   "artboards": [
     {
+      "file": "FlowchartRich.dc.html",
+      "x": 3424,
+      "y": -1,
+      "w": 1644,
+      "h": 1230,
+      "title": "Final flowchart",
+      "page": "page-1"
+    },
+    {
+      "file": "QueryFlow.dc.html",
+      "x": 5223,
+      "y": -4,
+      "w": 1632,
+      "h": 1056,
+      "title": "One question through the graph",
+      "page": "page-1"
+    },
+    {
       "file": "ArchFlowchart.dc.html",
       "x": 0,
       "y": 1420,
@@ -35,33 +53,6 @@
       "h": 1056,
       "title": "How this was built",
       "page": "page-3"
-    },
-    {
-      "file": "Main.dc.html",
-      "x": 0,
-      "y": 0,
-      "w": 1632,
-      "h": 1056,
-      "title": "System architecture",
-      "page": "page-1"
-    },
-    {
-      "file": "QueryFlow.dc.html",
-      "x": 1712,
-      "y": 0,
-      "w": 1632,
-      "h": 1056,
-      "title": "One question through the graph",
-      "page": "page-1"
-    },
-    {
-      "file": "FlowchartRich.dc.html",
-      "x": 3424,
-      "y": -1,
-      "w": 1632,
-      "h": 1160,
-      "title": "Final flowchart, draft",
-      "page": "page-1"
     }
   ],
   "annotations": [
@@ -104,14 +95,6 @@
       "w": 520,
       "text": "Proposed board: your agentic engineering method, this assignment's six phases across the top, your standing practices, model economics and the teaching credential below.\nSourced from what you actually did here plus the protocols and conventions read from your other repos this session. Submission-safe as written, no internal product names, no interview references.\nIt answers the brief's 'how you work with an agent' criterion visually, so it could ship in the repo, or stay presentation-only. Your call.\nArchitecture variations are on the Variations page, the live sheets on Working set.",
       "page": "page-3"
-    },
-    {
-      "id": "note-working",
-      "x": 0,
-      "y": -150,
-      "w": 460,
-      "text": "Working set, now your two final boards plus the original architecture sheet. The rich flowchart joined from the variations page with more breathing room. Edit any text directly, then Save. I have paused my own publishing until you say done, so your Save will not be fought by reloads.",
-      "page": "page-1"
     }
   ],
   "launch": {
