@@ -256,7 +256,7 @@ class Legislation(BaseModel):
     pointing words on every citing ref stay untouched."""
     key: str                       # legislation/bribery-act-2010[/section/55]
     title: str                     # parenthesised qualifiers belong to the title
-    year: int
+    year: Optional[int] = None     # None when the citation names no year; never a 0 sentinel
     instrument_kind: Literal["act", "regulations", "eu_regulation"]
     provision: Optional[str] = None   # e.g. "section/55" when the citation points inside
 
