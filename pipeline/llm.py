@@ -168,6 +168,25 @@ def set_cache_enabled(enabled: bool) -> None:
     _cache_enabled = bool(enabled)
 
 
+# What this process actually spent, so a stage can report calls apart from
+# replays rather than counting both as "called".
+_stats = {"requested": 0, "cache_hits": 0, "api_calls": 0, "errors": 0,
+          "input_tokens": 0, "output_tokens": 0}
+
+
+def stats() -> dict:
+    return dict(_stats)
+
+
+def reset_stats() -> None:
+    for key in _stats:
+        _stats[key] = 0
+
+
+def stats_since(before: dict) -> dict:
+    return {k: _stats[k] - before.get(k, 0) for k in _stats}
+
+
 # --------------------------------------------------------------------------
 # the breaker. One permanent refusal disables the rest of the run.
 # --------------------------------------------------------------------------
@@ -424,9 +443,11 @@ def call(task: str, payload: dict, *, prompt_version: Optional[str] = None) -> C
     """One logged, cached, retried turn. Everything else here funnels through it."""
     version = prompt_version or PROMPT_VERSIONS.get(task, CALLER_SUPPLIED)
     key = cache_key(payload, task, version)
+    _stats["requested"] += 1
 
     hit = cached(task, key)
     if hit is not None:
+        _stats["cache_hits"] += 1
         c = _completion_from_record(hit)
         c.cached = True
         return c
@@ -445,9 +466,11 @@ def call(task: str, payload: dict, *, prompt_version: Optional[str] = None) -> C
             _log_error(task, key, _record(task, version, payload, None, str(exc), attempt))
             raise
         try:
+            _stats["api_calls"] += 1
             msg = client.messages.create(**_for_sdk(payload))
         except Exception as exc:                          # noqa: BLE001
             last = exc
+            _stats["errors"] += 1
             detail = _scrub(f"{type(exc).__name__}: {exc}")
             _log_error(task, key, _record(task, version, payload, None, detail, attempt))
             if _FATAL.search(detail):
@@ -460,6 +483,8 @@ def call(task: str, payload: dict, *, prompt_version: Optional[str] = None) -> C
             _sleep(back * (0.5 + random.random() / 2))
             continue
         out = _normalise(msg)
+        _stats["input_tokens"] += int(out.usage.get("input_tokens") or 0)
+        _stats["output_tokens"] += int(out.usage.get("output_tokens") or 0)
         _log_success(task, key, _record(task, version, payload, _serialisable(msg),
                                         None, attempt, out))
         return out

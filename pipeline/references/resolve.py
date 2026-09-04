@@ -61,11 +61,17 @@ def _cand(path: str, score: float, reason: str) -> Candidate:
 
 
 def _label_forms(unit: str, number: str) -> list[str]:
+    """Label spellings to try, most specific first for the units that carry
+    their word in the label.
+
+    An Annex prints its label as "Annex 1", while a clause prints "1". Trying
+    the bare number first for an Annex would match the part's own heading 1,
+    which is a different provision entirely.
+    """
     unit = (unit or "").strip().rstrip("s").title()
-    forms = [number, f"{unit} {number}"]
-    if unit in ("Annex", "Part"):
-        forms.append(f"{unit.upper()} {number}")
-    return forms
+    if unit in ("Annex", "Part", "Table"):
+        return [f"{unit} {number}", f"{unit.upper()} {number}", number]
+    return [number, f"{unit} {number}"]
 
 
 def _lookup_any(corpus: Corpus, part: str, unit: str, number: str,

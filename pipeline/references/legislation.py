@@ -49,7 +49,11 @@ SECTIONS = re.compile(
 # 1. The instrument word plus its year is the anchor; the title is walked back.
 INSTRUMENT_YEAR = re.compile(rf"\b(?P<instrument>{INSTRUMENT})\s+(?P<year>{YEAR})\b")
 
-_TOKEN = re.compile(r"\([^()]{1,60}\)|[A-Za-z][\w'’&./-]*|\d+|[^\sA-Za-z\d]")
+# A word must not absorb the period that ends its sentence, or the title walk
+# reads straight through "...comply with Law. Bribery Act 2010" and mints
+# "Law. Bribery Act". Punctuation is therefore always its own token, which is
+# also what stops the walk.
+_TOKEN = re.compile(r"\([^()]{1,60}\)|[A-Za-z][\w'’&/-]*|\d+|[^\sA-Za-z\d]")
 _SECTION_TOKEN = re.compile(r"\d{1,4}[A-Z]?(?:\([0-9a-z]{1,3}\))?")
 
 INSTRUMENT_KINDS = {"act": "act", "regulations": "regulations", "order": "regulations",

@@ -145,8 +145,9 @@ def run(refs: list[Node], contexts: dict[str, dict], corpus: Corpus, *,
     """Ask about every residue ref. Returns the report; mutates refs in place."""
     queue: list[dict] = []
     report = {"task": TASK, "hard_task": HARD_TASK, "considered": 0, "called": 0,
-              "resolved": 0, "answered_none": 0, "escalated": 0, "queued": 0,
-              "cached": 0, "failed": 0, "prompt_version": llm.PROMPT_VERSIONS[TASK],
+              "resolved": 0, "answered_none": 0, "chose_uningested_target": 0,
+              "escalated": 0, "queued": 0, "failed": 0,
+              "prompt_version": llm.PROMPT_VERSIONS[TASK],
               "skipped_no_candidates": 0, "reason": None, "queue": queue}
 
     candidates_by_ref = {}
@@ -161,6 +162,7 @@ def run(refs: list[Node], contexts: dict[str, dict], corpus: Corpus, *,
 
     if not candidates_by_ref:
         return report
+    spend_before = llm.stats()
 
     if no_llm:
         report["reason"] = "--no-llm: the residue was not sent to a model"
@@ -193,7 +195,17 @@ def run(refs: list[Node], contexts: dict[str, dict], corpus: Corpus, *,
             _note(ref, f"llm_unusable_response: {note}")
             continue
         _apply(ref, corpus, answer, confidence, note)
-        report["resolved" if answer != "NONE" else "answered_none"] += 1
+        # Counted by what happened, not by what was answered: a model naming a
+        # target this run has not ingested has not resolved anything, and a
+        # report that called that "resolved" would be the exact kind of
+        # confidently wrong number this build exists to avoid.
+        if ref.status == "resolved":
+            report["resolved"] += 1
+        elif answer == "NONE":
+            report["answered_none"] += 1
+        else:
+            report["chose_uningested_target"] += 1
+    report["spend"] = llm.stats_since(spend_before)
     return report
 
 

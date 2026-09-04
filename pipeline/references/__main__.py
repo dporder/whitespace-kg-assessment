@@ -451,7 +451,14 @@ def _print_summary(report: dict) -> None:
           f"called={report['residue']['called']} "
           f"resolved={report['residue']['resolved']} "
           f"none={report['residue']['answered_none']} "
+          f"chose-uningested={report['residue']['chose_uningested_target']} "
           f"queued={report['residue']['queued']}")
+    spend = report["residue"].get("spend") or {}
+    if spend:
+        print(f"             spend: api calls={spend.get('api_calls', 0)} "
+              f"cache hits={spend.get('cache_hits', 0)} "
+              f"tokens in/out={spend.get('input_tokens', 0)}/"
+              f"{spend.get('output_tokens', 0)}")
     if report["residue"].get("reason"):
         print(f"             reason: {report['residue']['reason']}")
     print(f"  LEGISLATION distinct={report['legislation']['distinct_keys']} "
