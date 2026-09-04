@@ -43,18 +43,30 @@ def ref(parent: Node, span: tuple[int, int], *, status: str, ref_kind: str = "cl
 
 
 @pytest.fixture
-def small_tree() -> Node:
+def part_id() -> str:
+    """A part id no real ingestion can collide with.
+
+    This matters more than it looks. `sweep(scope, batch)` deletes everything
+    under a path prefix that the batch did not re-assert, so a test that swept
+    the scope "core-terms" would delete the real Core Terms graph sitting in the
+    same database. It did, once, which is how this fixture came to exist.
+    """
+    return f"loadtest-{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture
+def small_tree(part_id) -> Node:
     """A part with a lead-in, two items and a sibling clause: the real shapes."""
-    intro = node("core-terms/9/9.1/intro", "intro", citable=False, order=3,
+    intro = node(f"{part_id}/9/9.1/intro", "intro", citable=False, order=3,
                  text="Subject to Clause 9.2, each Party must:")
-    a = node("core-terms/9/9.1/a", "item", label="(a)", order=4, text="do the thing; and")
-    b = node("core-terms/9/9.1/b", "item", label="(b)", order=5, text="do the other.")
-    c91 = node("core-terms/9/9.1", "clause", label="9.1", order=2, children=[intro, a, b])
-    c92 = node("core-terms/9/9.2", "clause", label="9.2", order=6,
+    a = node(f"{part_id}/9/9.1/a", "item", label="(a)", order=4, text="do the thing; and")
+    b = node(f"{part_id}/9/9.1/b", "item", label="(b)", order=5, text="do the other.")
+    c91 = node(f"{part_id}/9/9.1", "clause", label="9.1", order=2, children=[intro, a, b])
+    c92 = node(f"{part_id}/9/9.2", "clause", label="9.2", order=6,
                text="New IPR is owned by the Buyer under the Bribery Act 2010.")
-    head = node("core-terms/9", "heading", label="9", order=1, children=[c91, c92],
+    head = node(f"{part_id}/9", "heading", label="9", order=1, children=[c91, c92],
                 title="Intellectual Property Rights")
-    return node("core-terms", "part", order=0, children=[head], title="Core Terms",
+    return node(part_id, "part", order=0, children=[head], title="Core Terms",
                 part_family="core", batch_id="T1")
 
 
@@ -63,7 +75,8 @@ def small_refs(small_tree) -> list[Node]:
     intro = small_tree.children[0].children[0].children[0]
     c92 = small_tree.children[0].children[1]
     return [
-        ref(intro, (12, 21), status="resolved", target="core-terms/9/9.2", order=0),
+        ref(intro, (12, 21), status="resolved",
+            target=f"{small_tree.path}/9/9.2", order=0),
         ref(c92, (44, 60), status="external", ref_kind="legislation",
             target="legislation/bribery-act-2010", scope_rule="none",
             resolver="grammar", order=1),
@@ -87,7 +100,7 @@ def small_concepts(small_tree):
     c91 = small_tree.children[0].children[0]
     c92 = small_tree.children[0].children[1]
     return [Concept(id="concept-ip", label="intellectual property",
-                    scope_path="core-terms/9", member_node_ids=[c91.id, c92.id],
+                    scope_path=f"{small_tree.path}/9", member_node_ids=[c91.id, c92.id],
                     relations=[ConceptRelation(src="concept-ip", label="relates_to",
                                                dst="concept-ip")],
                     confidence=0.7)]

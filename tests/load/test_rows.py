@@ -11,7 +11,7 @@ from pipeline.schemas import Candidate, GraphEdge, Legislation
 
 
 def build(small_tree, small_refs, batch="T1"):
-    return tree_rows({"core-terms": small_tree}, {"core-terms": small_refs},
+    return tree_rows({small_tree.path: small_tree}, {small_tree.path: small_refs},
                      batch_id=batch, document=None)
 
 
@@ -63,16 +63,17 @@ def test_a_candidate_outside_the_corpus_never_becomes_an_edge(small_tree, small_
     forbids a ref from minting. The list survives as a property."""
     small_refs[0].status = "unresolved"
     small_refs[0].target_path = None
+    ingested = small_tree.children[0].children[1].path
     small_refs[0].candidates = [Candidate(path="framework-schedule-4", score=0.95,
                                           reason="part not ingested"),
-                                Candidate(path="core-terms/9/9.2", score=0.4,
+                                Candidate(path=ingested, score=0.4,
                                           reason="ingested")]
     rows = build(small_tree, small_refs)
     candidate_targets = {e.dst for e in edges_of(rows, "CANDIDATE")}
     assert candidate_targets == {small_tree.children[0].children[1].id}
     row = next(r for r in rows.nodes if r.key_value == small_refs[0].id)
     stored = json.loads(row.props["candidates"])
-    assert {c["path"] for c in stored} == {"framework-schedule-4", "core-terms/9/9.2"}
+    assert {c["path"] for c in stored} == {"framework-schedule-4", ingested}
 
 
 def test_bboxes_are_stored_as_json_strings(small_tree, small_refs):
@@ -178,14 +179,14 @@ def test_associated_term_excludes_members_the_run_does_not_hold(small_tree,
 def test_legislation_nodes_come_from_the_refs_that_cite_them(small_tree, small_refs):
     records = [Legislation(key="legislation/bribery-act-2010", title="Bribery Act",
                            year=2010, instrument_kind="act")]
-    rows = legislation_rows({"core-terms": small_refs}, records, batch_id="T1")
+    rows = legislation_rows({small_tree.path: small_refs}, records, batch_id="T1")
     assert [r.key_value for r in rows.nodes] == ["legislation/bribery-act-2010"]
     assert rows.nodes[0].labels == ["Legislation"]
     assert rows.nodes[0].props["year"] == 2010
 
 
 def test_a_legislation_key_with_no_record_still_lands_as_a_node(small_tree, small_refs):
-    rows = legislation_rows({"core-terms": small_refs}, [], batch_id="T1")
+    rows = legislation_rows({small_tree.path: small_refs}, [], batch_id="T1")
     assert rows.nodes[0].props["title"] == "Bribery Act"
     assert rows.nodes[0].props["year"] == 2010
 
@@ -203,7 +204,7 @@ def test_dedupe_collapses_one_merge_key_and_says_so():
 def test_the_networkx_export_is_built_from_the_same_rows(tmp_path, small_tree,
                                                          small_refs):
     rows = build(small_tree, small_refs)
-    rows.nodes.extend(legislation_rows({"core-terms": small_refs}, [],
+    rows.nodes.extend(legislation_rows({small_tree.path: small_refs}, [],
                                        batch_id="T1").nodes)
     assert dangling_endpoints(rows) == []
     result = export.write(rows, tmp_path / "graph.json", {"batch_id": "T1"})

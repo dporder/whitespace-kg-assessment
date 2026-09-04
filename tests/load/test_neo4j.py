@@ -22,9 +22,9 @@ from pipeline.load.rows import legislation_rows, term_rows, tree_rows, walk
 
 
 def load(graph: Graph, tree, refs, batch, sites=None, uses=None):
-    rows = tree_rows({"core-terms": tree}, {"core-terms": refs}, batch_id=batch,
+    rows = tree_rows({tree.path: tree}, {tree.path: refs}, batch_id=batch,
                      document=None)
-    rows.nodes.extend(legislation_rows({"core-terms": refs}, [], batch_id=batch).nodes)
+    rows.nodes.extend(legislation_rows({tree.path: refs}, [], batch_id=batch).nodes)
     if sites is not None or uses is not None:
         by_id = {n.id: n for n in walk(tree)}
         terms = term_rows(sites or [], uses or [], by_id, batch_id=batch)
@@ -119,7 +119,7 @@ def test_rollback_leaves_other_batches_alone(graph, small_tree, small_refs,
 
 
 def test_sweep_removes_what_this_batch_did_not_reassert(graph, small_tree, small_refs,
-                                                        throwaway_batch):
+                                                        throwaway_batch, part_id):
     """A rerun converges on state: the provision the new run no longer asserts
     goes, rather than lingering as an orphan the graph still believes in."""
     first, second = f"{throwaway_batch}-1", f"{throwaway_batch}-2"
@@ -127,14 +127,14 @@ def test_sweep_removes_what_this_batch_did_not_reassert(graph, small_tree, small
     graph.also_rollback(second)
 
     load(graph, small_tree, small_refs, first)
-    doomed = small_tree.children[0].children[1]           # core-terms/9/9.2
+    doomed = small_tree.children[0].children[1]           # <part>/9/9.2
     assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                       id=doomed.id)[0]["n"] == 1
 
     # the second run of the same part no longer contains 9.2, nor the ref to it
     small_tree.children[0].children = [small_tree.children[0].children[0]]
     load(graph, small_tree, [small_refs[0]], second)
-    result = graph.sweep(["core-terms"], second)
+    result = graph.sweep([part_id], second)
 
     assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                       id=doomed.id)[0]["n"] == 0, "the stale provision survived"
@@ -145,17 +145,17 @@ def test_sweep_removes_what_this_batch_did_not_reassert(graph, small_tree, small
 
 
 def test_sweep_never_reaches_outside_its_scope(graph, small_tree, small_refs,
-                                               throwaway_batch):
+                                               throwaway_batch, part_id):
     first, second = f"{throwaway_batch}-a", f"{throwaway_batch}-b"
     graph.also_rollback(first)
     graph.also_rollback(second)
     load(graph, small_tree, small_refs, first)
-    graph.run("CREATE (n:Node {id: $id, path: 'joint-schedule-1/1', batch_id: $b})",
-              id=f"{second}-outside", b=first)
-    graph.sweep(["core-terms"], second)
+    graph.run("CREATE (n:Node {id: $id, path: $path, batch_id: $b})",
+              id=f"{second}-outside", path=f"{part_id}-other/1", b=first)
+    graph.sweep([part_id], second)
     assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                       id=f"{second}-outside")[0]["n"] == 1, \
-        "a sweep scoped to core-terms deleted a node in another part"
+        "a sweep scoped to one part deleted a node in another part"
 
 
 def test_salience_is_breadth_times_log_damped_frequency(graph, small_tree, small_refs,
@@ -200,3 +200,31 @@ def test_the_batch_that_created_a_node_survives_a_later_reassertion(graph, small
                      id=small_tree.id)[0]
     assert row["last"] == second
     assert row["first"] == first
+
+
+def test_the_test_part_id_cannot_collide_with_a_real_part(part_id):
+    """The guard on the hazard above: a sweep is a delete, and a test that
+    swept a real part id would delete real data out of a shared database."""
+    import config
+
+    assert part_id.startswith("loadtest-")
+    real_parts = {b["part"] for b in config.BATCHES.values()}
+    assert part_id not in real_parts
+    assert not any(part_id.startswith(p) or p.startswith(part_id)
+                   for p in real_parts)
+
+
+def test_a_sweep_of_one_part_leaves_a_real_looking_part_alone(graph, small_tree,
+                                                              small_refs,
+                                                              throwaway_batch, part_id):
+    """Belt and braces on the same hazard, with a node whose path is exactly the
+    real Core Terms part id."""
+    guard_batch = f"{throwaway_batch}-guard"
+    graph.also_rollback(guard_batch)
+    load(graph, small_tree, small_refs, throwaway_batch)
+    graph.run("CREATE (n:Node {id: $id, path: 'core-terms/99/99.9', batch_id: $b})",
+              id=f"{guard_batch}-real-looking", b=guard_batch)
+    graph.sweep([part_id], f"{throwaway_batch}-next")
+    survived = graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
+                          id=f"{guard_batch}-real-looking")[0]["n"]
+    assert survived == 1, "a sweep scoped to a test part reached real Core Terms paths"
