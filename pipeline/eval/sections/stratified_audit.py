@@ -53,12 +53,29 @@ def _orders(ctx: Context) -> dict[str, tuple[int, int]]:
     return {nid: (order, per_part[part]) for nid, (part, order) in orders.items()}
 
 
+def _aliases_for(ctx: Context) -> dict[str, list[str]]:
+    """Term -> its declared aliases, from the stage 4 definition sites.
+
+    The checker cannot judge an alias match without them. Asked whether "CBO"
+    is a use of "Central Buying Office" with no sight of the alias list, it
+    answered that abbreviations are unreliable without an explicit definition,
+    which was a fair reading of what it had been shown and wrong about the
+    document, where that alias is declared.
+    """
+    out: dict[str, list[str]] = {}
+    for site in ctx.inputs.definition_sites or []:
+        if site.aliases:
+            out.setdefault(site.term, []).extend(site.aliases)
+    return {term: sorted(set(a)) for term, a in out.items()}
+
+
 def term_population(ctx: Context) -> list[dict[str, Any]]:
     if ctx.inputs.term_uses is None:
         return []
     part_of = _part_of_node(ctx)
     orders = _orders(ctx)
     by_id = ctx.inputs.nodes_by_id()
+    aliases = _aliases_for(ctx)
     out = []
     for u in ctx.inputs.term_uses:
         if u.status != "confident":
@@ -70,10 +87,16 @@ def term_population(ctx: Context) -> list[dict[str, Any]]:
             field = node.text if (node.text and u.char_span[1] <= len(node.text)) else node.title
             if field:
                 surface = field[u.char_span[0]:u.char_span[1]]
+        declared = aliases.get(u.term, [])
         out.append({
             "kind": "term_use", "term": u.term, "node_id": u.node_id,
             "path": node.path if node else None,
             "char_span": list(u.char_span), "surface": surface,
+            "declared_aliases": declared,
+            "matched_via": ("declared alias" if surface and declared
+                            and surface != u.term and surface in declared
+                            else "the term itself"),
+            "definition_used": u.definition_used,
             "sentence": (node.text if node and node.text else (node.title if node else None)),
             "part": part_of.get(u.node_id, "unknown"),
             "term_word_count": word_count_bucket(u.term),
@@ -98,7 +121,13 @@ def ref_population(ctx: Context) -> list[dict[str, Any]]:
             out.append({
                 "kind": "reference", "path": r.path, "text": r.text,
                 "ref_kind": r.ref_kind, "resolver": r.resolver,
-                "target_path": r.target_path,
+                "status": r.status, "target_path": r.target_path,
+                "scope_rule": r.scope_rule,
+                # The claim in one sentence, so the checker judges what the
+                # pipeline actually asserted rather than inferring it.
+                "pipeline_claim": (
+                    f"the pointing words {r.text!r} are a {r.ref_kind} reference, "
+                    f"status {r.status}, resolved to {r.target_path!r}"),
                 "sentence": parent.text if parent else None,
                 "part": part_of.get(parent.id, part) if parent else part,
                 "term_word_count": word_count_bucket(r.text or ""),
@@ -150,13 +179,75 @@ def tolerant_json(raw: str) -> Any:
     raise ValueError(f"no JSON value in a {len(raw or '')}-character response")
 
 
+# SPEC 2.2's ref kinds, one line each. The checker was disagreeing with
+# correct classifications because it was guessing at what the labels meant: it
+# called a legislation ref "incorrectly classified as a reference" when
+# legislation is exactly one of the kinds a ref may have.
+REF_KIND_GLOSSARY = {
+    "clause": "points at a numbered clause or sub-clause of this document",
+    "subclause": "points at a numbered sub-clause",
+    "paragraph": "points at a numbered paragraph inside a schedule",
+    "schedule": "points at a whole schedule, framework, joint or call-off",
+    "annex": "points at an annex inside a schedule",
+    "part": "points at a constituent part of the pack",
+    "definition": "points at a defined term's definition",
+    "legislation": "points at a statute or statutory instrument outside this "
+                   "document; an Act or Regulations named in the text is a "
+                   "legislation reference, not a mis-classification",
+    "unknown": "the grammar found pointing words it could not classify",
+}
+REF_STATUS_GLOSSARY = {
+    "resolved": "a target inside this corpus was identified",
+    "external": "the target is outside this corpus, which is the correct and "
+                "final state for legislation, not a failure to resolve",
+    "ambiguous": "several candidates fit; the pipeline kept them all",
+    "unresolved": "no target could be identified; the pipeline abstained",
+}
+
+
+def _guidance(batch: list[dict[str, Any]]) -> str:
+    """Only the vocabulary the batch actually uses, so the prompt stays short."""
+    kinds = sorted({item.get("ref_kind") for item in batch if item.get("ref_kind")})
+    statuses = sorted({item.get("status") for item in batch if item.get("status")})
+    lines: list[str] = []
+    if kinds:
+        lines.append("What the reference kinds mean in this pipeline:")
+        lines += [f"  - {k}: {REF_KIND_GLOSSARY[k]}" for k in kinds
+                  if k in REF_KIND_GLOSSARY]
+    if statuses:
+        lines.append("What the statuses mean:")
+        lines += [f"  - {s}: {REF_STATUS_GLOSSARY[s]}" for s in statuses
+                  if s in REF_STATUS_GLOSSARY]
+    if any(item.get("kind") == "term_use" for item in batch):
+        lines.append(
+            "Term uses: a term's declared aliases are listed with the item. A "
+            "surface form that is a declared alias is a correct match for that "
+            "term; matching an alias is the intended behaviour, not a guess.")
+    return ("\n" + "\n".join(lines) + "\n") if lines else ""
+
+
 def _prompt_for(batch: list[dict[str, Any]], first: int) -> str:
+    """The judge prompt.
+
+    Two things it must do. It states the pipeline's claim plainly and defines
+    the vocabulary that claim is written in, because an uninformed checker
+    disagrees with correct decisions for reasons that are about the prompt
+    rather than the pipeline. And it asks for the reasoning before the verdict:
+    EVALUATION.md layer 5 wants the judgement elicited before the model commits
+    to an answer, so it is reasoning rather than defending a conclusion it has
+    already stated. The key order in the requested object is the mechanism.
+    """
     return ("You are auditing a legal-document pipeline's confident decisions. "
-            "For each item say whether the decision is correct. Reply with a JSON "
-            "array of objects {\"i\": <index>, \"agree\": true|false, "
-            "\"why\": \"<short reason>\"} and nothing else: no prose before or "
-            "after, no markdown fences. Use the \"i\" value given with each "
-            "item.\n\n"
+            "Each item states what the pipeline claims. Judge that claim "
+            "against the sentence it came from.\n"
+            + _guidance(batch)
+            + "\nFor each item reply with an object whose keys are in this order: "
+              "\"i\" (the index given with the item), then \"why\" (one short "
+              "sentence of reasoning), then \"agree\" (true if the pipeline's "
+              "claim is correct, false if it is not). Write \"why\" before "
+              "\"agree\": reason first, then commit.\n"
+              "Reply with a JSON array of those objects and nothing else: no "
+              "prose before or after, no markdown fences.\n\n"
             + json.dumps([{"i": first + n,
                            **{k: v for k, v in item.items() if k != "sentence"},
                            "sentence": _clip(item.get("sentence"), 400)}

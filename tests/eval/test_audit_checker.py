@@ -88,6 +88,61 @@ def verdicts_json(first, count, agree=True):
                        for n in range(count)])
 
 
+# ------------------------------------------------- what the judge is told
+
+def test_the_prompt_asks_for_reasoning_before_the_verdict():
+    """EVALUATION.md layer 5: elicited before the model commits, so it is
+    reasoning rather than defending a conclusion it has already stated. The key
+    order in the requested object is the mechanism, and it used to be the wrong
+    way round."""
+    prompt = stratified_audit._prompt_for([{"kind": "term_use", "term": "T"}], 0)
+    assert prompt.index('"why"') < prompt.index('"agree"')
+    assert "reason first, then commit" in prompt
+
+
+def test_a_term_audit_shows_the_declared_aliases():
+    """Without them the checker called a correct alias match unreliable."""
+    item = {"kind": "term_use", "term": "Central Buying Office", "surface": "CBO",
+            "declared_aliases": ["CBO"], "matched_via": "declared alias",
+            "sentence": "supplied to CBO by a Replacement Provider."}
+    prompt = stratified_audit._prompt_for([item], 0)
+    assert "declared_aliases" in prompt and "CBO" in prompt
+    assert "a declared alias is a correct match" in prompt
+
+
+def test_a_reference_audit_states_the_claim_and_defines_the_vocabulary():
+    """Without them the checker called a correct legislation ref a
+    mis-classification."""
+    item = {"kind": "reference", "text": "Bribery Act 2010", "ref_kind": "legislation",
+            "status": "external", "target_path": "legislation/bribery-act-2010",
+            "pipeline_claim": "the pointing words 'Bribery Act 2010' are a "
+                              "legislation reference, status external, resolved to "
+                              "'legislation/bribery-act-2010'",
+            "sentence": "... and the Bribery Act 2010."}
+    prompt = stratified_audit._prompt_for([item], 0)
+    assert "pipeline_claim" in prompt
+    assert "not a mis-classification" in prompt, "the legislation gloss"
+    assert "correct and final state" in prompt, "the external-status gloss"
+
+
+def test_the_glossary_covers_only_the_kinds_in_the_batch():
+    """The prompt is per-batch, so a term-only batch carries no ref glossary."""
+    prompt = stratified_audit._prompt_for([{"kind": "term_use", "term": "T"}], 0)
+    assert "reference kinds mean" not in prompt
+
+
+def test_every_spec_ref_kind_has_a_gloss():
+    from pipeline.schemas import RefKind
+    import typing
+    assert set(typing.get_args(RefKind)) <= set(stratified_audit.REF_KIND_GLOSSARY)
+
+
+def test_every_status_has_a_gloss():
+    from pipeline.schemas import Status
+    import typing
+    assert set(typing.get_args(Status)) <= set(stratified_audit.REF_STATUS_GLOSSARY)
+
+
 # ------------------------------------------------------------- tolerant parse
 
 @pytest.mark.parametrize("raw", [
