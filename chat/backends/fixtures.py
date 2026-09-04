@@ -253,6 +253,7 @@ class FixturesBackend(ToolBackend):
                 "version_label": None,
                 "content_hash": n.content_hash,
                 "batch_id": n.batch_id,
+                "page": n.page_start,     # so a claim sourced from history is citable
             }
             for n in sorted(current, key=lambda n: n.path)
         ]

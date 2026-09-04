@@ -107,7 +107,8 @@ RETURN c AS c,
 Q_HISTORY = """
 MATCH (n:Node {lineage_key: $lineage_key})
 RETURN n.id AS node_id, n.path AS path, n.content_hash AS content_hash,
-       n.batch_id AS batch_id, n.version_label AS version_label
+       n.batch_id AS batch_id, n.version_label AS version_label,
+       n.page_start AS page
 ORDER BY coalesce(n.version_label, ''), n.path
 """
 

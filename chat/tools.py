@@ -153,6 +153,9 @@ class CitationLedger:
                     self.record(result.get("path"), b.get("page"))
         elif tool == "follow_references":
             for r in result.get("references", []):
+                # The ref's page is sound for the citing node too: the pointing
+                # words are part of that node's own text, so the node occupies
+                # that page even when its extent spans several.
                 self.record(r.get("ref_path"), r.get("page"))
                 self.record(r.get("from_path"), r.get("page"))
         elif tool == "define":
@@ -162,15 +165,26 @@ class CitationLedger:
             for c in result.get("concepts", []):
                 for m in c.get("members", []):
                     self.record(m.get("path"), m.get("page"))
+        elif tool == "history":
+            for v in result.get("versions", []):
+                self.record(v.get("path"), v.get("page"))
         elif tool == "cite":
             if result.get("found"):
                 self.record(result.get("path"), result.get("page"))
 
     def check(self, path: str, page: int | None) -> str:
-        """'ok', 'page_mismatch' or 'unknown_path'."""
+        """'ok', 'page_mismatch', 'page_unparseable' or 'unknown_path'.
+
+        Only an exact (path, page) a tool actually returned is 'ok'. A citation
+        whose page did not parse as an integer cannot be checked against
+        anything, so it fails: treating it as ok let [[path|]] and [[path|p2]]
+        render as verified, which is precisely the invention this exists to catch.
+        """
         if path not in self.paths:
             return "unknown_path"
-        if page is None or (path, page) in self.pairs:
+        if page is None:
+            return "page_unparseable"
+        if (path, page) in self.pairs:
             return "ok"
         return "page_mismatch"
 

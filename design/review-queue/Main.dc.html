@@ -54,8 +54,9 @@
     <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">award-form</span>
     <span style="flex-grow: 1;"></span>
     <span class="kbd">J</span><span class="kbd">K</span><span style="font-size: 10.5px; color: #6b6f76;">move</span>
-    <span class="kbd">A</span><span style="font-size: 10.5px; color: #6b6f76;">approve</span>
-    <span class="kbd">X</span><span style="font-size: 10.5px; color: #6b6f76;">reject</span>
+    <span class="kbd">A</span><span style="font-size: 10.5px; color: #6b6f76;">affirm</span>
+    <span class="kbd">U</span><span style="font-size: 10.5px; color: #6b6f76;">unresolvable</span>
+    <span class="kbd">N</span><span style="font-size: 10.5px; color: #6b6f76;">negative</span>
     <span class="kbd">1-9</span><span style="font-size: 10.5px; color: #6b6f76;">pick candidate</span>
   </div>
 
@@ -119,11 +120,13 @@
                 </div>
               </div>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <span class="btn" style="background: #75589b; color: #ffffff;">Approve pick</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <span class="btn" style="background: #f5f4f1; color: #9a948f; border: 1px solid #e6e3de;">Confirm target</span>
+              <span class="btn" style="background: #75589b; color: #ffffff;">Pick candidate</span>
+              <span class="btn" style="background: #fbf7ef; color: #a16b16; border: 1px dashed #a16b16;">Unresolvable</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Not a reference</span>
               <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">writes one line to golden/decisions.jsonl</span>
+              <span class="li" style="color: #6b6f76;">verdict target, chosen_candidate framework-schedule-2</span>
             </div>
           </div>
         </div>
@@ -168,11 +171,13 @@
                 <span class="mono" style="font-size: 11px; color: #3a3d42;">0.95</span>
               </div>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <span class="btn" style="background: #75589b; color: #ffffff;">Approve pick</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <span class="btn" style="background: #f5f4f1; color: #9a948f; border: 1px solid #e6e3de;">Confirm target</span>
+              <span class="btn" style="background: #f5f4f1; color: #9a948f; border: 1px solid #e6e3de;">Pick candidate</span>
+              <span class="btn" style="background: #fbf7ef; color: #a16b16; border: 1px dashed #a16b16;">Unresolvable</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Not a reference</span>
               <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">target part not yet ingested — rejecting keeps it unresolved</span>
+              <span class="li" style="color: #6b6f76;">target part not ingested: greyed until a candidate is picked</span>
             </div>
           </div>
         </div>
@@ -213,11 +218,19 @@
                 <span class="mono" style="font-size: 10px; color: #2e7373;"> — joint-schedule-1/2/table/3/1</span>
               </div>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <span class="btn" style="background: #75589b; color: #ffffff;">Approve, is the defined term</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject, ordinary words</span>
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Governing term recorded with the verdict</div>
+              <div style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid #c3d9d9; background: #f2f8f8; border-radius: 3px; padding: 4px 9px;">
+                <span class="mono" style="font-size: 11.5px;">Good Working Practice</span>
+                <span class="li" style="color: #6b6f76;">(matched)</span>
+                <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="#2e7373" stroke-width="1.4" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <span class="btn" style="background: #75589b; color: #ffffff;">Real use</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Not a use</span>
               <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">capitalised because the sentence starts here</span>
+              <span class="li" style="color: #6b6f76;">an alias collision can name a different governing term</span>
             </div>
           </div>
         </div>
@@ -258,7 +271,7 @@
               </div>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
-              <span class="btn" style="background: #75589b; color: #ffffff;">Accept reading</span>
+              <span class="btn" style="background: #75589b; color: #ffffff;">Confirm</span>
               <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
               <span style="flex-grow: 1;"></span>
               <span class="li" style="color: #6b6f76;">the source text is never edited either way</span>
@@ -279,13 +292,13 @@
       <div class="card" style="padding: 11px 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 7px;">
         <div class="colhead">Appended this session</div>
         <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
-          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"core-terms/9/9.2/ref@94-99","verdict":"approve","reviewer":"dan","ts":"2026-09-04T21:41:07Z"}</div>
+          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"core-terms/9/9.2/ref@94-99","verdict":"target","chosen_candidate":"core-terms/3/3.1/3.1.1","reviewer":"dan","ts":"2026-09-04T21:41:07Z"}</div>
         </div>
         <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
-          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"term","node_id":"af9d5756…","char_span":[53,74],"verdict":"approve","reviewer":"dan","ts":"2026-09-04T21:40:52Z"}</div>
+          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"term","node_id":"af9d5756…","char_span":[53,74],"verdict":"use","chosen_candidate":"Central Buying Office","reviewer":"dan","ts":"2026-09-04T21:40:52Z"}</div>
         </div>
         <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
-          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"joint-schedule-1/2/table/1/1/ref@54-76","verdict":"reject","reviewer":"dan","ts":"2026-09-04T21:39:18Z"}</div>
+          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"joint-schedule-1/2/table/1/1/ref@54-76","verdict":"unresolvable","reviewer":"dan","ts":"2026-09-04T21:39:18Z"}</div>
         </div>
         <div style="margin-top: auto; border-top: 1px solid #ece9e4; padding-top: 8px; display: flex; justify-content: space-between; align-items: baseline;">
           <span class="li">Decisions today</span>

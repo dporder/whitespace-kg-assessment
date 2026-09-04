@@ -67,9 +67,10 @@ def decisions() -> dict:
 
 @app.post("/api/decisions")
 def add_decision(decision: dict = Body(...)) -> JSONResponse:
-    reviewer = decision.get("reviewer") or "unknown"
+    # No "unknown" fallback: a label whose author is not recorded is not
+    # ground truth anybody can audit later, so it is refused outright.
     try:
-        stored = review_decisions.append(decision, reviewer=reviewer)
+        stored = review_decisions.append(decision)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return JSONResponse(

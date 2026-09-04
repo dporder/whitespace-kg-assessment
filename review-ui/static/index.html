@@ -89,7 +89,15 @@
   button.act { font:inherit; font-size:11px; font-weight:600; border-radius:3px; padding:5px 13px; cursor:pointer; }
   button.approve { background:var(--human); color:#fff; border:1px solid var(--human); }
   button.reject { background:#fff; color:var(--human); border:1px solid var(--human); }
-  button.act:disabled { opacity:.5; cursor:default; }
+  /* the abstention label the zero-tolerance gate feeds on, marked apart from
+     both the affirmations and the denials because it asserts something else:
+     that no correct target exists in the corpus at all */
+  button.abstain { background:var(--model-bg); color:var(--model); border:1px dashed var(--model); }
+  button.act:disabled { opacity:.4; cursor:not-allowed; }
+  .bkey { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:8.5px;
+          opacity:.65; margin-left:6px; }
+  select.termpick { font:inherit; font-size:11.5px; padding:4px 7px; border:1px solid var(--rule-line);
+                    background:var(--rule-bg); color:var(--ink); border-radius:3px; max-width:100%; }
   .hint { font-size:11.5px; color:var(--muted); margin-left:auto; }
 
   .note { border-radius:3px; padding:6px 9px; font-size:11.5px; line-height:1.5; }
@@ -156,7 +164,7 @@
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
-let ROWS = [], COUNTS = {}, CURSOR = 0, PICK = {};
+let ROWS = [], COUNTS = {}, CURSOR = 0, PICK = {}, TERMPICK = {};
 let FILTER = { kinds: ['ref', 'term', 'anomaly'], part: null };
 
 const KICK = { ref: ['Ref', 'var(--det)'], term: ['Term', 'var(--rule)'], anomaly: ['Anomaly', 'var(--ink)'] };
@@ -199,9 +207,10 @@ function renderFilters() {
   parts.forEach(p => f.append(mk(`${p} ${COUNTS.parts[p]}`, FILTER.part === p,
     () => { FILTER.part = FILTER.part === p ? null : p; load(); })));
   const sp = el('span', 'spacer'); f.append(sp);
-  [['J', 'K'], ['A'], ['X'], ['1-9']].forEach((keys, i) => {
+  [['J', 'K'], ['A'], ['U'], ['N'], ['1-9']].forEach((keys, i) => {
     keys.forEach(k => f.append(el('span', 'kbd', k)));
-    f.append(el('span', 'li', ['move', 'approve', 'reject', 'pick candidate'][i]));
+    f.append(el('span', 'li',
+      ['move', 'affirm', 'unresolvable', 'negative', 'pick candidate'][i]));
   });
 }
 
@@ -282,6 +291,24 @@ function rowCard(r, i) {
     n.append(src);
     dec.append(n);
   }
+  if (r.kind === 'term') {
+    // The governing term may not be the matched one: an alias collision is
+    // exactly the case where the reviewer names a different term. Whatever is
+    // selected here goes to the harness as chosen_candidate.
+    dec.append(el('div', 'colhead', 'Governing term recorded with the verdict'));
+    const sel = el('select', 'termpick');
+    const opts = r.detail.term_options && r.detail.term_options.length
+      ? r.detail.term_options : [r.detail.term];
+    opts.forEach(t => {
+      const o = el('option', null, t + (t === r.detail.term ? '  (matched)' : ''));
+      o.value = t;
+      if (t === (TERMPICK[r.id] || r.detail.term)) o.selected = true;
+      sel.append(o);
+    });
+    sel.onclick = ev2 => ev2.stopPropagation();
+    sel.onchange = () => { TERMPICK[r.id] = sel.value; };
+    dec.append(sel);
+  }
   if (r.kind === 'anomaly') {
     if (r.detail.proposed) {
       dec.append(el('div', 'colhead', 'Proposed reading · interpretation, stored beside the raw text'));
@@ -308,20 +335,54 @@ function rowCard(r, i) {
   }
 
   const acts = el('div', 'actions');
-  const okLabel = r.kind === 'term' ? 'Approve, is the defined term'
-                : r.kind === 'anomaly' ? (r.detail.proposed ? 'Accept reading' : 'Accept as recorded')
-                : (r.candidates.length ? 'Approve pick' : 'Approve');
-  const noLabel = r.kind === 'term' ? 'Reject, ordinary words' : 'Reject';
-  const ok = el('button', 'act approve', okLabel);
-  const no = el('button', 'act reject', noLabel);
-  ok.onclick = ev2 => { ev2.stopPropagation(); decide(r, 'approve'); };
-  no.onclick = ev2 => { ev2.stopPropagation(); decide(r, 'reject'); };
-  acts.append(ok, no);
-  const hint = el('span', 'hint',
-    r.kind === 'ref' && r.candidates.length && !PICK[r.id]
-      ? 'pick a candidate, or approve with none to accept the reading as-is'
-      : 'writes one line to golden/decisions.jsonl');
-  acts.append(hint);
+  const mkBtn = (cls, label, key, enabled, fn, title) => {
+    const b = el('button', 'act ' + cls);
+    b.append(document.createTextNode(label));
+    if (key) { const k = el('span', 'bkey', key); b.append(k); }
+    b.disabled = !enabled;
+    if (title) b.title = title;
+    b.onclick = ev2 => { ev2.stopPropagation(); fn(); };
+    return b;
+  };
+
+  if (r.kind === 'ref') {
+    // Four distinct verdicts. `target` twice, because confirming the pipeline's
+    // own target and choosing a candidate are different reviewer acts that
+    // happen to share a verdict; `unresolvable` is the abstention label the
+    // zero-tolerance gate feeds on, so it has its own control.
+    const tp = r.detail.target_path;
+    acts.append(
+      mkBtn('approve', 'Confirm target', 'A', !!tp,
+        () => decide(r, 'target', tp),
+        tp ? `accept ${tp}` : 'the pipeline resolved no target for this ref'),
+      mkBtn('approve', 'Pick candidate', '1-9', !!PICK[r.id],
+        () => decide(r, 'target', PICK[r.id]),
+        PICK[r.id] ? `accept ${PICK[r.id]}` : 'select a candidate above first'),
+      mkBtn('abstain', 'Unresolvable', 'U', true,
+        () => decide(r, 'unresolvable'),
+        'a real citation with no correct target in the corpus'),
+      mkBtn('reject', 'Not a reference', 'N', true,
+        () => decide(r, 'not_a_reference'),
+        'the span is not a citation at all'),
+    );
+  } else if (r.kind === 'term') {
+    acts.append(
+      mkBtn('approve', 'Real use', 'A', true,
+        () => decide(r, 'use', TERMPICK[r.id] || r.detail.term),
+        'the span is a use of the governing term selected above'),
+      mkBtn('reject', 'Not a use', 'N', true,
+        () => decide(r, 'not_a_use'),
+        'capitalised, but not a use of a defined term'),
+    );
+  } else {
+    acts.append(
+      mkBtn('approve', 'Confirm', 'A', true, () => decide(r, 'confirmed'),
+        r.detail.proposed ? 'the proposed reading is right' : 'the anomaly is correctly recorded'),
+      mkBtn('reject', 'Reject', 'N', true, () => decide(r, 'rejected'),
+        'the anomaly or its proposed reading is wrong'),
+    );
+  }
+  acts.append(el('span', 'hint', `writes one ${r.kind} line to decisions.jsonl`));
   dec.append(acts);
 
   split.append(dec);
@@ -336,11 +397,20 @@ function setCursor(i, scroll = true) {
   if (n) { n.classList.add('cursor'); if (scroll) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
 }
 
-async function decide(r, verdict) {
+async function decide(r, verdict, chosen) {
+  // The vocabulary and the placement of chosen_candidate are the harness's,
+  // not ours: pipeline/eval/GOLDEN_FORMAT.md.
   const d = { kind: r.kind, verdict, reviewer: reviewer() };
-  if (r.kind === 'ref') { d.path = r.path; if (verdict === 'approve' && PICK[r.id]) d.chosen_candidate = PICK[r.id]; }
-  else if (r.kind === 'term') { d.node_id = r.node_id; d.char_span = r.char_span; d.path = r.path; d.term = r.detail.term; }
-  else { d.node_id = r.node_id; d.anomaly = r.anomaly; d.anomaly_index = r.anomaly_index; d.path = r.path; }
+  if (chosen) d.chosen_candidate = chosen;
+  if (r.kind === 'ref') {
+    d.path = r.path;
+  } else if (r.kind === 'term') {
+    d.node_id = r.node_id; d.char_span = r.char_span; d.path = r.path;
+  } else {
+    d.node_id = r.node_id; d.anomaly = r.anomaly;
+    d.anomaly_index = r.anomaly_index;      // part of the subject, not bookkeeping
+    d.path = r.path;
+  }
 
   const res = await fetch('/api/decisions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d)
@@ -364,8 +434,19 @@ document.addEventListener('keydown', e => {
   const r = ROWS[CURSOR];
   if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setCursor(CURSOR + 1); }
   else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setCursor(CURSOR - 1); }
-  else if (e.key === 'a' && r) { e.preventDefault(); decide(r, 'approve'); }
-  else if (e.key === 'x' && r) { e.preventDefault(); decide(r, 'reject'); }
+  else if (e.key === 'a' && r) {
+    e.preventDefault();
+    if (r.kind === 'ref') {
+      const chosen = PICK[r.id] || r.detail.target_path;
+      if (chosen) decide(r, 'target', chosen);
+    } else if (r.kind === 'term') decide(r, 'use', TERMPICK[r.id] || r.detail.term);
+    else decide(r, 'confirmed');
+  }
+  else if (e.key === 'u' && r && r.kind === 'ref') { e.preventDefault(); decide(r, 'unresolvable'); }
+  else if ((e.key === 'n' || e.key === 'x') && r) {
+    e.preventDefault();
+    decide(r, r.kind === 'ref' ? 'not_a_reference' : r.kind === 'term' ? 'not_a_use' : 'rejected');
+  }
   else if (/^[1-9]$/.test(e.key) && r && r.candidates.length) {
     const c = r.candidates[Number(e.key) - 1];
     if (c) { PICK[r.id] = PICK[r.id] === c.path ? null : c.path; renderQueue(); }

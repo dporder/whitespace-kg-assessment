@@ -34,9 +34,12 @@ There is no side channel to the trees, the graph or the PDF, so every claim trac
 
 The model writes citations as `[[path|page]]`. Every path and page a tool returns is recorded in a `CitationLedger`, and each citation in the finished answer is looked up in it:
 
-- `ok` — the tools returned this path at this page.
+- `ok` — the tools returned this exact path at this exact page. Only this offers a crop.
 - `page_mismatch` — real path, wrong page.
-- `unknown_path` — no tool ever returned it. The UI marks the chip amber and refuses to open a crop for it.
+- `page_unparseable` — the page is missing or not an integer (`[[path|]]`, `[[path|p2]]`). It cannot be checked against anything, so it fails; treating it as ok was a real hole that let both of those render as verified.
+- `unknown_path` — no tool ever returned it.
+
+Anything but `ok` is marked amber in the page, refuses to open a crop, and is listed under the answer. An answer with **no** citations gets a warning, not a green banner: nothing in it is backed by the graph.
 
 So an invented citation is detectable rather than merely discouraged.
 
@@ -54,6 +57,18 @@ The Neo4j backend's Cypher is module-level constants with `$parameters`; `tests/
 `chat/llm_client.py` is the one seam. It imports `pipeline/llm.py` and uses it when present; otherwise it takes an **interim path** straight to the anthropic SDK with the same call-logging shape SPEC ground rule 0 asks for (model, prompt version and raw response under `output/<run>/llm_log/`). No other module in `chat/` imports anthropic, so deleting the interim path is confined to that file.
 
 Keys come from the environment or the gitignored `.env` at `config.ENV_FILE` and are never logged or returned. If the key is identity-linked, the API also needs the workspace it acts in: set `ANTHROPIC_WORKSPACE_ID` in either place and it is sent as the `anthropic-workspace-id` header, no code change.
+
+## Scripted mode, for demonstrating without a model
+
+The key in this environment is identity-linked and the workspace id it needs is not available, so a live exchange cannot run here. Rather than have no demo, opt in:
+
+```
+CHAT_SCRIPTED=1 .venv/bin/uvicorn chat.app:app --port 8001
+```
+
+The gate, the planner, the bounded tool loop, every tool call, the citation ledger and every crop are the **real** code paths over the fixtures backend. Only the model's turns are canned, in `chat/scripted.py`. It is off unless the variable is explicitly truthy, `/api/health` reports `scripted: true`, and the page shows a **"scripted model — canned turns, real tools"** badge, so nobody can mistake it for a live answer.
+
+It is not a bypass of the citation rules: the canned answer's citations go through the same ledger as any other, and while writing it the checker rejected a clause the script had not actually fetched, which is why the script now reads it. A question with no script says so and cites nothing rather than inventing.
 
 ## Endpoints
 

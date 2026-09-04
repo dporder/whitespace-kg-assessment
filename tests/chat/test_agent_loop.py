@@ -219,6 +219,58 @@ def test_a_real_path_with_the_wrong_page_is_caught():
     assert found[0].status == "page_mismatch"
 
 
+# --- the verifier probe -----------------------------------------------------
+# Every row here was a way past the verifier before: a missing page and a
+# non-numeric page both rendered as verified, because a None page short-
+# circuited to "ok". Only an exact (path, page) a tool returned is ok.
+@pytest.mark.parametrize(
+    "citation, expected",
+    [
+        ("[[core-terms/9/9.2|2]]", "ok"),
+        ("[[core-terms/9/9.2|]]", "page_unparseable"),
+        ("[[core-terms/9/9.2|p2]]", "page_unparseable"),
+        ("[[core-terms/40/40.7|9]]", "unknown_path"),
+    ],
+)
+def test_citation_verifier_probe(citation, expected):
+    runner = ToolRunner()
+    runner.run("get_provision", {"path": "core-terms/9/9.2"})
+    found = agent.verify_citations(f"a claim {citation}.", runner)
+    assert len(found) == 1
+    assert found[0].status == expected
+
+
+def test_only_a_verified_citation_offers_a_crop():
+    runner = ToolRunner()
+    runner.run("get_provision", {"path": "core-terms/9/9.2"})
+    text = ("ok [[core-terms/9/9.2|2]] empty [[core-terms/9/9.2|]] "
+            "bad [[core-terms/9/9.2|p2]] gone [[core-terms/40/40.7|9]]")
+    by_status = {c.status: c for c in agent.verify_citations(text, runner)}
+    assert by_status["ok"].crop_url
+    for status in ("page_unparseable", "unknown_path"):
+        assert by_status[status].crop_url is None, f"{status} must not offer a crop"
+
+
+def test_a_page_that_no_tool_returned_is_never_ok():
+    """The ledger is the only authority: page None can never pass."""
+    runner = ToolRunner()
+    runner.run("get_provision", {"path": "core-terms/9/9.2"})
+    assert runner.ledger.check("core-terms/9/9.2", None) == "page_unparseable"
+    assert runner.ledger.check("core-terms/9/9.2", 2) == "ok"
+
+
+def test_history_citations_are_harvested():
+    """The history branch harvested nothing, so any claim sourced from it
+    failed verification even when it was true."""
+    runner = ToolRunner()
+    from chat.source import corpus
+
+    key = corpus().by_path["core-terms/9/9.2"].lineage_key
+    call = runner.run("history", {"lineage_key": key})
+    assert call.ok and call.result["count"] == 1
+    assert runner.ledger.check("core-terms/9/9.2", 2) == "ok"
+
+
 def test_citations_are_deduplicated():
     runner = ToolRunner()
     runner.run("get_provision", {"path": "core-terms/9/9.2"})

@@ -161,18 +161,18 @@ def test_a_row_shows_the_verdict_recorded_against_it():
     ref_path = "core-terms/9/9.2/ref@111-121"
     assert next(r for r in R.queue() if r["path"] == ref_path)["decided"] is None
 
-    D.append({"kind": "ref", "path": ref_path, "verdict": "approve",
-              "chosen_candidate": "framework-schedule-2"}, reviewer="dan")
+    D.append({"kind": "ref", "path": ref_path, "verdict": "target",
+              "chosen_candidate": "framework-schedule-2", "reviewer": "dan"})
 
     row = next(r for r in R.queue() if r["path"] == ref_path)
-    assert row["decided"]["verdict"] == "approve"
+    assert row["decided"]["verdict"] == "target"
     assert row["decided"]["chosen_candidate"] == "framework-schedule-2"
     assert R.counts(R.queue())["decided"] == 1
 
 
 def test_decided_rows_can_be_hidden():
     ref_path = "core-terms/9/9.2/ref@111-121"
-    D.append({"kind": "ref", "path": ref_path, "verdict": "reject"}, reviewer="dan")
+    D.append({"kind": "ref", "path": ref_path, "verdict": "unresolvable", "reviewer": "dan"})
     remaining = {r["path"] for r in R.queue(include_decided=False)}
     assert ref_path not in remaining
 
@@ -180,12 +180,37 @@ def test_decided_rows_can_be_hidden():
 def test_a_term_verdict_matches_its_row_id():
     row = next(r for r in R.queue() if r["kind"] == "term")
     D.append({"kind": "term", "node_id": row["node_id"], "char_span": row["char_span"],
-              "verdict": "reject"}, reviewer="dan")
-    assert next(r for r in R.queue() if r["id"] == row["id"])["decided"]["verdict"] == "reject"
+              "verdict": "not_a_use", "reviewer": "dan"})
+    assert next(r for r in R.queue() if r["id"] == row["id"])["decided"]["verdict"] == "not_a_use"
 
 
 def test_an_anomaly_verdict_matches_its_row_id():
     row = next(r for r in R.queue() if r["kind"] == "anomaly")
     D.append({"kind": "anomaly", "node_id": row["node_id"], "anomaly": row["anomaly"],
-              "anomaly_index": row["anomaly_index"], "verdict": "approve"}, reviewer="dan")
-    assert next(r for r in R.queue() if r["id"] == row["id"])["decided"]["verdict"] == "approve"
+              "anomaly_index": row["anomaly_index"], "verdict": "confirmed", "reviewer": "dan"})
+    assert next(r for r in R.queue() if r["id"] == row["id"])["decided"]["verdict"] == "confirmed"
+
+
+def test_every_anomaly_row_carries_the_index_its_verdict_needs():
+    """anomaly_index is part of the subject, so a row that cannot supply it
+    would produce verdicts that supersede each other in the harness."""
+    for row in R.queue(kinds=("anomaly",)):
+        assert isinstance(row["anomaly_index"], int)
+        assert row["id"] == f"{row['node_id']}#{row['anomaly_index']}"
+
+
+def test_a_term_row_offers_the_governing_terms_it_could_be():
+    """The alias-collision case: the reviewer must be able to name a term
+    other than the one the pipeline matched."""
+    row = next(r for r in R.queue() if r["kind"] == "term")
+    opts = row["detail"]["term_options"]
+    assert row["detail"]["term"] in opts
+    assert "CBO" in opts and "Central Buying Office" in opts
+    assert len(opts) > 1, "a picker with one option cannot express a collision"
+
+
+def test_a_ref_row_carries_what_each_of_its_four_verdicts_needs():
+    for row in R.queue(kinds=("ref",)):
+        assert "target_path" in row["detail"], "Confirm target needs it, even when None"
+        assert isinstance(row["candidates"], list), "Pick candidate reads this"
+        assert row["path"], "every ref verdict is keyed on the ref path"

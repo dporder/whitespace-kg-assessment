@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 
 from . import config as ui_config
+from . import scripted
 
 PROMPT_VERSIONS = {"chat_gate": "gate-v1", "chat_plan": "plan-v1", "chat_agent": "agent-v1"}
 
@@ -55,6 +56,8 @@ def _pipeline_llm():
 
 
 def backend_name() -> str:
+    if scripted.enabled():
+        return "scripted (demo, no model call)"
     return "pipeline.llm" if _pipeline_llm() is not None else "anthropic-sdk (interim)"
 
 
@@ -159,7 +162,7 @@ def available() -> bool:
     This does not prove the upstream will accept a call; a request that is
     refused surfaces as LLMUnavailable at call time and the gate fails open.
     """
-    if _pipeline_llm() is not None:
+    if scripted.enabled() or _pipeline_llm() is not None:
         return True
     try:
         _sdk_client()
@@ -231,6 +234,11 @@ def complete(
     if temperature is not None:
         payload["temperature"] = temperature
 
+    if scripted.enabled():
+        out = scripted.complete(task=task, model=model, system=system, messages=messages)
+        _log_call(task, model, payload, {"scripted": True, "text": out.text})
+        return out
+
     mod = _pipeline_llm()
     if mod is not None:
         adapted = _try_pipeline(mod, task, payload)
@@ -269,6 +277,11 @@ def stream(
     }
     if tools:
         payload["tools"] = tools
+
+    if scripted.enabled():
+        yield from scripted.stream(task=task, model=model, system=system,
+                                   messages=messages, tools=tools)
+        return
 
     mod = _pipeline_llm()
     if mod is not None:

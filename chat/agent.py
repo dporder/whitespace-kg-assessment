@@ -20,7 +20,7 @@ from typing import Any, Iterator
 import config as pipeline_config
 
 from . import config as ui_config
-from . import llm_client
+from . import llm_client, scripted
 from .backends import get_backend
 from .tools import TOOL_SCHEMAS, ToolRunner, crop_url
 
@@ -313,14 +313,15 @@ def verify_citations(answer: str, runner: ToolRunner) -> list[Citation]:
         try:
             page: int | None = int(page_s)
         except ValueError:
-            page = None
+            page = None                       # fails verification, never passes
         status = runner.ledger.check(path, page)
         out.append(
             Citation(
                 path=path,
                 page=page,
                 status=status,
-                crop_url=crop_url(path) if status != "unknown_path" else None,
+                # a crop is offered only for a citation that actually checked out
+                crop_url=crop_url(path) if status == "ok" else None,
             )
         )
     return out
@@ -333,5 +334,6 @@ def describe_backend() -> dict:
         "data_source": ui_config.DATA_SOURCE,
         "llm": llm_client.backend_name(),
         "llm_available": llm_client.available(),
+        "scripted": scripted.enabled(),
         "embedding_search": ui_config.EMBEDDING_SEARCH,
     }

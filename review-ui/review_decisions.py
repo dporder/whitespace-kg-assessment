@@ -1,19 +1,29 @@
 """golden/decisions.jsonl, the append-only record of human verdicts.
 
-One JSON object per line, appended under a lock, never rewritten. Stage 8
-consumes the file as labels, so the shape is a contract: see review-ui/README.md
-for the field table and worked examples.
+The vocabulary is NOT ours to choose. It is pinned in SPEC section 6 and
+elaborated in `pipeline/eval/GOLDEN_FORMAT.md`, whose reference reader is
+`pipeline/eval/golden.py`. This module writes what that reader loads, and
+`tests/review_ui/test_decisions.py` pins each verdict against the same tables.
 
-    {"kind": "ref",     "path": "<ref path>",            "verdict": "approve",
-     "chosen_candidate": "<path>",  "reviewer": "dan", "ts": "...Z"}
-    {"kind": "term",    "node_id": "<sha1>", "char_span": [0, 21],
-     "verdict": "reject", "reviewer": "dan", "ts": "...Z"}
-    {"kind": "anomaly", "node_id": "<sha1>", "anomaly": "<the recorded string>",
-     "verdict": "approve", "reviewer": "dan", "ts": "...Z"}
+    ref      target | unresolvable | not_a_reference
+    term     use | not_a_use
+    anomaly  confirmed | rejected            (node anomaly readings)
+             agree | parser_wrong | outline_wrong | both_differ   (outline triage)
+
+`chosen_candidate` is required on `ref`/`target` (the accepted target path) and
+on `term`/`use` (the governing term, which may differ from the matched one in an
+alias collision). It is refused on verdicts that have no use for it.
+
+Subject identity, which decides last-record-wins in the harness, is
+`(kind, path, node_id, span)`. An anomaly has no span, so two anomalies on one
+node would collide; `anomaly_index` distinguishes them and is required here.
+
+One JSON object per line, appended under a lock, never rewritten.
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -26,12 +36,32 @@ if str(ROOT) not in sys.path:
 import config as pipeline_config        # noqa: E402  repo-root config.py
 
 KINDS = ("ref", "term", "anomaly")
-VERDICTS = ("approve", "reject")
+
+# The verdict vocabularies, copied from GOLDEN_FORMAT.md. Any drift here is a
+# label the harness will count as unrecognised, so the tests compare these sets
+# against pipeline/eval/golden.py directly when that module is importable.
+VERDICTS: dict[str, tuple[str, ...]] = {
+    "ref": ("target", "unresolvable", "not_a_reference"),
+    "term": ("use", "not_a_use"),
+    "anomaly": ("confirmed", "rejected",
+                "agree", "parser_wrong", "outline_wrong", "both_differ"),
+}
+
+# Verdicts that carry chosen_candidate, and what it holds.
+NEEDS_CANDIDATE = {("ref", "target"): "the accepted target path",
+                   ("term", "use"): "the governing term"}
+
+# Demo and test flows set this so a decisions.jsonl inside the repo always
+# holds real reviewer verdicts (SPEC section 6).
+PATH_ENV = "RM6116_DECISIONS_PATH"
 
 _lock = threading.Lock()
 
 
 def path() -> Path:
+    override = os.environ.get(PATH_ENV)
+    if override:
+        return Path(override)
     return pipeline_config.GOLDEN / "decisions.jsonl"
 
 
@@ -43,21 +73,31 @@ def validate(d: dict) -> dict:
     """Raise ValueError unless `d` is a well-formed decision. Returns it."""
     if not isinstance(d, dict):
         raise ValueError("decision must be an object")
+
     kind = d.get("kind")
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}, got {kind!r}")
-    if d.get("verdict") not in VERDICTS:
-        raise ValueError(f"verdict must be one of {VERDICTS}, got {d.get('verdict')!r}")
+
+    verdict = d.get("verdict")
+    if verdict not in VERDICTS[kind]:
+        raise ValueError(
+            f"verdict for kind {kind!r} must be one of {VERDICTS[kind]}, got {verdict!r}"
+        )
     if not d.get("reviewer"):
         raise ValueError("reviewer is required")
     if not d.get("ts"):
         raise ValueError("ts is required")
 
+    holds = NEEDS_CANDIDATE.get((kind, verdict))
+    if holds:
+        if not d.get("chosen_candidate"):
+            raise ValueError(f"{kind}/{verdict} requires chosen_candidate, {holds}")
+    elif d.get("chosen_candidate") is not None:
+        raise ValueError(f"chosen_candidate has no meaning on {kind}/{verdict}")
+
     if kind == "ref":
         if not d.get("path"):
             raise ValueError("a ref decision needs the ref's path")
-        if d.get("chosen_candidate") is not None and d["verdict"] != "approve":
-            raise ValueError("chosen_candidate only belongs on an approve")
     elif kind == "term":
         if not d.get("node_id"):
             raise ValueError("a term decision needs node_id")
@@ -70,29 +110,35 @@ def validate(d: dict) -> dict:
             raise ValueError("an anomaly decision needs node_id")
         if not d.get("anomaly"):
             raise ValueError("an anomaly decision needs the anomaly string it answers")
+        if not isinstance(d.get("anomaly_index"), int) or isinstance(d.get("anomaly_index"), bool):
+            raise ValueError(
+                "an anomaly decision needs anomaly_index as an int: it is part of "
+                "the subject, so without it two anomalies on one node supersede each other"
+            )
     return d
 
 
 def target_key(d: dict) -> str:
-    """The queue-row id a decision answers, so a row can show its verdict."""
+    """The queue-row id a decision answers, matching the harness's subject."""
     if d["kind"] == "ref":
         return d["path"]
     if d["kind"] == "term":
         s = d["char_span"]
         return f"{d['node_id']}:{s[0]}-{s[1]}"
-    return f"{d['node_id']}#{d.get('anomaly_index', 0)}"
+    return f"{d['node_id']}#{d['anomaly_index']}"
 
 
-def append(decision: dict, reviewer: str = "unknown") -> dict:
+def append(decision: dict, reviewer: str | None = None) -> dict:
     """Validate, stamp and append one decision. Returns the stored record."""
     d = dict(decision)
-    d.setdefault("reviewer", reviewer)
+    if reviewer and not d.get("reviewer"):
+        d["reviewer"] = reviewer
     d.setdefault("ts", now())
-    if d["kind"] == "ref":
+    if d.get("chosen_candidate") in ("", None):
+        d.pop("chosen_candidate", None)
+    if d.get("kind") == "ref":
         d.pop("node_id", None)
         d.pop("char_span", None)
-        if d.get("chosen_candidate") in ("", None):
-            d.pop("chosen_candidate", None)
     validate(d)
 
     line = json.dumps(d, ensure_ascii=False, sort_keys=True)
@@ -145,5 +191,6 @@ def summary() -> dict:
         "count": len(rows),
         "by_kind": by_kind,
         "by_verdict": by_verdict,
+        "vocabulary": {k: list(v) for k, v in VERDICTS.items()},
         "recent": rows[-5:][::-1],
     }

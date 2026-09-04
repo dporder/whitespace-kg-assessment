@@ -163,8 +163,20 @@ def ref_rows(c) -> list[dict]:
     return rows
 
 
+def term_options(c) -> list[str]:
+    """Every defined term and alias, so a reviewer resolving an alias collision
+    can name a governing term other than the one the pipeline matched. That name
+    goes in `chosen_candidate`, which is what the harness reads."""
+    names: set[str] = set()
+    for site in c.definition_sites:
+        names.add(site.term)
+        names.update(site.aliases)
+    return sorted(names)
+
+
 def term_rows(c) -> list[dict]:
     rows = []
+    options = term_options(c)
     for use in c.term_uses:
         if use.status != "ambiguous":
             continue
@@ -194,6 +206,7 @@ def term_rows(c) -> list[dict]:
                 "candidates": [],
                 "detail": {
                     "term": use.term,
+                    "term_options": options,
                     "ambiguity_kind": use.ambiguity_kind,
                     "method": use.method,
                     "definition_used": use.definition_used,

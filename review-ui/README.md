@@ -41,48 +41,52 @@ The stored text is never altered, whichever way the verdict goes. This is a plac
 
 ## golden/decisions.jsonl
 
-One JSON object per line, appended under a lock, never rewritten. Stage 8 consumes it as labels. Written to `config.GOLDEN / "decisions.jsonl"`; the directory is created on first write.
+**This vocabulary is not ours.** It is the contract seam between this UI and the eval harness, pinned in SPEC section 6 and specified in `pipeline/eval/GOLDEN_FORMAT.md`, whose reference reader is `pipeline/eval/golden.py`. That harness is the consumer; this UI writes what it loads. What follows summarises the contract — where the two disagree, the harness wins, and `tests/review_ui/test_decisions.py` compares our verdict tables against the reader's own rather than restating them, so they cannot drift apart silently again.
 
-Every record carries these four:
+One JSON object per line, appended under a lock, never rewritten. Written to `config.GOLDEN / "decisions.jsonl"` unless `RM6116_DECISIONS_PATH` overrides it; the directory is created on first write.
 
-| field | type | meaning |
+Every record carries `kind`, `verdict`, `reviewer` (non-empty — there is no "unknown" fallback, a label nobody signed is not auditable) and `ts` (ISO 8601 UTC).
+
+### Verdicts
+
+| kind | verdict | means | `chosen_candidate` |
+|---|---|---|---|
+| `ref` | `target` | it is a citation and this is the right target | **required** — the accepted target path |
+| `ref` | `unresolvable` | a real citation with no correct target in the corpus | refused |
+| `ref` | `not_a_reference` | the span is not a citation at all | refused |
+| `term` | `use` | the span is a use of a defined term | **required** — the *governing* term, which may differ from the matched one in an alias collision |
+| `term` | `not_a_use` | capitalised, but not a use of a defined term | refused |
+| `anomaly` | `confirmed` / `rejected` | the proposed reading was accepted or rejected | refused |
+| `anomaly` | `agree` / `parser_wrong` / `outline_wrong` / `both_differ` | the `outline_vs_provided` triage set | refused |
+
+`unresolvable` is the label the zero-tolerance abstention gate feeds on, so the UI gives it its own control rather than folding it into a rejection.
+
+### Subject identity
+
+The harness keeps the **last record per subject**, where the subject is `(kind, path, node_id, span)`:
+
+| kind | subject fields | row id |
 |---|---|---|
-| `kind` | `"ref" \| "term" \| "anomaly"` | which queue the row came from |
-| `verdict` | `"approve" \| "reject"` | the reviewer's judgement |
-| `reviewer` | string, non-empty | who decided |
-| `ts` | `YYYY-MM-DDTHH:MM:SSZ` | when, UTC |
+| `ref` | `path` — the ref's own path, `<parent>/ref@<start>-<end>`; the reader recovers the span from it | the ref path |
+| `term` | `node_id` + `char_span` `[start, end]` | `<node_id>:<start>-<end>` |
+| `anomaly` | `node_id` + **`anomaly_index`** (int) | `<node_id>#<index>` |
 
-Then, by kind:
-
-| kind | identity | extra |
-|---|---|---|
-| `ref` | `path` — the ref's own path, `<parent>/ref@<start>-<end>` | `chosen_candidate`, a candidate path; only legal on an `approve` |
-| `term` | `node_id` + `char_span` `[start, end]` | `term`, `path` for legibility |
-| `anomaly` | `node_id` + `anomaly`, the recorded string this answers | `anomaly_index`, `path` |
-
-`anomaly` is required because one node can carry several anomalies and `node_id` alone would not say which was judged. `path` and `term` are conveniences a consumer may ignore.
+`anomaly_index` is load-bearing, not bookkeeping: a node can carry several anomalies, and without the index two verdicts on one node supersede each other and one is silently lost. It is required here and `test_two_anomalies_on_one_node_are_separate_subjects` pins it.
 
 Worked examples, exactly as written:
 
 ```json
-{"chosen_candidate": "framework-schedule-2", "kind": "ref", "path": "core-terms/9/9.2/ref@111-121", "reviewer": "dan", "ts": "2026-09-04T04:13:46Z", "verdict": "approve"}
-{"char_span": [0, 21], "kind": "term", "node_id": "3effa77976523486d1978c32e8a71224a163e317", "path": "core-terms/3/3.1/3.1.1/b", "reviewer": "dan", "term": "Good Working Practice", "ts": "2026-09-04T04:13:46Z", "verdict": "reject"}
-{"anomaly": "stray_character_in_label: 'rFramework' for 'Framework', recorded verbatim", "anomaly_index": 0, "kind": "anomaly", "node_id": "120550221b2062ffe7fe7cd61431217257332840", "reviewer": "dan", "ts": "2026-09-04T04:13:46Z", "verdict": "approve"}
+{"chosen_candidate": "framework-schedule-2", "kind": "ref", "path": "core-terms/9/9.2/ref@111-121", "reviewer": "dan", "ts": "2026-09-04T05:52:11Z", "verdict": "target"}
+{"kind": "ref", "path": "core-terms/9/9.1/intro/ref@28-71", "reviewer": "dan", "ts": "2026-09-04T05:52:14Z", "verdict": "unresolvable"}
+{"char_span": [0, 21], "chosen_candidate": "Good Working Practice", "kind": "term", "node_id": "3effa77976523486d1978c32e8a71224a163e317", "path": "core-terms/3/3.1/3.1.1/b", "reviewer": "dan", "ts": "2026-09-04T05:52:18Z", "verdict": "use"}
+{"anomaly": "stray_character_in_label: 'rFramework' for 'Framework', recorded verbatim", "anomaly_index": 0, "kind": "anomaly", "node_id": "120550221b2062ffe7fe7cd61431217257332840", "path": "award-form/3/label", "reviewer": "dan", "ts": "2026-09-04T05:52:22Z", "verdict": "confirmed"}
 ```
 
-Reading it back:
+Extra keys (`path` on a term or anomaly row, for human legibility) are ignored by the reader.
 
-- The file is append-only, so **later lines win**. `decisions_by_target()` returns the latest verdict per row, which is how a reviewer corrects a mistake.
-- `target_key(decision)` reproduces the queue row id a decision answers: the ref path, or `<node_id>:<start>-<end>`, or `<node_id>#<anomaly_index>`.
-- A malformed record is refused with a 400 and **nothing is written**, so the file never needs repairing. `review_decisions.validate` is the single gate; `tests/review_ui/test_decisions.py` pins it.
-
-What a verdict means, so the harness scores the right thing:
-
-- **ref, approve with `chosen_candidate`** — that candidate is the correct target.
-- **ref, approve with none** — the reading as it stands is right; for an `unresolved` ref that means it is genuinely unresolvable from the corpus, which is the abstention case SPEC 5 scores.
-- **ref, reject** — no candidate offered is correct.
-- **term, approve** — the span really is a use of the defined term. **reject** — ordinary words that happen to be capitalised.
-- **anomaly, approve** — the proposed reading is right, or the anomaly is correctly recorded where there is no proposal. **reject** — it is not.
+- Append-only, so **later lines win**. `decisions_by_target()` returns the latest verdict per row, which is how a reviewer corrects a mistake.
+- A malformed record is refused with a 400 and **nothing is written**, so the file never needs repairing.
+- **Demo and test flows write only to temporary paths** (SPEC section 6), via `RM6116_DECISIONS_PATH`, so a `decisions.jsonl` inside the repo always holds real reviewer verdicts.
 
 ## Endpoints
 
@@ -95,9 +99,19 @@ What a verdict means, so the harness scores the right thing:
 | POST | `/api/decisions` | validate and append one verdict; 201 with the stored record, 400 with the reason |
 | GET | `/api/crop?page=&bbox=&colour=&zoom=` | PNG, rendered at request time |
 
-## Keyboard
+## Controls, one per verdict
 
-`J`/`K` move, `A` approve, `X` reject, `1`–`9` pick a candidate. The direction chosen on the design canvas trades rows-per-screen for evidence that cannot be skipped, and buys the density back by keeping the reviewer off the mouse.
+Every verdict in the vocabulary is reachable from the row it applies to; none is inferred from the absence of another.
+
+| row | controls |
+|---|---|
+| `ref` | **Confirm target** (`A`, enabled only when the pipeline resolved one) · **Pick candidate** (`1`–`9` to select, then the button) · **Unresolvable** (`U`) · **Not a reference** (`N`) |
+| `term` | a **governing-term picker** defaulting to the matched term, then **Real use** (`A`) or **Not a use** (`N`) |
+| `anomaly` | **Confirm** (`A`) · **Reject** (`N`) |
+
+Confirm target and Pick candidate both write `target`; they are separate controls because accepting the pipeline's answer and overriding it are different reviewer acts, and only one of them is available on any given row.
+
+`J`/`K` move. The direction chosen on the design canvas trades rows-per-screen for evidence that cannot be skipped, and buys the density back by keeping the reviewer off the mouse.
 
 ## Tests
 

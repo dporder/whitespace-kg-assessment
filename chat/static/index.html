@@ -158,7 +158,11 @@ async function boot() {
     $('#src').textContent = `RM6116 · data ${health.data_source} · graph ${health.graph_backend}`;
     const b = $('#badges');
     b.append(mkChip(`gate ${'haiku'}`), mkChip('plan opus'), mkChip('agent opus'));
-    if (!health.llm_available) {
+    if (health.scripted) {
+      const s = mkChip('scripted model — canned turns, real tools');
+      s.style.cssText = 'border-color:var(--model);color:var(--model);background:var(--model-bg);font-weight:600';
+      b.append(s);
+    } else if (!health.llm_available) {
       const warn = mkChip('model unavailable'); warn.style.borderColor = 'var(--model)'; warn.style.color = 'var(--model)';
       b.append(warn);
     }
@@ -297,16 +301,38 @@ function ask() {
 
   es.addEventListener('citations', e => {
     const d = JSON.parse(e.data);
-    const bad = (d.citations || []).filter(c => c.status !== 'ok');
-    ansMeta.textContent = `${(d.citations || []).length} citation(s)` + (bad.length ? ` · ${bad.length} unverified` : ' · all verified against tool output');
+    const cites = d.citations || [];
+    const bad = cites.filter(c => c.status !== 'ok');
+
+    if (!cites.length) {
+      // An answer with nothing behind it is the worst case, not the clean one.
+      ansMeta.textContent = 'no citations';
+      ansMeta.style.color = 'var(--model)';
+      ansCard.append(el('div', 'err',
+        'No citation in this answer resolved to tool output, so nothing here is backed by the graph. Treat it as unsourced.'));
+    } else {
+      ansMeta.textContent = `${cites.length} citation(s)` +
+        (bad.length ? ` · ${bad.length} unverified` : ' · all verified against tool output');
+      ansMeta.style.color = bad.length ? 'var(--model)' : 'var(--muted)';
+    }
+
     if (bad.length) {
-      ansCard.append(el('div', 'err', 'Unverified: ' + bad.map(c => `${c.path} (${c.status})`).join(', ')));
+      ansCard.append(el('div', 'err', 'Unverified: ' +
+        bad.map(c => `${c.path}${c.page == null ? '' : ' p' + c.page} (${c.status})`).join(', ')));
+      // Taint the exact chip instance, not every chip sharing the path: the
+      // same provision cited correctly once and wrongly once must not both go amber.
       document.querySelectorAll('.cite').forEach(n => {
-        if (bad.some(b => b.path === n.dataset.path)) n.classList.add('bad');
+        const hit = bad.find(b => b.path === n.dataset.path &&
+          String(b.page == null ? '' : b.page) === n.dataset.page);
+        if (hit) { n.classList.add('bad'); n.title = hit.status; n.onclick = null; }
       });
     }
-    const first = (d.citations || []).find(c => c.status === 'ok');
-    if (first) showCrop(first.path, first.page, document.querySelector(`.cite[data-path="${CSS.escape(first.path)}"]`));
+    const first = cites.find(c => c.status === 'ok');
+    if (first) {
+      const chip = Array.from(document.querySelectorAll('.cite')).find(
+        n => n.dataset.path === first.path && n.dataset.page === String(first.page));
+      showCrop(first.path, first.page, chip);
+    }
   });
 
   es.addEventListener('note', e => { convo.append(el('div', 'err', JSON.parse(e.data).message)); });
