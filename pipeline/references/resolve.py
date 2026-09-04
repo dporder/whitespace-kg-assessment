@@ -119,13 +119,37 @@ def _schedule_from_context(corpus: Corpus, pointer: Pointer) -> tuple[Optional[s
 # --------------------------------------------------------------------------
 def _resolve_legislation(pointer: Pointer) -> Resolution:
     """External by definition: the target is a statute, not a provision of this
-    corpus, so it is normalised to a key and never looked up in the tree."""
-    meta = pointer.legislation or {}
+    corpus, so it is normalised to a key and never looked up in the tree.
+
+    A pointer the citation grammar found carries its parsed title and year. One
+    the LLM span rung found carries only the words it quoted, so the grammar is
+    run over those words here. If they still do not normalise, the ref stays
+    *unresolved* rather than external: `legislation/` with nothing after it is
+    not a statute, and status external on an empty key would claim a resolution
+    that never happened. The pack really does cite "the Regulations" and
+    "Freedom of Information Act (FOIA)" with no year, which are defined terms
+    doing a statute's work, so they belong in review, not in the graph as
+    phantom Legislation nodes.
+    """
+    meta = dict(pointer.legislation or {})
+    if not meta.get("key"):
+        from .legislation import find_legislation
+        hits = find_legislation(pointer.text or "")
+        if hits:
+            hit = hits[0]
+            meta = {"title": hit.title, "year": hit.year,
+                    "instrument_kind": hit.instrument_kind,
+                    "provision_unit": hit.provision_unit,
+                    "key": key_for(hit.title, hit.year, None, hit.instrument_kind)}
+    if not meta.get("key"):
+        return Resolution(status="unresolved", scope_rule="none", resolver="scope",
+                          notes=[f"legislation_not_normalisable: {pointer.text!r} names "
+                                 f"no title and year the grammar can key on, so no "
+                                 f"Legislation node is minted for it"])
     if pointer.provision:
         target = provision_key(meta, pointer.provision)
     else:
-        target = meta.get("key") or key_for(meta.get("title", ""), meta.get("year"),
-                                            None, meta.get("instrument_kind"))
+        target = meta["key"]
     return Resolution(status="external", scope_rule="none", resolver="grammar",
                       target_path=target)
 

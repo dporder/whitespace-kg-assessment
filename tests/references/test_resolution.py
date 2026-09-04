@@ -180,3 +180,34 @@ def test_identity_is_derived_from_the_trees_own_ids(core_terms, joint_schedule_1
     assert derived.verified is False, "the test document id is not a config candidate"
     derived = infer_identity([core_terms, joint_schedule_1], document=doc_id)
     assert (derived.document, derived.version, derived.verified) == (doc_id, version, True)
+
+
+def test_a_statute_mention_with_no_year_is_never_keyed_as_external(core_terms, corpus,
+                                                                  identity):
+    """The pack cites "the Regulations" and "Freedom of Information Act (FOIA)"
+    with no year. `legislation/` with nothing after it is not a statute, and
+    status external on an empty key would claim a resolution that never
+    happened, so these go to review instead."""
+    from pipeline.references.detect import Pointer
+    from pipeline.references.resolve import resolve_pointer
+
+    pointer = Pointer(parent_path="core-terms/4", part="core-terms", span=(0, 15),
+                      text="the Regulations", ref_kind="legislation",
+                      unit="legislation", method="llm")
+    resolution = resolve_pointer(corpus, pointer)
+    assert resolution.status == "unresolved"
+    assert resolution.target_path is None
+    assert any("legislation_not_normalisable" in n for n in resolution.notes)
+
+
+def test_an_llm_extracted_statute_that_does_normalise_still_becomes_external(
+        core_terms, corpus, identity):
+    from pipeline.references.detect import Pointer
+    from pipeline.references.resolve import resolve_pointer
+
+    pointer = Pointer(parent_path="core-terms/4", part="core-terms", span=(0, 16),
+                      text="Bribery Act 2010", ref_kind="legislation",
+                      unit="legislation", method="llm")
+    resolution = resolve_pointer(corpus, pointer)
+    assert resolution.status == "external"
+    assert resolution.target_path == "legislation/bribery-act-2010"
