@@ -72,6 +72,13 @@ HIERARCHY_PROFILES = {
         "unit_labels": {"core-terms": "Clause", "_schedule_default": "Paragraph"},
         "unit_labels_from_document": ["Clause", "Schedule", "Part", "Paragraph", "Annex", "Table"],
         "unit_labels_from_profile": ["item"],   # interpretation clause is silent on (a) and (i)
+        # Labels for the item kinds the interpretation clause does not name,
+        # per UK drafting convention (research memo section 2): lettered items
+        # are paragraphs of their clause, roman items sub-paragraphs. The same
+        # string "Paragraph" can carry source=document on a dotted schedule
+        # provision (JS1 1.3.9 names those) and source=profile here; the source
+        # field records where THIS node's label came from, not string identity.
+        "item_labels": {"letter": "Paragraph", "roman": "Sub-paragraph"},
         "interpretation_cues": [
             r"unless the context otherwise requires",
             r"[Ii]n this Schedule[,:]?\s",
