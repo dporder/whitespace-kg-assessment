@@ -37,7 +37,15 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         description="Stage 5, the concept tier (handover/SPEC.md 2.4).")
     p.add_argument("--run", metavar="ID")
     p.add_argument("--input", choices=["auto", "output", "fixtures"], default="auto")
-    p.add_argument("--parts", nargs="*", metavar="ID")
+    p.add_argument("--parts", nargs="*", metavar="ID",
+                   help="scan only these parts. The scan is the pipeline's "
+                        "spend bottleneck, so a run may deliberately sample it; "
+                        "the parts scanned are recorded in scope.json so a part "
+                        "with no concepts because it was out of scope stays "
+                        "distinguishable from one the scan missed")
+    p.add_argument("--all", dest="scan_all", action="store_true",
+                   help="scan every part present. The default, stated "
+                        "explicitly so a sampled run reads as a choice")
     p.add_argument("--batch", metavar="ID",
                    help=f"limit to a batch's part. one of {sorted(config.BATCHES)}")
     p.add_argument("--output-dir", type=Path, default=config.OUTPUT)
@@ -59,7 +67,20 @@ def run(args: argparse.Namespace) -> int:
     from pipeline.embeddings.__main__ import resolve_source
     source, source_root, run_id, run_dir, wanted = resolve_source(args)
     output_root: Path = args.output_dir
+    present = treeio.discover_parts(source_root)
+    if args.scan_all:
+        wanted = present
+    skipped = [p for p in present if p not in wanted]
     trees = treeio.load_trees(source, source_root, run_id, wanted)
+    # Two scopes, as in stage 4. The scan runs over the parts in scope, but the
+    # declared vocabulary the collision guard checks against is document-wide,
+    # so it is derived from every tree present. Deriving it from the scanned
+    # parts alone silently disarms the guard on a sampled run: this document
+    # keeps all 259 declared terms in Joint Schedule 1, so sampling the two
+    # clause parts took the real collision count from 14 to 0 and would have
+    # minted concepts that a declared Term already owns.
+    vocabulary_trees = (trees if sorted(wanted) == sorted(present)
+                        else treeio.load_trees(source, source_root, run_id, present))
 
     llm = llmio.runner(STAGE, run_dir, output_root, enabled=not args.no_llm)
     results = scan_mod.scan(trees, llm)
@@ -67,7 +88,7 @@ def run(args: argparse.Namespace) -> int:
 
     proposed = [c for r in results for c in r.proposed]
     embedder = None if args.no_embed else Embedder(output_root=output_root)
-    resolution = resolve_mod.resolve(proposed, trees, embedder)
+    resolution = resolve_mod.resolve(proposed, vocabulary_trees, embedder)
 
     by_id = trees.by_id()
     violations = []
@@ -117,9 +138,29 @@ def run(args: argparse.Namespace) -> int:
     })
     dump(run_dir / "concepts" / "resolution.json", resolution.as_dict())
 
+    # The scan is the pipeline's spend bottleneck, so a run may sample it. That
+    # makes "this part has no concepts" ambiguous between *not scanned* and
+    # *scanned and found nothing*, and stage 8 measures coverage over every unit
+    # in every loaded tree. Recording the scope is what keeps the two apart.
+    # `concepts.json` stays a bare `list[Concept]`, because that is the shape
+    # SPEC 2.4 and the stage 8 loader both pin, so the scope travels beside it.
+    scope = {
+        "scanned_parts": sorted(trees.parts),
+        "skipped_parts": sorted(skipped),
+        "parts_present_in_the_run": sorted(present),
+        "scan_units": len(results),
+        "vocabulary_derived_from_parts": sorted(vocabulary_trees.parts),
+        "note": ("a part in skipped_parts has no concepts because it was never "
+                 "scanned, not because the scan found none. Stage 8's coverage "
+                 "denominator should be the scanned parts, not every loaded "
+                 "tree, or a sampled run reads as a failed one."),
+    }
+    dump(run_dir / "concepts" / "scope.json", scope)
+
     summary = {
         "stage": STAGE, "run": run_id, "input_source": source,
         "parts": sorted(trees.parts),
+        "scope": scope,
         "scan": {"units": len(results), "by_state": dict(sorted(scan_states.items())),
                  "task": scan_mod.TASK, "model": config.MODELS.get(scan_mod.TASK),
                  "units_with_no_concept": sum(1 for r in results if not r.proposed),

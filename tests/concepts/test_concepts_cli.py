@@ -94,6 +94,78 @@ def test_a_label_that_is_a_declared_term_is_logged_not_minted(tmp_path, monkeypa
     assert resolution["collisions"][0]["collides_with_term"] == "Good Working Practice"
 
 
+def test_a_sampled_scan_records_which_parts_it_skipped(tmp_path, monkeypatch):
+    """The scan is the pipeline's spend bottleneck, so a run may deliberately
+    sample it. That makes "this part has no concepts" ambiguous between *not
+    scanned* and *scanned and found nothing*, and stage 8 measures coverage over
+    every loaded tree. Recording the scope is what keeps the two apart."""
+    install_llm(monkeypatch, FakeClaude(fixture_reply))
+    code = main(["--input", "fixtures", "--fixtures-dir", str(FIXTURES),
+                 "--output-dir", str(tmp_path), "--run", "t", "--quiet",
+                 "--no-embed", "--parts", "core-terms"])
+    assert code == 0
+    scope = json.loads((tmp_path / "t" / "concepts" / "scope.json").read_text())
+    assert scope["scanned_parts"] == ["core-terms"]
+    assert set(scope["skipped_parts"]) == {"award-form", "joint-schedule-1"}
+    assert "never scanned" in scope["note"]
+    scopes = {c["scope_path"].split("/")[0]
+              for c in json.loads((tmp_path / "t" / "concepts.json").read_text())}
+    assert scopes == {"core-terms"}
+
+
+def test_all_is_the_same_code_path_as_a_sampled_scan(tmp_path, monkeypatch):
+    """Sampling is a flag, not a fork: `--all` and a parts list run identical
+    code, so the full-capability path cannot rot while the sampled one ships."""
+    install_llm(monkeypatch, FakeClaude(fixture_reply))
+    main(["--input", "fixtures", "--fixtures-dir", str(FIXTURES),
+          "--output-dir", str(tmp_path), "--run", "all", "--quiet",
+          "--no-embed", "--all"])
+    every = json.loads((tmp_path / "all" / "concepts" / "scope.json").read_text())
+    assert every["skipped_parts"] == []
+    assert set(every["scanned_parts"]) == {"award-form", "core-terms",
+                                           "joint-schedule-1"}
+
+    main(["--input", "fixtures", "--fixtures-dir", str(FIXTURES),
+          "--output-dir", str(tmp_path), "--run", "some", "--quiet",
+          "--no-embed", "--parts", "core-terms", "award-form"])
+    some = json.loads((tmp_path / "some" / "concepts" / "scope.json").read_text())
+    assert some["skipped_parts"] == ["joint-schedule-1"]
+    # The concepts a scanned part produces do not depend on what else was in
+    # scope, which is what makes a sampled run a subset rather than a different
+    # answer.
+    def labels_for(run, part):
+        return sorted(c["label"] for c in
+                      json.loads((tmp_path / run / "concepts.json").read_text())
+                      if c["scope_path"].split("/")[0] == part)
+    assert labels_for("all", "core-terms") == labels_for("some", "core-terms")
+
+
+def test_sampling_does_not_disarm_the_term_collision_guard(tmp_path, monkeypatch):
+    """The declared vocabulary is document-wide, so it must be derived from every
+    tree present even when the scan is sampled. Deriving it from the scanned
+    parts alone silently disarmed the guard: this pack keeps all 259 declared
+    terms in Joint Schedule 1, so sampling the clause parts took the real
+    collision count from 14 to 0 and would have minted concepts a Term owns."""
+    def collide(_task, prompt):
+        listing = prompt.split("PROVISIONS (path :: text):\n", 1)[1]
+        first = listing.split("\n", 1)[0].split(" :: ", 1)[0]
+        return reply(concept("Good Working Practice", 0.9, [first]))
+    install_llm(monkeypatch, FakeClaude(collide))
+    # core-terms is scanned; the fixture's definitions schedule is not.
+    code = main(["--input", "fixtures", "--fixtures-dir", str(FIXTURES),
+                 "--output-dir", str(tmp_path), "--run", "t", "--quiet",
+                 "--no-embed", "--parts", "core-terms"])
+    assert code == 0
+    scope = json.loads((tmp_path / "t" / "concepts" / "scope.json").read_text())
+    assert scope["scanned_parts"] == ["core-terms"]
+    assert "joint-schedule-1" in scope["vocabulary_derived_from_parts"]
+    resolution = json.loads(
+        (tmp_path / "t" / "concepts" / "resolution.json").read_text())
+    assert resolution["not_minted_term_collision"] > 0, \
+        "the guard must still see Joint Schedule 1's declared terms"
+    assert json.loads((tmp_path / "t" / "concepts.json").read_text()) == []
+
+
 def test_associated_term_is_not_computed_here(tmp_path, monkeypatch):
     """SPEC 2.4 puts it in stage 7, because it joins stage 4 and stage 5 output
     and these stages must not read each other."""
