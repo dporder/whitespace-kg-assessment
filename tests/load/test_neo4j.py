@@ -171,8 +171,9 @@ def test_salience_is_breadth_times_log_damped_frequency(graph, small_tree, small
     assert scores.values[target.id] == pytest.approx(1 * math.log(2))
     stored = graph.read("MATCH (n:Node {id: $id}) RETURN n.salience AS s", id=target.id)
     assert stored[0]["s"] == pytest.approx(scores.values[target.id])
-    term = graph.read("MATCH (t:Term {name: 'Buyer'}) RETURN t.salience AS s")
-    assert term[0]["s"] == pytest.approx(scores.term_values["Buyer"])
+    buyer = sites[0].term
+    term = graph.read("MATCH (t:Term {name: $name}) RETURN t.salience AS s", name=buyer)
+    assert term[0]["s"] == pytest.approx(scores.term_values[buyer])
 
 
 def test_the_loader_counts_reconcile_with_what_the_database_holds(graph, small_tree,
@@ -228,3 +229,50 @@ def test_a_sweep_of_one_part_leaves_a_real_looking_part_alone(graph, small_tree,
     survived = graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                           id=f"{guard_batch}-real-looking")[0]["n"]
     assert survived == 1, "a sweep scoped to a test part reached real Core Terms paths"
+
+
+def test_rollback_keeps_a_referent_another_batch_still_points_at(graph, small_tree,
+                                                                small_refs,
+                                                                throwaway_batch,
+                                                                statute_key):
+    """Term.name, Legislation.key and Concept.id are global keys, so two batches
+    citing one statute meet at one node. Rolling back the second batch must not
+    delete a node the first batch still points at, because DETACH DELETE would
+    take the first batch's RESOLVES_TO with it and silently unresolve a ref that
+    had a target. Found on the real graph: the load tests cited the Bribery Act
+    and their rollback deleted the real document's Legislation node."""
+    keeper, goer = f"{throwaway_batch}-keep", f"{throwaway_batch}-go"
+    graph.also_rollback(keeper)
+    graph.also_rollback(goer)
+
+    load(graph, small_tree, small_refs, keeper)
+    # a second batch cites the same statute from a node of its own
+    graph.run("CREATE (n:Node {id: $id, path: $path, kind: 'ref', batch_id: $b})",
+              id=f"{goer}-ref", path=f"{goer}-part/1/ref@0-5", b=goer)
+    graph.run("MATCH (r:Node {id: $id}), (l:Legislation {key: $key}) "
+              "MERGE (r)-[e:RESOLVES_TO]->(l) SET e.batch_id = $b",
+              id=f"{goer}-ref", key=statute_key, b=goer)
+    graph.run("MATCH (l:Legislation {key: $key}) SET l.batch_id = $b",
+              key=statute_key, b=goer)
+
+    result = graph.rollback(goer)
+
+    assert statute_key in result["referents_kept"]
+    survived = graph.read("MATCH (l:Legislation {key: $key}) RETURN count(l) AS n",
+                          key=statute_key)[0]["n"]
+    assert survived == 1, "a shared statute was deleted with someone else's batch"
+    still_resolved = graph.read(
+        "MATCH (r:Node)-[:RESOLVES_TO]->(l:Legislation {key: $key}) "
+        "WHERE r.batch_id = $b RETURN count(r) AS n", key=statute_key, b=keeper)[0]["n"]
+    assert still_resolved == 1, "the keeping batch lost its resolved edge"
+
+
+def test_rollback_still_removes_a_referent_nobody_else_uses(graph, small_tree,
+                                                            small_refs,
+                                                            throwaway_batch,
+                                                            statute_key):
+    load(graph, small_tree, small_refs, throwaway_batch)
+    result = graph.rollback(throwaway_batch)
+    assert result["referents_kept"] == []
+    assert graph.read("MATCH (l:Legislation {key: $key}) RETURN count(l) AS n",
+                      key=statute_key)[0]["n"] == 0

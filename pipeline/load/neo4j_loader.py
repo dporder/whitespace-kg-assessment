@@ -59,11 +59,24 @@ WITH r LIMIT $limit
 DELETE r
 RETURN count(*) AS n
 """
+# A referent is shared infrastructure: `Term.name`, `Legislation.key` and
+# `Concept.id` are global keys precisely so that fifty mentions of one statute
+# meet at one node. So the batch that last asserted a referent is not its owner,
+# and rolling that batch back must not delete a node another batch is still
+# using. Its own relationships are gone by this point, so anything still
+# attached belongs to someone else.
 Q_ROLLBACK_NODES = """
 MATCH (n) WHERE n.batch_id = $batch
+  AND NOT ((n:Term OR n:Legislation OR n:Concept) AND EXISTS { (n)--() })
 WITH n LIMIT $limit
 DETACH DELETE n
 RETURN count(*) AS n
+"""
+Q_ROLLBACK_KEPT_REFERENTS = """
+MATCH (n) WHERE n.batch_id = $batch
+  AND (n:Term OR n:Legislation OR n:Concept) AND EXISTS { (n)--() }
+RETURN coalesce(n.name, n.key, n.id) AS key, labels(n) AS labels,
+       n.first_batch_id AS first_batch_id, count { (n)--() } AS remaining
 """
 
 # sweep: inside this batch's own scope, anything still wearing an older tag was
@@ -267,7 +280,13 @@ class Graph:
 
     # ------------------------------------------------------- the three duties
     def rollback(self, batch_id: str, *, limit: int = 10000) -> dict:
-        """Remove a batch completely: its relationships, then its nodes."""
+        """Remove a batch completely: its relationships, then its nodes.
+
+        Everything the batch asserted goes, except a referent another batch is
+        still pointing at. Deleting one of those would take the other batch's
+        edge with it and silently unresolve a ref that had a target, which is a
+        worse outcome than leaving a Term or a statute standing.
+        """
         rels = nodes = 0
         while True:
             n = self.run(Q_ROLLBACK_RELS, batch=batch_id, limit=limit)
@@ -281,9 +300,15 @@ class Graph:
             nodes += got
             if got < limit:
                 break
+        kept = self.read(Q_ROLLBACK_KEPT_REFERENTS, batch=batch_id)
         left = self.read(Q_COUNT_NODES, batch=batch_id)
         return {"op": "rollback", "batch_id": batch_id, "relationships_deleted": rels,
-                "nodes_deleted": nodes, "nodes_remaining": left[0]["n"] if left else 0}
+                "nodes_deleted": nodes, "nodes_remaining": left[0]["n"] if left else 0,
+                "referents_kept": [k["key"] for k in kept],
+                "referents_kept_detail": kept[:50],
+                "referents_kept_note": ("shared referents another batch still points "
+                                        "at; deleting them would have taken that "
+                                        "batch's edges with them")}
 
     def sweep(self, scope: list[str], batch_id: str, *,
               drop_orphan_referents: bool = True) -> dict:

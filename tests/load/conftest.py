@@ -71,38 +71,59 @@ def small_tree(part_id) -> Node:
 
 
 @pytest.fixture
-def small_refs(small_tree) -> list[Node]:
+def statute_key(part_id) -> str:
+    """A statute key no real citation can produce.
+
+    `Legislation.key` is a global uniqueness key by design, so fifty mentions
+    of one Act meet at one node. That also means a test citing a real statute
+    MERGEs onto the real node and a later rollback takes it away with the test
+    batch. It did, once, which is how this fixture came to exist.
+    """
+    return f"legislation/{part_id}-act-1999"
+
+
+@pytest.fixture
+def small_refs(small_tree, statute_key) -> list[Node]:
     intro = small_tree.children[0].children[0].children[0]
     c92 = small_tree.children[0].children[1]
     return [
         ref(intro, (12, 21), status="resolved",
             target=f"{small_tree.path}/9/9.2", order=0),
         ref(c92, (44, 60), status="external", ref_kind="legislation",
-            target="legislation/bribery-act-2010", scope_rule="none",
+            target=statute_key, scope_rule="none",
             resolver="grammar", order=1),
     ]
 
 
 @pytest.fixture
-def small_vocab(small_tree):
+def term_names(part_id) -> tuple[str, str]:
+    """Term.name is a global key too, for the same reason and with the same
+    hazard, so the tests coin terms no document defines."""
+    return f"Buyer-{part_id}", f"New IPR-{part_id}"
+
+
+@pytest.fixture
+def small_vocab(small_tree, term_names):
+    buyer, new_ipr = term_names
     c92 = small_tree.children[0].children[1]
-    sites = [DefinitionSite(term="Buyer", definition_node_id=c92.id, source="declared",
+    sites = [DefinitionSite(term=buyer, definition_node_id=c92.id, source="declared",
                             scope="document", aliases=["CCS"])]
-    uses = [TermUse(term="Buyer", node_id=c92.id, char_span=(25, 30), status="confident",
+    uses = [TermUse(term=buyer, node_id=c92.id, char_span=(25, 30), status="confident",
                     method="exact_longest", definition_used="document"),
-            TermUse(term="New IPR", node_id=c92.id, char_span=(0, 7), status="confident",
+            TermUse(term=new_ipr, node_id=c92.id, char_span=(0, 7), status="confident",
                     method="exact_longest", definition_used="document")]
     return sites, uses
 
 
 @pytest.fixture
-def small_concepts(small_tree):
+def small_concepts(small_tree, part_id):
     c91 = small_tree.children[0].children[0]
     c92 = small_tree.children[0].children[1]
-    return [Concept(id="concept-ip", label="intellectual property",
+    concept_id = f"concept-ip-{part_id}"        # Concept.id is global too
+    return [Concept(id=concept_id, label="intellectual property",
                     scope_path=f"{small_tree.path}/9", member_node_ids=[c91.id, c92.id],
-                    relations=[ConceptRelation(src="concept-ip", label="relates_to",
-                                               dst="concept-ip")],
+                    relations=[ConceptRelation(src=concept_id, label="relates_to",
+                                               dst=concept_id)],
                     confidence=0.7)]
 
 

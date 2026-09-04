@@ -49,12 +49,12 @@ def test_a_ref_is_contained_by_the_provision_that_cites_it(small_tree, small_ref
 
 
 def test_resolved_refs_get_resolves_to_and_unresolved_ones_do_not(small_tree, small_refs,
-                                                                  ):
+                                                                  statute_key):
     rows = build(small_tree, small_refs)
     resolved = edges_of(rows, "RESOLVES_TO")
     assert len(resolved) == 2                     # one internal, one external
     targets = {e.dst for e in resolved}
-    assert "legislation/bribery-act-2010" in targets
+    assert statute_key in targets
     assert small_tree.children[0].children[1].id in targets
 
 
@@ -98,12 +98,12 @@ def test_the_load_batch_is_stamped_and_the_stage_batch_is_kept(small_tree, small
     assert row.props["source_batch_id"] == "T1"
 
 
-def test_terms_definitions_and_uses(small_tree, small_refs, small_vocab):
+def test_terms_definitions_and_uses(small_tree, small_refs, small_vocab, term_names):
     sites, uses = small_vocab
     by_id = {n.id: n for n in walk(small_tree)}
     rows = term_rows(sites, uses, by_id, batch_id="T1")
-    assert {r.key_value for r in rows.nodes} == {"Buyer", "New IPR"}
-    buyer = next(r for r in rows.nodes if r.key_value == "Buyer")
+    assert {r.key_value for r in rows.nodes} == set(term_names)
+    buyer = next(r for r in rows.nodes if r.key_value == term_names[0])
     assert buyer.props["aliases"] == ["CCS"]
     defined = edges_of(rows, "DEFINED_IN")
     assert len(defined) == 1 and defined[0].props["scope"] == "document"
@@ -113,13 +113,14 @@ def test_terms_definitions_and_uses(small_tree, small_refs, small_vocab):
 
 
 def test_defined_using_falls_out_of_terms_used_inside_a_definition(small_tree,
-                                                                   small_vocab):
+                                                                   small_vocab,
+                                                                   term_names):
     """SPEC 2.3: the vocabulary's own dependency graph, deterministically."""
     sites, uses = small_vocab
     by_id = {n.id: n for n in walk(small_tree)}
     rows = term_rows(sites, uses, by_id, batch_id="T1")
     defined_using = {(e.src, e.dst) for e in edges_of(rows, "DEFINED_USING")}
-    assert defined_using == {("Buyer", "New IPR")}
+    assert defined_using == {term_names}
 
 
 def test_uses_term_is_discriminated_by_char_span():
@@ -146,15 +147,16 @@ def test_concepts_are_never_citable_and_members_are_checked(small_tree, small_co
 
 
 def test_associated_term_is_the_share_of_member_provisions_using_the_term(
-        small_tree, small_concepts, small_vocab):
+        small_tree, small_concepts, small_vocab, term_names):
     _sites, uses = small_vocab
     by_id = {n.id: n for n in walk(small_tree)}
     rows = associated.build(small_concepts, uses, by_id, batch_id="T1", threshold=0.25)
     edges = {e.dst: e.props for e in rows.edges}
+    buyer = term_names[0]
     # both terms are used by 1 of the concept's 2 member provisions
-    assert edges["Buyer"]["share"] == 0.5
-    assert edges["Buyer"]["llm_derived"] is True
-    assert edges["Buyer"]["members_counted"] == 2
+    assert edges[buyer]["share"] == 0.5
+    assert edges[buyer]["llm_derived"] is True
+    assert edges[buyer]["members_counted"] == 2
 
 
 def test_associated_term_respects_the_threshold(small_tree, small_concepts, small_vocab):
@@ -166,29 +168,36 @@ def test_associated_term_respects_the_threshold(small_tree, small_concepts, smal
 
 def test_associated_term_excludes_members_the_run_does_not_hold(small_tree,
                                                                 small_concepts,
-                                                                small_vocab):
+                                                                small_vocab,
+                                                                term_names):
     _sites, uses = small_vocab
     by_id = {n.id: n for n in walk(small_tree)}
     small_concepts[0].member_node_ids.append("absent-node")
     rows = associated.build(small_concepts, uses, by_id, batch_id="T1", threshold=0.25)
     assert any(n["kind"] == "associated_term_members_missing" for n in rows.notes)
-    assert {e.dst: e.props["members_counted"] for e in rows.edges} == {"Buyer": 2,
-                                                                      "New IPR": 2}
+    assert ({e.dst: e.props["members_counted"] for e in rows.edges}
+            == {term_names[0]: 2, term_names[1]: 2})
 
 
-def test_legislation_nodes_come_from_the_refs_that_cite_them(small_tree, small_refs):
-    records = [Legislation(key="legislation/bribery-act-2010", title="Bribery Act",
-                           year=2010, instrument_kind="act")]
+def test_legislation_nodes_come_from_the_refs_that_cite_them(small_tree, small_refs,
+                                                             statute_key):
+    records = [Legislation(key=statute_key, title="Loadtest Act", year=1999,
+                           instrument_kind="act")]
     rows = legislation_rows({small_tree.path: small_refs}, records, batch_id="T1")
-    assert [r.key_value for r in rows.nodes] == ["legislation/bribery-act-2010"]
+    assert [r.key_value for r in rows.nodes] == [statute_key]
     assert rows.nodes[0].labels == ["Legislation"]
-    assert rows.nodes[0].props["year"] == 2010
+    assert rows.nodes[0].props["year"] == 1999
 
 
-def test_a_legislation_key_with_no_record_still_lands_as_a_node(small_tree, small_refs):
-    rows = legislation_rows({small_tree.path: small_refs}, [], batch_id="T1")
-    assert rows.nodes[0].props["title"] == "Bribery Act"
-    assert rows.nodes[0].props["year"] == 2010
+def test_a_legislation_key_with_no_record_still_names_its_statute():
+    """A key with nothing behind it is still parsed, never invented."""
+    from pipeline.load.rows import _legislation_from_key
+
+    record = _legislation_from_key("legislation/bribery-act-2010")
+    assert (record.title, record.year, record.instrument_kind) == ("Bribery Act", 2010,
+                                                                   "act")
+    pointed = _legislation_from_key("legislation/patents-act-1977/section/55")
+    assert pointed.provision == "section/55"
 
 
 def test_dedupe_collapses_one_merge_key_and_says_so():
@@ -214,9 +223,10 @@ def test_the_networkx_export_is_built_from_the_same_rows(tmp_path, small_tree,
     assert len(data["nodes"]) == len(rows.nodes)
 
 
-def test_an_edge_endpoint_with_no_node_row_is_reported(small_tree, small_refs):
+def test_an_edge_endpoint_with_no_node_row_is_reported(small_tree, small_refs,
+                                                       statute_key):
     """NetworkX would invent the node and the Neo4j load would drop the edge, so
     the two sinks would disagree about what the graph holds."""
     rows = build(small_tree, small_refs)
     found = dangling_endpoints(rows)
-    assert [d["key"] for d in found] == ["legislation/bribery-act-2010"]
+    assert [d["key"] for d in found] == [statute_key]
