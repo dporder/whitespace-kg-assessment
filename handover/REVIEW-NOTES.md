@@ -380,6 +380,38 @@ on the integrated state. Final four-part numbers: 265 definition sites, 2,803 te
 violations, 122 concepts under the operator's sampling ruling, 1,369 embeddings, everything
 byte-deterministic. With this merge every builder branch is integrated.
 
+## 13. The audit loop, the build's closing argument
+
+The stratified audit's first real run over the four-part output did the exact job EVALUATION.md
+layer 4 assigns it: it caught a systematic error in the confident deterministic path, 17
+references inside Call-Off Schedule 9's Part B resolving to Part A's same-numbered paragraphs,
+every one with a nearer twin in its own sub-part, nothing self-flagged as hard. The finding was
+verified and quantified by the eval side before reporting, ruled into SPEC (resolution respects
+drafter-named sub-parts, the same principle the vocabulary tier had just adopted), and fixed by
+the resolver importing the vocabulary side's sub-part detector so the two tiers cannot drift.
+Five refs changed status class in the fix, all reported as corrections, including two honest
+resolved-to-unresolved where the cited Annex 2 does not exist.
+
+The loop's most instructive moment was a number getting better while the audit got worse. A
+directive added to the judge prompt lifted agreement from 72/80 to 79/80 by narrowing the
+question until the judge stopped checking targets, suppressing both known bugs. The eval builder
+caught its own regression, removed the directive, extended its anti-nudge guard to catch
+scope-narrowing as well as agreement-pushing, and recorded the lesson plainly: agreement is not
+coverage, and 79/80 was a rubber stamp. The final state, after the resolver fix, is 76/80 with
+the judge quoting the corrected Part B paths as correct and the one surviving disagreement
+cluster naming the next real defect, a range's implied middle member anchored to the whole
+phrase. That too was ruled (the phrase is the only ink naming an unprinted member, so the anchor
+is blessed and the implication recorded as an anomaly, 22 of them across 9 range groups) and
+landed with tests proving the ordinal paths never collide.
+
+Along the way the builders kept catching each other and themselves: the eval side found the
+resolver's unfiltered shared-graph test assertions (passing only on an empty database) while
+the resolver found the same bug independently before the message arrived, and proved the fix to
+the right standard, the full suite green with 2,803 real term edges present and the graph
+byte-identical afterwards. With this entry the fleet queue is empty: every branch merged, 877
+tests, the demonstration graph live, and the audit that closed the loop is itself part of the
+submission.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
