@@ -103,3 +103,36 @@ def test_the_load_is_deterministic(tmp_path):
     first = (tmp_path / "t" / "graph" / "nodes.jsonl").read_bytes()
     run(tmp_path, "--batch", "B1")
     assert (tmp_path / "t" / "graph" / "nodes.jsonl").read_bytes() == first
+
+
+def test_absent_enrichment_stages_name_the_edge_types_they_starve(tmp_path):
+    """A load over trees and refs alone is legitimate, but "no ASSOCIATED_TERM
+    edges" must never read as "the join found nothing"."""
+    import shutil
+
+    import config
+
+    source = tmp_path / "src"
+    (source / "tree").mkdir(parents=True)
+    (source / "refs").mkdir(parents=True)
+    shutil.copy(config.ROOT / "fixtures" / "tree" / "core-terms.json",
+                source / "tree" / "core-terms.json")
+    shutil.copy(config.ROOT / "fixtures" / "refs" / "core-terms.json",
+                source / "refs" / "core-terms.json")
+    assert main(["--input", "fixtures", "--run", "t", "--no-neo4j", "--quiet",
+                 "--output-dir", str(tmp_path), "--fixtures-dir", str(source),
+                 "--batch", "B1"]) == 0
+    skipped = report_of(tmp_path)["reconciliation"]["edge_types_skipped"]
+    by_type = {s["edge_type"]: s for s in skipped}
+    assert {"USES_TERM", "DEFINED_IN", "DEFINED_USING", "ABOUT", "CONCEPT_REL",
+            "ASSOCIATED_TERM"} <= set(by_type)
+    assert by_type["ASSOCIATED_TERM"]["needs"] == "stages 4 and 5"
+    assert "concepts.json" in by_type["ABOUT"]["missing_input"]
+
+
+def test_nothing_is_reported_as_skipped_when_the_inputs_are_there(tmp_path):
+    run(tmp_path, "--parts", "core-terms,joint-schedule-1,award-form", "--batch", "B1")
+    skipped = {s["edge_type"]
+               for s in report_of(tmp_path)["reconciliation"]["edge_types_skipped"]}
+    assert "ASSOCIATED_TERM" not in skipped
+    assert "USES_TERM" not in skipped

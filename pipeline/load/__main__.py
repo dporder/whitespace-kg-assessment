@@ -203,7 +203,51 @@ def reconcile(inputs, rows: Rows, document: Optional[Node]) -> dict:
         "tree_and_ref_nodes_written": counted["nodes"] - referents,
         "referent_nodes_written": referents,
         "reconciles": counted["nodes"] - referents == expected_nodes,
+        "edge_types_skipped": edge_types_skipped(inputs, counted),
     }
+
+
+# Which stage each edge type needs, so an absent stage explains its own gap
+# rather than showing up as a silently missing edge type.
+EDGE_TYPE_SOURCES = {
+    "USES_TERM": ("stage 4", "vocab/term_uses.json"),
+    "DEFINED_IN": ("stage 4", "vocab/definition_sites.json"),
+    "DEFINED_USING": ("stage 4", "vocab/definition_sites.json and vocab/term_uses.json"),
+    "ABOUT": ("stage 5", "concepts.json"),
+    "CONCEPT_REL": ("stage 5", "concepts.json"),
+    "ASSOCIATED_TERM": ("stages 4 and 5", "vocab/term_uses.json and concepts.json"),
+}
+
+
+def edge_types_skipped(inputs, counted: dict) -> list[dict]:
+    """Edge types this load could not produce, and the input that was missing.
+
+    A load over trees and refs alone is a legitimate state, not a failure: the
+    enrichment stages run in parallel with references and may not have landed.
+    But "no ASSOCIATED_TERM edges" must never be readable as "the join found
+    nothing", so the absent input is named next to every type it starves.
+    """
+    have_terms = bool(inputs.term_uses) or bool(inputs.definition_sites)
+    have_concepts = bool(inputs.concepts)
+    out = []
+    for edge_type, (stage, files) in EDGE_TYPE_SOURCES.items():
+        if counted["edges_by_type"].get(edge_type):
+            continue
+        needs_terms = edge_type in ("USES_TERM", "DEFINED_IN", "DEFINED_USING",
+                                    "ASSOCIATED_TERM")
+        needs_concepts = edge_type in ("ABOUT", "CONCEPT_REL", "ASSOCIATED_TERM")
+        missing = []
+        if needs_terms and not have_terms:
+            missing.append(files if not needs_concepts else "vocab/term_uses.json")
+        if needs_concepts and not have_concepts:
+            missing.append("concepts.json")
+        if missing:
+            out.append({"edge_type": edge_type, "needs": stage,
+                        "missing_input": ", ".join(missing),
+                        "note": "the input this edge type is computed from is not in "
+                                "this run directory, so no edge of this type could be "
+                                "produced; this is an absent stage, not an empty join"})
+    return out
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -381,6 +425,10 @@ def _print_summary(report: dict) -> None:
     a = report["associated_term"]
     print(f"  ASSOC_TERM edges={a['edges']} min_share={a['min_share']} "
           f"concepts={a['concepts_with_terms']}")
+    skipped = rec.get("edge_types_skipped") or []
+    if skipped:
+        print(f"  SKIPPED    {len(skipped)} edge type(s), input not in this run: "
+              + ", ".join(f"{s['edge_type']} (needs {s['needs']})" for s in skipped))
     s = report["salience"]
     print(f"  SALIENCE   scored={s['nodes_scored']} nonzero={s['nodes_with_salience']} "
           f"terms={s['terms_scored']} furniture excluded={s['furniture_nodes_excluded']} "
