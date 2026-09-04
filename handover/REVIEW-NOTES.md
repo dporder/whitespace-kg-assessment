@@ -128,6 +128,39 @@ ids when unambiguous.
 the integrated state in a scratch worktree, and the amnesty regression test read line by line to
 confirm it encodes the reviewer's probe rather than a tautology.
 
+## 5. The two UIs (ui-builder, two rounds, merged)
+
+**Round 1.** Design-first held: two canvases, three directions each, one chosen with recorded
+reasoning, then both apps built against fixtures with real page crops, a working decisions write
+path, and 134 tests. The tester verified the mechanical stack end to end and called it safe.
+
+**The reviewer proved otherwise, and this is the entry worth reading twice.** The UI's verdict
+vocabulary was invented independently of the eval harness's golden format: zero overlap, proven by
+running the UI's own decisions file through the real loader, four records in, zero usable. The
+`unresolvable` verdict, the one the zero-tolerance abstention gate feeds on, was unreachable from
+the two-button UI. Two anomalies on one node silently superseded each other. A citation with an
+empty or non-numeric page rendered as verified. All four invisible to both sides' tests, because
+each side tested only itself: 134 green tests pinning the wrong contract is why the tester gate
+stayed green, and why the adversarial reviewer role exists.
+
+**My ruling, spec-first.** The golden vocabulary is now pinned in SPEC 6 (ref
+target/unresolvable/not_a_reference with chosen_candidate required on target; term use/not_a_use
+with the governing term in chosen_candidate; anomaly confirmed/rejected keyed by anomaly_index,
+triage rows keyed by queue id). The eval loader's GOLDEN_FORMAT.md elaborates it; the UI adopts
+it verbatim.
+
+**Round 2, accepted.** The builder owned the miss plainly, adopted the vocabulary, made every
+verdict reachable with per-kind controls (four for refs, a governing-term picker for alias
+collisions), required anomaly_index, closed the verifier hole (page_unparseable is a failure,
+never ok), made zero-citation answers warn instead of claiming verification, and added anti-drift
+tests that assert its verdict tables EQUAL the harness's at test time, so the seam cannot reopen
+silently. Cross-validation now runs the UI's output through the real loader: seven verdicts, six
+loaded plus one legitimately superseded, zero unrecognised. A runtime CHAT_SCRIPTED mode was
+added after the tester found scripting existed only inside pytest; I verified a full scripted
+exchange over real HTTP myself before merging, four citations, all ok, crops resolving. Merged
+after my own gate run on the integrated state: 285 tests green, decisions defaulting to
+golden/decisions.jsonl per spec.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
