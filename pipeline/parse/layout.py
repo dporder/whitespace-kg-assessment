@@ -66,6 +66,27 @@ def build_layout(
     if not any(p.printed_page for p in page_infos):
         anomalies.append("printed_page_absent: no page in this part prints a page number")
 
+    # `label` is a lookup key, so a lettered item is keyed "(a)" whether the
+    # page prints "(a)" or "a)". The printed form is never lost: it is on every
+    # block as `number_printed` and in its source lines. Counting the
+    # difference once per part keeps the fact visible without putting an
+    # anomaly on each of several hundred item nodes.
+    reprinted = [
+        b for b in blocks
+        if b.number
+        and b.number_printed
+        and b.number.startswith("(")          # lettered and roman items only
+        and b.number != b.number_printed
+    ]
+    if reprinted:
+        example = reprinted[0]
+        anomalies.append(
+            f"item_label_canonicalised: {len(reprinted)} numbered lines print their "
+            f"label differently from the key they are stored under, e.g. "
+            f"{example.number_printed!r} keyed as {example.number!r} on page "
+            f"{example.page_start}; the printed form is kept on every block"
+        )
+
     part_info = PartInfo(
         id=part.slug,
         title=part.title,

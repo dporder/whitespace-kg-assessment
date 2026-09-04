@@ -85,6 +85,7 @@ class Block:
     text: str                       # furniture stripped, source lines reflowed
     lines: list[SourceLine] = field(default_factory=list)
     number: Optional[str] = None            # "3.1.2", "(a)", "2"
+    number_printed: Optional[str] = None    # the token as the page prints it, "a)"
     number_bbox: Optional[PageBox] = None
     level: Optional[str] = None             # heading | clause | subclause | item
     depth: Optional[int] = None             # 1..4, index into the rulebook levels
@@ -108,6 +109,7 @@ class Block:
             "text": self.text,
             "lines": [l.as_json() for l in self.lines],
             "number": self.number,
+            "number_printed": self.number_printed,
             "number_bbox": self.number_bbox.as_json() if self.number_bbox else None,
             "level": self.level,
             "depth": self.depth,

@@ -31,6 +31,7 @@ cross-check input and reading them here would be a spec violation.
 from __future__ import annotations
 
 import argparse
+import collections
 import math
 import re
 import sys
@@ -175,6 +176,7 @@ def numbering_coverage(
     unmatched: list[dict] = []
     by_part: dict[str, int] = {}
     numbered_by_part: dict[str, int] = {}
+    examples_by_part: dict[str, list[dict]] = {}
     part_of = {
         page: part.slug
         for part in document.parts
@@ -196,6 +198,18 @@ def numbering_coverage(
                 by_part[part] = by_part.get(part, 0) + 1
                 if len(unmatched) < 40:
                     unmatched.append({"page": page_no, "part": part, "text": text.strip()[:150]})
+                # Every failing part keeps its own examples, so a further
+                # rulebook entry can be written against evidence rather than
+                # guessed at from a document-wide sample.
+                bucket = examples_by_part.setdefault(part, [])
+                if len(bucket) < 6:
+                    bucket.append(
+                        {
+                            "page": page_no,
+                            "style": _numbering_style(text),
+                            "text": text.strip()[:120],
+                        }
+                    )
     doc.close()
     return {
         "numbered_lines": total,
@@ -204,7 +218,33 @@ def numbering_coverage(
         "numbered_by_part": dict(sorted(numbered_by_part.items())),
         "unmatched_by_part": dict(sorted(by_part.items(), key=lambda kv: (-kv[1], kv[0]))),
         "examples": unmatched,
+        "examples_by_part": {k: examples_by_part[k] for k in sorted(examples_by_part)},
+        "styles_by_part": {
+            part: dict(sorted(collections.Counter(e["style"] for e in items).items()))
+            for part, items in sorted(examples_by_part.items())
+        },
     }
+
+
+# Shapes of numbering the rulebook did not cover, named so a residue can be
+# read as a style rather than as a list of lines.
+_STYLE_PATTERNS = (
+    ("dotted_with_trailing_period", re.compile(r"^\s*\d{1,3}(?:\.\d{1,3})+\.\s")),
+    ("four_or_more_dotted_levels", re.compile(r"^\s*\d{1,3}(?:\.\d{1,3}){3,}")),
+    ("bare_integer_with_period", re.compile(r"^\s*\d{1,3}\.\s")),
+    ("bare_integer_with_bracket", re.compile(r"^\s*\d{1,3}\)\s")),
+    ("letter_with_period", re.compile(r"^\s*[a-zA-Z]{1,2}\.\s")),
+    ("letter_with_bracket", re.compile(r"^\s*\(?[a-zA-Z]{1,3}\)\s")),
+    ("roman_with_period", re.compile(r"^\s*[ivxlIVXL]{1,6}\.\s")),
+    ("numbering_token_alone_on_its_line", re.compile(r"^\s*\S{1,8}\s*$")),
+)
+
+
+def _numbering_style(text: str) -> str:
+    for name, pattern in _STYLE_PATTERNS:
+        if pattern.match(text):
+            return name
+    return "other"
 
 
 def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> dict:
@@ -234,8 +274,15 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
             body_chars += page_scan.body_chars
         blocks = build_blocks(inputs, rulebook)
 
+        # A numbered block's own words exclude its number, which moves to the
+        # node's `label`, so the numbering token counts as placed. Without this
+        # the check would read a better-covered grammar as more homeless text:
+        # every newly matched item would move its "a)" out of `text` and into a
+        # label, and the orphan rate would rise as the parse improved.
         placed = sum(
-            len(b.text) for b in blocks if b.block_kind in ("numbered", "prose", "part_title")
+            len(b.text) + len(b.number_printed or "")
+            for b in blocks
+            if b.block_kind in ("numbered", "prose", "part_title")
         )
         placed += sum(len(c.text) for b in blocks for c in b.cells)
         part_body = sum(document.pages[p].body_chars for p in range(part.page_start, part.page_end + 1))
@@ -388,9 +435,8 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
                     "check": "unmatched_numbering",
                     "detail": f"{bad} of {counts} numbered lines in this part match no "
                     f"rulebook pattern, rate {rate} > {limit}",
-                    "examples": [
-                        e for e in numbering.get("examples", []) if e.get("part") == part.slug
-                    ][:5],
+                    "examples": numbering.get("examples_by_part", {}).get(part.slug, [])[:6],
+                    "unmatched_styles": numbering.get("styles_by_part", {}).get(part.slug, {}),
                 }
             )
         out[part.slug] = {

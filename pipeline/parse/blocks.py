@@ -114,10 +114,24 @@ def modal_size(lines: list[SourceLine]) -> float:
 
 
 def _candidate_indents(pages: list[PageInput], rulebook: Rulebook) -> IndentSupport:
-    """First pass: which indents each level actually uses in this part."""
+    """First pass: which indents each level actually uses in this part.
+
+    Lines inside a ruled grid are skipped, exactly as the second pass skips
+    them. A table cell is full of its own lettered lists — Joint Schedule 1's
+    definition of "Auditor" runs a) to j) inside one cell — and letting those
+    into the indent clusters would make the two real items in the schedule's
+    own prose look like an indent no item uses, and lose them.
+    """
     found: list[tuple[str, float]] = []
     for page in pages:
-        for line in merge_visual_lines(page.body, page.page):
+        in_grid = {
+            id(line)
+            for grid in page.grids
+            for line in page.body
+            if grid.locate(line.bbox) is not None
+        }
+        free = [l for l in page.body if id(l) not in in_grid]
+        for line in merge_visual_lines(free, page.page):
             text = line.text
             if not text.strip():
                 continue
@@ -127,7 +141,24 @@ def _candidate_indents(pages: list[PageInput], rulebook: Rulebook) -> IndentSupp
     return measure_indents(found)
 
 
-def _numeric_parent_ok(match, stack: list[tuple[int, Block]]) -> Optional[str]:
+def _duplicates_a_sibling(match, stack: list[tuple[int, Block, set]]) -> bool:
+    """Whether this number already names a provision under the same parent.
+
+    A provision number does not repeat within its parent, so a second "27.1"
+    under heading 27 is a citation to the first, not a new clause. Core Terms
+    27.3 wraps onto a line opening "27.1 or 27.2 or has any reason to think",
+    and 27.1 is already a sibling by then. Exact rather than heuristic, which
+    is why it replaced an earlier guess about unfinished sentences that also
+    swallowed genuine items whose clause happened to end a line on a URL.
+    """
+    depth = match.depth
+    for entry_depth, _block, labels in reversed(stack):
+        if entry_depth == depth - 1:
+            return match.label in labels
+    return False
+
+
+def _numeric_parent_ok(match, stack: list[tuple[int, Block, set]]) -> Optional[str]:
     """Whether a dotted number nests under the number currently above it.
 
     Returns None when it does, otherwise the enclosing number it disagrees
@@ -140,7 +171,7 @@ def _numeric_parent_ok(match, stack: list[tuple[int, Block]]) -> Optional[str]:
     if match.dotted_depth <= 1:
         return None
     prefix = match.key.rsplit(".", 1)[0]
-    for depth, block in reversed(stack):
+    for depth, block, _labels in reversed(stack):
         if depth == match.depth - 1:
             if block.number and block.number.strip("()") == prefix:
                 return None
@@ -160,18 +191,11 @@ def _at_wrap_indent(block: Block, line: VisualLine) -> bool:
     level uses.
     """
     tops = sorted({round(l.bbox[1], 2) for l in block.lines})
-    if len(tops) >= 2:
-        first_top = tops[0]
-        wrapped = [l.bbox[0] for l in block.lines if round(l.bbox[1], 2) > first_top]
-        if wrapped and abs(line.left - min(wrapped)) <= INDENT_TOLERANCE:
-            return True
-    # The first wrapped line has no established indent to compare against, so
-    # the sentence itself is the evidence: a provision does not begin while the
-    # one before it is still mid-sentence. Core Terms clause 27.3 ends its first
-    # line on "... if it becomes aware of" and the next line opens "27.1 or
-    # 27.2 or has any reason to think ...".
-    tail = block.text.rstrip()
-    return bool(tail) and not tail.endswith((".", ";", ":", "?", "!"))
+    if len(tops) < 2:
+        return False
+    first_top = tops[0]
+    wrapped = [l.bbox[0] for l in block.lines if round(l.bbox[1], 2) > first_top]
+    return bool(wrapped) and abs(line.left - min(wrapped)) <= INDENT_TOLERANCE
 
 
 def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
@@ -182,7 +206,8 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
 
     blocks: list[Block] = []
     open_block: Optional[Block] = None
-    stack: list[tuple[int, Block]] = []              # open numbering ancestry
+    # (depth, block, labels of its children so far)
+    stack: list[tuple[int, Block, set[str]]] = []
     heading_styles: list[tuple[float, float]] = []   # (size, left) of depth-1 blocks
     last_heading_number: Optional[int] = None
     seen_numbered = False
@@ -240,8 +265,9 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                 disagrees_with = _numeric_parent_ok(match, stack)
                 unsupported = not indents.supported(match.level, line.left)
                 at_wrap = open_block is not None and _at_wrap_indent(open_block, line)
+                duplicate = _duplicates_a_sibling(match, stack)
                 if unsupported and open_block is not None and (
-                    match.depth == 1 or disagrees_with is not None or at_wrap
+                    match.depth == 1 or disagrees_with is not None or at_wrap or duplicate
                 ):
                     # Not a provision: a wrapped line that opens with a number.
                     # It rejoins the block it was wrapping from, with its own
@@ -271,7 +297,9 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                     )
                 while stack and stack[-1][0] >= match.depth:
                     stack.pop()
-                stack.append((match.depth, open_block))
+                if stack:
+                    stack[-1][2].add(match.label)
+                stack.append((match.depth, open_block, set()))
                 continue
 
             if not seen_numbered and line.size_max >= body_size * COVER_TITLE_RATIO:
@@ -352,6 +380,7 @@ def _numbered_block(index: int, line: VisualLine, match, page: PageInput, body_s
         text=rest,
         lines=list(line.pieces),
         number=match.label,
+        number_printed=match.token,
         number_bbox=PageBox(page=line.page, bbox=number_box) if number_box else None,
         level=match.level,
         depth=match.depth,

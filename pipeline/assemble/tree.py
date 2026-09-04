@@ -51,6 +51,10 @@ class Context:
     version: str
     batch_id: Optional[str]
     unit_label: Optional[str]
+    # The rulebook's citable_kinds, applied rather than assumed: a kind absent
+    # from it loads with citable=False. Intro and ref are fixed False by the
+    # schema regardless, so the list only decides the kinds it can decide.
+    citable_kinds: frozenset[str]
     printed_pages: dict[int, Optional[str]]
     anomalies: list[str] = field(default_factory=list)
     order: int = 0
@@ -104,6 +108,7 @@ def build_part(layout: dict, profile: dict) -> tuple[Node, list[str]]:
         version=part["template_version"],
         batch_id=part.get("batch_id"),
         unit_label=unit_label,
+        citable_kinds=frozenset(profile.get("citable_kinds", ())),
         printed_pages={p["page"]: p["printed_page"] for p in layout["pages"]},
     )
 
@@ -209,10 +214,14 @@ def _make_node(
     label: Optional[str] = None,
     unit_label: Optional[str] = None,
     unit_label_source: Optional[str] = None,
-    citable: bool = True,
+    citable: Optional[bool] = None,
     anomalies: Optional[list[str]] = None,
     **extra,
 ) -> Node:
+    # The rulebook decides citability for the kinds it lists; an explicit
+    # citable=False from the caller (intro) is never overridden upward.
+    if citable is None:
+        citable = kind in ctx.citable_kinds
     return Node(
         id=node_id(ctx.document, ctx.version, path),
         lineage_key=lineage_key(ctx.document, path),

@@ -59,24 +59,45 @@ def test_four_dotted_levels_match_nothing(rulebook):
     assert rulebook.match("3.1.2.4 Something") is None
 
 
-def test_config_item_pattern_needs_the_indent_sentinel():
-    """config's item pattern is anchored `^\\s+\\(`, requiring leading
-    whitespace, and a PDF text layer holds indentation as geometry rather than
-    as characters, so every line arrives flush left. Without the sentinel the
-    pattern matches nothing at all."""
-    raw = re.compile(config.HIERARCHY_PROFILES["uk-ccs-framework"]["numbering"]["item"])
-    line = "(a) that comply with the Specification"
-    assert raw.match(line) is None
-    assert raw.match(INDENT_SENTINEL + line) is not None
+def test_the_indent_sentinel_is_a_no_op_for_the_shipped_patterns():
+    """The rulebook's patterns allow leading indentation but none of them
+    requires it, so the sentinel changes no verdict today. It stays because a
+    rulebook is allowed to anchor on `^\\s+`, as this one did before the
+    grammar was corrected, and a PDF text layer holds indentation as geometry
+    rather than as characters: every line arrives flush left."""
+    for pattern in config.HIERARCHY_PROFILES["uk-ccs-framework"]["numbering"].values():
+        raw = re.compile(pattern)
+        for line in (
+            "3. What needs to be delivered",
+            "3.1 All deliverables",
+            "3.1.1 The Supplier must provide Deliverables:",
+            "(a) that comply with the Specification",
+            "a) comply with the principles of security",
+        ):
+            assert bool(raw.match(line)) == bool(raw.match(INDENT_SENTINEL + line)), (
+                pattern, line
+            )
 
 
-def test_config_item_pattern_misses_the_bare_letter_form(rulebook):
-    """Most schedules print their lettered items as "a)" with no opening
-    bracket, and config's item pattern requires one. Recorded here so the gap
-    is a decision rather than a surprise; see the parser-builder report for the
-    measured document-wide effect."""
-    assert rulebook.match("(a) comply with the principles of security") is not None
-    assert rulebook.match("a) comply with the principles of security") is None
+def test_both_printed_forms_of_a_lettered_item_are_matched(rulebook):
+    """Core Terms prints "(a)", most schedules print "a)". Both are the same
+    unit and both match; the key they are stored under is the bracketed form,
+    and the printed form travels with the block."""
+    bracketed = rulebook.match("(a) comply with the principles of security")
+    bare = rulebook.match("a) comply with the principles of security")
+    assert bracketed is not None and bare is not None
+    assert bracketed.level == bare.level == "item"
+    assert bracketed.key == bare.key == "a"
+    assert bracketed.label == bare.label == "(a)"
+    assert bracketed.token == "(a)" and bare.token == "a)"
+
+
+def test_dotted_numbers_may_carry_a_trailing_period(rulebook):
+    """Framework Schedule 1 numbers its paragraphs "1.1." and "1.1.1."."""
+    clause = rulebook.match("1.1. Trailing period style")
+    assert clause is not None and clause.level == "clause" and clause.key == "1.1"
+    sub = rulebook.match("1.1.1. Deeper trailing period style")
+    assert sub is not None and sub.level == "subclause" and sub.key == "1.1.1"
 
 
 def test_bare_integers_do_not_count_as_numbering(rulebook):

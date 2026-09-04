@@ -1,30 +1,38 @@
 """Geometry primitives and the tolerances stages 1 and 2 measure against.
 
-Every constant here is a measured property of PDF text layers, not a knob tuned
-to make this document pass. `config.py` carries no slot for them (see the
-parser-builder report); they live here with the measurement that justifies each.
+Every tunable value comes from `config.PARSE_GEOMETRY`, so no threshold is
+buried in code. The measurement that justifies each one stays here beside the
+import, because the number is only defensible with the observation attached.
 Coordinates are PyMuPDF points with the origin at the top-left of the page, so
 smaller y is higher up the page.
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Iterable, Optional, Sequence
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import config
 
 Box = tuple[float, float, float, float]   # x0, y0, x1, y1
 
+_GEOMETRY = config.PARSE_GEOMETRY
+
 # Glyph origins for the same logical indent differ by a fraction of a point
 # between fonts: in Core Terms clause "3.1" starts at x=27.0 and its child
-# "3.1.1" at x=26.4 for identical logical indentation. 2.0pt covers the observed
-# jitter without hiding a real indent step (the smallest real step in this
-# document is 3.4pt, heading to clause in Core Terms).
-INDENT_TOLERANCE = 2.0
+# "3.1.1" at x=26.4 for identical logical indentation. The configured 2.0pt
+# covers the observed jitter without hiding a real indent step (the smallest
+# real step in this document is 3.4pt, heading to clause in Core Terms).
+INDENT_TOLERANCE = _GEOMETRY["indent_tolerance"]
 
 # A part is treated as carrying usable indentation only when consecutive
 # numbering depths are separated by at least this much. Core Terms separates
 # its dotted depths by under 4pt in total (30.4 / 27.0 / 26.4), so indentation
 # there carries no depth signal and the geometry check abstains instead of
 # firing on every line. Call-Off Schedule 9 separates by 72.0 / 75.8 / 117.0.
-MIN_INDENT_STEP = 6.0
+MIN_INDENT_STEP = _GEOMETRY["min_indent_step"]
 
 # Vertical tolerance when asserting "at or above" and "siblings ascend".
 VERTICAL_TOLERANCE = 1.0
@@ -35,7 +43,7 @@ VERTICAL_TOLERANCE = 1.0
 # for 16pt. Sibling overlap is therefore measured as a share of line height. A
 # genuinely out-of-order sibling overlaps by most of a line or starts above the
 # previous one entirely, which the reading-order check catches separately.
-SIBLING_OVERLAP_SHARE = 0.2
+SIBLING_OVERLAP_SHARE = _GEOMETRY["sibling_overlap_share"]
 
 
 def sibling_overlap_tolerance(*boxes: Box) -> float:
@@ -55,8 +63,8 @@ LINE_MERGE_OVERLAP = 0.5
 # position gates, repetition decides. Measured: the lowest body line in the pack
 # sits at y0=739.4 (0.878H) and the highest at y1=95.8 (0.114H), while the
 # closest furniture is at y1=82.4 (0.098H) and y0=753.3 (0.895H).
-HEADER_BAND = 0.09
-FOOTER_BAND = 0.89
+HEADER_BAND = _GEOMETRY["header_band"]
+FOOTER_BAND = _GEOMETRY["footer_band"]
 
 
 def union(boxes: Iterable[Box]) -> Optional[Box]:
