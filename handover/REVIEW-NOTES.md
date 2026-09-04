@@ -352,6 +352,34 @@ into overlapping pills past a dozen nodes (replaced with a deterministic no-over
 fixture vocabulary leaking into suggestion chips against real data. Every fix verified in a
 browser against the live graph before merge.
 
+## 12. Enrichment gate and final round; the fleet's last merge
+
+The enrichment gate found one root cause behind all 26 integrated-suite failures, and it is the
+best single catch of the build: the branch's tests faked pipeline/llm.py via sys.modules, but
+once any test genuinely imports it Python binds the submodule as a package attribute and `from
+pipeline import llm` never consults sys.modules again, so the fakes were silently bypassed in
+both directions and `pytest tests` was making live billable API calls. The builder's fix went
+beyond the gate's verified patch: a shared seam helper patching both places, plus an autouse
+tripwire fixture that fails any enrichment test reaching the real client with instructions,
+which immediately caught twelve more silently-leaky tests. Proof is behavioural, the full suite
+byte-identical under valid and sabotaged keys.
+
+The gate's other two finds both fixed in the same round. The shared client's 1024-token default
+truncated the routing batches mid-JSON, losing 85 percent of verdicts to honest degradation:
+routing now sizes its budget per batch and detects truncation structurally, 169 of 169 verdicts
+obtained on the re-run. And Call-Off Schedule 9 defining "Breach of Security" once per sub-part
+broke the (term, scope) uniqueness SPEC 2.3 assumed: the ruling made scope the nearest scoping
+ancestor's path, and the builder improved it in implementation, scoping to the nearest division
+the drafters themselves name as a Part rather than the literal nearest heading, because the
+literal reading left paragraphs 2 to 5 outside the definition that plainly governs them. The 24
+affected uses now split 10 to Part A's scope and 14 to Part B's, and a term genuinely defined
+twice at one scope is recorded as a drafting-defect anomaly on both sites, never key-overwritten.
+
+Merged after my own verification: 857 tests passing identically under valid and sabotaged keys
+on the integrated state. Final four-part numbers: 265 definition sites, 2,803 term uses at zero
+violations, 122 concepts under the operator's sampling ruling, 1,369 embeddings, everything
+byte-deterministic. With this merge every builder branch is integrated.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
