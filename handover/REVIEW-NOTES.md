@@ -22,6 +22,17 @@ sentences than the reasoning I had.
 and there are zero four level numbered lines in the pack. The claim is wrong and the cited example
 does not exist. Corrected in the memo with the check that disproves it.
 
+**Correction, build session: the rejection above was itself wrong, and the researcher was right.**
+The parser-builder's corrected grammar surfaced 46 four level dotted lines, concentrated in
+Call-Off Schedule 6, Call-Off Schedule 22 and Joint Schedule 8, and the orchestrator re-verified
+independently by direct extraction: `9.1.3.2 any existing law, statute, rule or regulation...`
+sits on page 202, exactly as the memo cited. The original disproving check must have run against
+a text extraction or pattern that missed these lines. Config (`max_dotted_depth` 3 to 4, a fourth
+dotted numbering pattern), SPEC section 4, DESIGN.md and the memo's verification section are all
+corrected. Left in place above rather than rewritten, because the point of this file is the
+honest record: the critical-reading process caught a real fabrication risk, then a later, better
+measurement caught the check itself. Both halves are the lesson.
+
 **What I corrected in my own work because of it.** My spec said there was exactly one roman numeral
 item, which was true of the Core Terms and false of the pack, where there are 82. That was my error,
 not the agent's, and the memo caught it.
@@ -195,6 +206,20 @@ genuinely absent from the page (verified by rendering at 4x). Recorded verbatim,
 And two of the geometric violations the parser refused to explain away are the document's own
 typesetting, Call-Off Schedule 9 really prints 5.2.1 left of its parent 5.2, true ink, correctly
 reported.
+
+## 7. Whitespace brand-language memo (researcher with subagents, accepted)
+
+Commissioned after Dan's design review of the two UIs, with the research fanned out to
+per-surface subagents per his instruction. The memo reads the palette, gradients, radius and
+typography literally from white.space's shipped CSS custom properties rather than eyedropping,
+pixel-samples the product screenshots for the surfaces the stylesheet does not cover, and leads
+with the finding that matters: Whitespace has two visual registers, marketing (navy, lavender,
+gradients, pills, the trailing underscore) and product (neutral near-black, one flat action
+blue, 10px cards, no underscore anywhere), and the failure mode is styling a product surface in
+the marketing register. The researcher verified its own subagent's claims and caught two errors
+(a wrongly-reported-unused font, a wrong scale divisor), settled the screenshot scale
+empirically, and lists every unverifiable thing (the real app's stylesheet is behind auth, so
+hover/focus/disabled states are unknown). Accepted; the ui-builder styles both surfaces from it.
 
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two

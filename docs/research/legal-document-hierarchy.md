@@ -68,6 +68,15 @@ the example the assignment's own notes give (`10.4.1`). Counting lettered and ro
 that, the pack is four addressable levels deep, which is probably what both the memo and the notes
 meant. The specific number cited does not appear.
 
+**Correction to the verdict above (build session, 4 September 2026): the memo was right and my
+check was wrong.** The pipeline's corrected numbering grammar found 46 four level dotted lines,
+in Call-Off Schedule 6 (27), Call-Off Schedule 22 (14) and Joint Schedule 8 (5), independently
+re-verified by direct extraction: `9.1.3.2` appears on page 202 with the text "any existing law,
+statute, rule or regulation...". My original check evidently used an extraction or pattern that
+missed them. The memo's claim stands as written; the spec and config now carry `max_dotted_depth`
+4 and a fourth level grammar entry, and those provisions parse as items, the deepest addressable
+unit. Five level numbering remains unattested.
+
 **Held. Roman numerals are a real level.** 82 roman items and 522 lettered items across the pack,
 against the memo's estimate of ~82 and ~487. My earlier count of one roman item was scoped to the
 Core Terms only and was misleading. The grammar needs both.
