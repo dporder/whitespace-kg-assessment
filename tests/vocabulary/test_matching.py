@@ -89,10 +89,12 @@ def test_a_part_local_definition_shadows_the_document_level_one(
 
     doc_v = sites_mod.vocabulary_for("defs-schedule", merged)
     local_v = sites_mod.vocabulary_for("clauses", merged)
-    assert doc_v.surfaces["Widget"].definition_used == "document"
-    assert local_v.surfaces["Widget"].definition_used == "part:clauses"
+    # Which definition governs is a per-node question now, because a scope is a
+    # path: ask where the use actually stands.
+    assert doc_v.governing_scope("Widget", "defs-schedule/1/1.1") == "document"
+    assert local_v.governing_scope("Widget", "clauses/2/2.1") == "part:clauses"
     # A term with no local definition still comes from the document level.
-    assert local_v.surfaces["Widget Register"].definition_used == "document"
+    assert local_v.governing_scope("Widget Register", "clauses/2/2.1") == "document"
 
 
 def test_a_term_defined_only_in_another_part_is_not_matched_here(
@@ -212,3 +214,103 @@ def test_a_printed_surface_beats_an_inflection_of_another_term():
                              treeio.section_of(part))
     assert {m.ambiguity_kind for m in ms} == {"alias_collision"}
     assert all(m.status == "ambiguous" for m in ms)
+
+
+# ----------------------------------------------------- sub-part scoping
+
+
+def _co9_like():
+    """A part shaped like Call-Off Schedule 9: an unnamed Part A whose blocks
+    sit under a numbered heading, and a named `Part B:` division that redefines
+    the same term differently."""
+    from tests.vocabulary.conftest import cell, definitions_table, mk
+    intro_a, table_a, _v = definitions_table(
+        "co9", 'In this Schedule, the following words shall have the following '
+               'meanings and they shall supplement the Definitions Schedule:',
+        [('"Breach of Security"', "the Part A occurrence;")], start_order=2)
+    head_a = mk("co9/1", "heading", order=1, label="1", title="Definitions",
+                children=[intro_a, table_a])
+    later_a = mk("co9/5/5.1", "clause", order=20, label="5.1",
+                 text="A Breach of Security must be notified at once.")
+    head_a5 = mk("co9/5", "heading", order=19, label="5", title="Security breach",
+                 children=[later_a])
+
+    intro_b = mk("co9/part-b/1/1.1/intro", "intro", order=31, citable=False,
+                 text="In this Schedule the following words shall have the "
+                      "following meanings and they shall supplement the "
+                      "Definitions Schedule:")
+    lb = cell("co9/part-b/1/table/0/0", order=33, row=0, col=0, role="label",
+              text='"Breach of Security"')
+    vb = cell("co9/part-b/1/table/0/1", order=34, row=0, col=1, role="value",
+              text="the wider Part B occurrence;")
+    table_b = mk("co9/part-b/1/table", "table", order=32, n_rows=1, n_cols=2,
+                 children=[lb, vb])
+    cl_b = mk("co9/part-b/1/1.1", "clause", order=30, label="1.1",
+              children=[intro_b])
+    head_b1 = mk("co9/part-b/1", "heading", order=29, label="1",
+                 title="Definitions", children=[cl_b, table_b])
+    use_b = mk("co9/part-b/2/2.1", "clause", order=36, label="2.1",
+               text="Any Breach of Security is reported under this Part.")
+    head_b2 = mk("co9/part-b/2", "heading", order=35, label="2",
+                 title="Reporting", children=[use_b])
+    part_b = mk("co9/part-b", "heading", order=28, label="B",
+                title="Part B: Long Form Security Requirements",
+                children=[head_b1, head_b2])
+    return mk("co9", "part", order=0, title="Call-Off Schedule 9 (Security)",
+              part_family="call-off-schedule",
+              children=[head_a, head_a5, part_b])
+
+
+def test_a_named_sub_part_gets_its_own_scope_and_the_keys_stay_unique():
+    """SPEC 2.3: scope is the nearest scoping ancestor's path, sub-part deep
+    where the ink demands it. CO-9 defines Breach of Security twice, so the two
+    sites must not collide on one key."""
+    part = _co9_like()
+    sites = declared.ingest_part(part, {})
+    scopes = sorted(s.scope for s in sites if s.term == "Breach of Security")
+    assert scopes == ["part:co9", "part:co9/part-b"]
+    assert len({(s.term, s.scope) for s in sites}) == len(sites)
+
+
+def test_the_unnamed_part_a_scopes_to_the_whole_part_not_its_heading():
+    """Part A's block sits under the heading "1 Definitions". Scoping it there
+    would leave Part A's own paragraphs 2 to 5 outside the definition that
+    plainly governs them."""
+    part = _co9_like()
+    sites = declared.ingest_part(part, {})
+    part_a = next(s for s in sites
+                  if s.term == "Breach of Security" and "part-b" not in s.scope)
+    assert part_a.scope == "part:co9"
+
+
+def test_definition_used_follows_the_sub_part_the_use_stands_in():
+    """The whole point of a path scope: the same term, two definitions, and each
+    use resolves by where it stands."""
+    from pipeline.vocabulary import sites as s
+    part = _co9_like()
+    raw = declared.ingest_part(part, {})
+    merged, _u = s.merge(raw, [], [], set())
+    vocab = s.vocabulary_for("co9", merged)
+    ms = matching.match_part(part, vocab, merged, lambda _n: False,
+                             treeio.section_of(part))
+    used = {m.node_path: m.definition_used
+            for m in ms if m.term == "Breach of Security"}
+    assert used["co9/5/5.1"] == "part:co9", "Part A governs its own later clauses"
+    assert used["co9/part-b/2/2.1"] == "part:co9/part-b", "Part B shadows inside Part B"
+
+
+def test_a_term_defined_twice_at_one_scope_is_an_anomaly_not_an_overwrite():
+    """Two definitions at DIFFERENT scopes are ordinary shadowing. Two at the
+    SAME scope are a drafting defect, and both sites survive to be seen."""
+    from pipeline.vocabulary import sites as s
+    from tests.vocabulary.conftest import mk
+    raw = [declared.RawSite(term="Widget", definition_node_id=f"n{i}",
+                            scope="document", part="p",
+                            definition_node_path=f"p/1/table/{i}/1")
+           for i in range(2)]
+    merged, _u = s.merge(raw, [], [], set())
+    assert len(merged) == 2, "neither site is dropped"
+    assert merged[1].duplicate_of == "p/1/table/0/1"
+    for site in merged:
+        assert any("term_defined_twice_at_one_scope" in a
+                   for a in site.raw.anomalies)

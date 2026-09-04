@@ -293,3 +293,66 @@ def test_a_credential_refusal_is_marked_pending_not_failed(tmp_path, monkeypatch
     queues = routing.route([make_match("heading")], runner(tmp_path),
                            no_definition, no_candidates)
     assert queues["heading"].state == llmio.PENDING_CREDENTIALS
+
+
+# ------------------------------------------------------- the output budget
+
+
+def test_the_budget_is_sized_to_the_batch_and_passed_through(tmp_path, monkeypatch):
+    """pipeline.llm defaults to 1024 output tokens, which truncated a full batch
+    mid-JSON and lost 143 of 169 routed verdicts on the first live run."""
+    seen = {}
+
+    class Sized:
+        def complete(self, task, prompt, *, max_tokens=None, **kw):
+            seen["max_tokens"] = max_tokens
+            return reply_for("use")(task, prompt)
+
+    install(monkeypatch, Sized())
+    matches = [make_match("heading") for _ in range(5)]
+    routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    assert seen["max_tokens"] == routing.budget_for(5)
+    assert seen["max_tokens"] > 1024
+
+
+def test_a_client_without_a_budget_parameter_is_still_called(tmp_path, monkeypatch):
+    """The pinned contract is complete(task, prompt); the budget is offered, not
+    assumed, so a two-argument client is not broken by an unexpected keyword."""
+    install(monkeypatch, FakeLLM(reply_for("use")))
+    matches = [make_match("heading")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    assert queues["heading"].batches[0]["call"]["state"] == llmio.DELEGATED
+    kept, _r = routing.apply(matches, queues)
+    assert kept[0].status == "confident"
+
+
+def test_a_truncated_reply_is_named_as_truncation_not_a_generic_parse_error(
+        tmp_path, monkeypatch):
+    truncated = '[{"i": 0, "confidence": 0.9, "verdict": "use", "why": "beca'
+    install(monkeypatch, FakeLLM(truncated))
+    matches = [make_match("heading")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    batch = queues["heading"].batches[0]
+    assert batch["truncated"] is True
+    assert "TRUNCATED" in batch["parse_error"]
+    assert routing.summarise(queues)["verdict_coverage"]["truncated_batches"] == 1
+
+
+def test_verdict_coverage_reports_routed_against_answered(tmp_path, monkeypatch):
+    """A routed item with no verdict is spend incurred and an answer lost, so
+    the shortfall is a reported number rather than a silent gap."""
+    install(monkeypatch, FakeLLM(reply_for("use")))
+    matches = [make_match("heading") for _ in range(3)]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    coverage = routing.summarise(queues)["verdict_coverage"]
+    assert coverage["routed"] == 3
+    assert coverage["verdicts_obtained"] == 3
+    assert coverage["truncated_batches"] == 0
+
+
+def test_a_complete_reply_is_not_flagged_as_truncated():
+    assert routing.looks_truncated('[{"i": 0}]') is False
+    assert routing.looks_truncated('[{"i": 0}') is True
+    assert routing.looks_truncated('```json\n[{"i": 0}]\n```') is False
+    assert routing.looks_truncated("") is False
+    assert routing.looks_truncated(None) is False

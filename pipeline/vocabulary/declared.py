@@ -119,7 +119,43 @@ def _cue_match(text: str) -> Optional[str]:
     return None
 
 
-def _scope_from_cue(cue_sentence: str, part: str) -> tuple[str, str]:
+# A top-level division the drafters themselves named as a Part: Call-Off
+# Schedule 9 prints "Part B: Long Form Security Requirements" as a heading, and
+# its preamble tells the Buyer to select "whether or when Part A ... or Part B
+# ... should apply". That naming is the ink saying these divisions have separate
+# vocabularies, which is what makes a sub-part scope derived rather than guessed.
+NAMED_SUB_PART = re.compile(r"^\s*Part\s+[A-Z0-9]+\b")
+
+
+def scoping_ancestor(part: Node, node: Node) -> str:
+    """The path a part-local definition governs, per SPEC 2.3.
+
+    Scope is "the PATH of the nearest scoping ancestor, sub-part deep where the
+    ink demands it". Call-Off Schedule 9 is where it demands: it defines "Breach
+    of Security" once in Part A and again, differently, in Part B, so scoping
+    both to the part would collide two distinct definitions on one key and make
+    the shadowing unanswerable.
+
+    The scoping ancestor is the nearest enclosing division the drafters named as
+    a Part, and otherwise the part itself. That matters for coverage, not just
+    for keys: Part A's definitions block sits under the heading "1 Definitions",
+    and scoping it to that heading's path would leave Part A's own paragraphs 2
+    to 5 outside the definition that plainly governs them. Scoping it to the
+    part covers them, and Part B's deeper scope still shadows it inside Part B,
+    because the matcher takes the most specific scope that covers a use.
+    """
+    pid = treeio.part_id(part)
+    section_of = treeio.section_of(part)
+    home = section_of.get(node.id)
+    if not home or home == pid:
+        return pid
+    for child in treeio.anatomy_children(part):
+        if child.path == home and NAMED_SUB_PART.match(child.title or ""):
+            return child.path
+    return pid
+
+
+def _scope_from_cue(cue_sentence: str, scope_path: str) -> tuple[str, str]:
     """(scope, scope_source) for a block whose lead-in reads `cue_sentence`.
 
     The whole lead-in sentence is classified, not just the phrase that matched
@@ -129,10 +165,10 @@ def _scope_from_cue(cue_sentence: str, part: str) -> tuple[str, str]:
     far the block reaches.
     """
     if _PART_LOCAL_CUE.search(cue_sentence):
-        return f"part:{part}", "cue"
+        return f"part:{scope_path}", "cue"
     if _DOCUMENT_CUE.search(cue_sentence):
         return DOCUMENT_SCOPE, "cue"
-    return f"part:{part}", "block_default"
+    return f"part:{scope_path}", "block_default"
 
 
 @dataclass
@@ -402,7 +438,8 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
         if not is_definitions_table(node, under_cue=cue is not None):
             continue
         if cue is not None:
-            scope, scope_source = _scope_from_cue(cue.sentence, pid)
+            scope, scope_source = _scope_from_cue(
+                cue.sentence, scoping_ancestor(part, cue.node))
             if scope_source == "block_default" and doc_level_part:
                 scope, scope_source = DOCUMENT_SCOPE, "part_identity"
         elif doc_level_part:
@@ -447,7 +484,8 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
                else index.governing(node))
         if cue is None:
             continue                                   # discovered only, not declared
-        scope, scope_source = _scope_from_cue(cue.sentence, pid)
+        scope, scope_source = _scope_from_cue(
+            cue.sentence, scoping_ancestor(part, cue.node))
         if doc_level_part and scope_source == "block_default":
             scope, scope_source = DOCUMENT_SCOPE, "part_identity"
         for raw_term, _verb in found:
@@ -471,7 +509,8 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
         marker_at = value.find(cue.marker)
         if marker_at < 0:
             continue
-        scope, scope_source = _scope_from_cue(cue.sentence, pid)
+        scope, scope_source = _scope_from_cue(
+            cue.sentence, scoping_ancestor(part, node))
         if doc_level_part and scope_source == "block_default":
             scope, scope_source = DOCUMENT_SCOPE, "part_identity"
         for raw_term in block_headwords(value, marker_at + len(cue.marker)):

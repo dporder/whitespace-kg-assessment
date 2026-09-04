@@ -104,12 +104,23 @@ def merge(declared_sites: list[RawSite], discovered: list[RawSite],
         by_key[key] = merged
         out.append(merged)
 
-    # Duplicate definitions of one term at one scope: kept, both, flagged.
+    # A term genuinely defined twice at ONE scope is a drafting defect to
+    # record, never a key to overwrite (SPEC 2.3). Both sites are kept, both
+    # carry the anomaly, and stage 7 sees two DEFINED_IN edges rather than one
+    # silently winning. Two definitions at DIFFERENT scopes are not this: that
+    # is ordinary sub-part shadowing, which is why scope is a path.
     first_at: dict[tuple[str, str], MergedSite] = {}
     for m in out:
         k = (m.term, m.scope)
         if k in first_at:
-            m.duplicate_of = first_at[k].raw.definition_node_path
+            first = first_at[k]
+            m.duplicate_of = first.raw.definition_node_path
+            note = (f"term_defined_twice_at_one_scope: {m.term!r} is defined at "
+                    f"scope {m.scope!r} by both {first.raw.definition_node_path} "
+                    f"and {m.raw.definition_node_path}; both are recorded")
+            for site in (first, m):
+                if note not in site.raw.anomalies:
+                    site.raw.anomalies.append(note)
         else:
             first_at[k] = m
 
@@ -160,10 +171,26 @@ class PartVocabulary:
     surfaces: dict[str, Surface]
     suppressed_out_of_scope: list[str] = field(default_factory=list)
     inflection_collisions: list[dict] = field(default_factory=list)
+    scopes_by_term: dict[str, list[str]] = field(default_factory=dict)
 
     def ordered(self) -> list[Surface]:
         """Longest first, then alphabetical: the longest-match rule's order."""
         return sorted(self.surfaces.values(), key=lambda s: (-len(s.surface), s.surface))
+
+    def governing_scope(self, term: str, node_path: str) -> Optional[str]:
+        """Which definition governs `term` for a use standing at `node_path`.
+
+        The most specific scope that covers the node: a sub-part definition
+        shadows a part-level one, which shadows the document-level list. This is
+        `TermUse.definition_used`, and it is per node rather than per part
+        because that is the only thing that can tell Part A's "Breach of
+        Security" from Part B's.
+        """
+        best = None
+        for scope in self.scopes_by_term.get(term, []):
+            if scope_covers(scope, node_path):
+                best = scope                       # sorted shallowest first
+        return best
 
 
 # Simple s/es inflection, both directions, per Joint Schedule 1 paragraph 1.3.1:
@@ -189,33 +216,55 @@ def inflections(surface: str) -> list[str]:
     return [v for v in dict.fromkeys(out) if v != surface]
 
 
+def scope_path(scope: str) -> Optional[str]:
+    """The path a `part:<path>` scope governs; None for document scope."""
+    return None if scope == DOCUMENT_SCOPE else scope.split(":", 1)[1]
+
+
+def scope_covers(scope: str, node_path: str) -> bool:
+    """Does a site at `scope` govern a node at `node_path`?
+
+    Document scope covers everything. A `part:<path>` scope covers that path and
+    everything beneath it, which is what makes a sub-part definition govern the
+    uses standing inside that sub-part and nothing else.
+    """
+    path = scope_path(scope)
+    return path is None or node_path == path or node_path.startswith(path + "/")
+
+
 def vocabulary_for(part: str, sites: list[MergedSite]) -> PartVocabulary:
     """The vocabulary that governs inside `part`.
 
-    Document-level sites, overlaid by this part's own local sites. A surface
-    that could bind to more than one term inside this scope is recorded as a
-    collision on every term it could bind to; the matcher marks such matches
-    `alias_collision` rather than picking one.
-    """
-    local_scope = f"part:{part}"
-    governing: dict[str, str] = {}                     # term -> definition_used
-    for m in sites:
-        if m.scope == DOCUMENT_SCOPE:
-            governing.setdefault(m.term, DOCUMENT_SCOPE)
-    for m in sites:
-        if m.scope == local_scope:
-            governing[m.term] = local_scope            # part-local shadows document
+    Document-level sites, overlaid by sites local to this part or to a division
+    inside it. Which one governs is not decided here, because it depends on
+    where in the part the use stands: SPEC 2.3 scopes a definition to the path
+    of its nearest scoping ancestor, so Call-Off Schedule 9's two different
+    definitions of "Breach of Security" each govern their own sub-part. The
+    per-node choice is `governing_scope`; this builds the candidates.
 
-    suppressed = sorted({m.term for m in sites
-                         if m.term not in governing})
+    A surface that could bind to more than one term inside this scope is
+    recorded as a collision on every term it could bind to; the matcher marks
+    such matches `alias_collision` rather than picking one.
+    """
+    part_prefix = f"part:{part}"
+    in_scope: list[MergedSite] = [
+        m for m in sites
+        if m.scope == DOCUMENT_SCOPE or m.scope == part_prefix
+        or m.scope.startswith(part_prefix + "/")]
+
+    governing: dict[str, list[str]] = defaultdict(list)   # term -> scopes
+    for m in in_scope:
+        if m.scope not in governing[m.term]:
+            governing[m.term].append(m.scope)
+    # Deepest last, so `governing_scope` can take the most specific match.
+    for term in governing:
+        governing[term].sort(key=lambda sc: (len(scope_path(sc) or ""), sc))
+
+    suppressed = sorted({m.term for m in sites if m.term not in governing})
 
     binding: dict[str, set[str]] = defaultdict(set)
     alias_only: dict[str, bool] = {}
-    for m in sites:
-        if m.term not in governing:
-            continue
-        if m.scope not in (DOCUMENT_SCOPE, local_scope):
-            continue
+    for m in in_scope:
         binding[m.term].add(m.term)
         alias_only.setdefault(m.term, False)
         for alias in m.raw.aliases:
@@ -229,7 +278,7 @@ def vocabulary_for(part: str, sites: list[MergedSite]) -> PartVocabulary:
         surfaces[surface] = Surface(
             surface=surface, term=primary,
             is_alias=alias_only.get(surface, True) and surface not in terms,
-            definition_used=governing[primary],
+            definition_used=governing[primary][0],
             collides_with=ordered_terms if len(ordered_terms) > 1 else [])
 
     # JS1 1.3.1, the inflected surfaces. Added after the printed ones so a
@@ -260,9 +309,10 @@ def vocabulary_for(part: str, sites: list[MergedSite]) -> PartVocabulary:
         ordered_terms = sorted(terms)
         surfaces[variant] = Surface(
             surface=variant, term=ordered_terms[0], is_alias=False,
-            definition_used=governing[ordered_terms[0]],
+            definition_used=governing[ordered_terms[0]][0],
             collides_with=ordered_terms if len(ordered_terms) > 1 else [],
             is_inflected=True)
     return PartVocabulary(part=part, surfaces=surfaces,
                           suppressed_out_of_scope=suppressed,
-                          inflection_collisions=collisions)
+                          inflection_collisions=collisions,
+                          scopes_by_term={t: list(v) for t, v in governing.items()})

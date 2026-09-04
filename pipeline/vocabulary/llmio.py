@@ -25,6 +25,7 @@ and a reader can see exactly what did not happen.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import re
 from dataclasses import dataclass, field
@@ -160,7 +161,23 @@ class Runner:
             "response": call.response}, indent=2, ensure_ascii=False) + "\n")
 
     # -- the call ------------------------------------------------------------
-    def complete(self, task: str, prompt_version: str, prompt: str) -> Call:
+    @staticmethod
+    def _accepts_max_tokens(fn) -> bool:
+        """Does this client take a max_tokens budget?
+
+        The pinned contract is `complete(task, prompt) -> str`, so the budget is
+        offered rather than assumed: a client without it is called the old way
+        instead of dying on an unexpected keyword.
+        """
+        try:
+            params = inspect.signature(fn).parameters
+        except (TypeError, ValueError):                    # noqa: BLE001
+            return False
+        return "max_tokens" in params or any(
+            p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+    def complete(self, task: str, prompt_version: str, prompt: str,
+                 max_tokens: Optional[int] = None) -> Call:
         """Delegate to `pipeline.llm` when it is there; fall back when it is not.
 
         SPEC's rule is one LLM path, so when `pipeline.llm` is importable it owns
@@ -177,16 +194,20 @@ class Runner:
                                      DISABLED, None, "--no-llm: not called"))
         fn = self.entry_point()
         if fn is not None:
+            kwargs = {}
+            if max_tokens and self._accepts_max_tokens(fn):
+                kwargs["max_tokens"] = int(max_tokens)
             try:
-                raw = fn(task, prompt)
+                raw = fn(task, prompt, **kwargs)
             except Exception as exc:                       # noqa: BLE001
                 return self._record(Call(task, model, prompt_version, prompt, key,
                                          _classify(exc),
                                          None, f"{type(exc).__name__}: {exc}"[:400]))
+            note = "delegated to pipeline.llm, which owns the replay cache"
+            if kwargs:
+                note += f"; max_tokens={kwargs['max_tokens']}"
             return self._record(Call(task, model, prompt_version, prompt, key,
-                                     DELEGATED, raw,
-                                     "delegated to pipeline.llm, which owns the "
-                                     "replay cache"))
+                                     DELEGATED, raw, note))
 
         # -- fallback: pipeline/llm.py is absent -----------------------------
         cached = self.read_cache(task, key)

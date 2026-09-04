@@ -166,6 +166,11 @@ def match_part(part: Node, vocab: PartVocabulary, sites: list[MergedSite],
                 if sentence_initial(value, start):
                     kinds.append("sentence_initial")
                 kind = next((k for k in AMBIGUITY_PRECEDENCE if k in kinds), "none")
+                # Which definition governs depends on where the use stands,
+                # not on which part it is in: a sub-part definition shadows a
+                # part-level one (SPEC 2.3).
+                definition_used = (vocab.governing_scope(surface.term, node.path)
+                                   or surface.definition_used)
                 out.append(Match(
                     term=surface.term, surface=surface.surface, node_id=node.id,
                     node_path=node.path, part=vocab.part,
@@ -173,7 +178,7 @@ def match_part(part: Node, vocab: PartVocabulary, sites: list[MergedSite],
                     field_name=field_name, span=(start, end),
                     status="ambiguous" if kinds else "confident",
                     ambiguity_kind=kind, kinds=kinds,
-                    definition_used=surface.definition_used,
+                    definition_used=definition_used,
                     is_alias=surface.is_alias, is_inflected=surface.is_inflected,
                     collides_with=surface.collides_with, order=node.order,
                     page_start=node.page_start, sentence=value))

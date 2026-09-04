@@ -38,6 +38,17 @@ TASK_NOTE = ("stage 4's routed ambiguity checks; the model comes from "
              "config.MODELS[\"vocabulary_routing\"]")
 PROMPT_VERSION = "vocab-routing-v1"
 BATCH_SIZE = 20
+
+# Output budget. `pipeline.llm.complete` defaults to 1024 tokens, which truncates
+# a full batch's verdicts mid-JSON: the first live run through it got usable
+# verdicts for 26 of 169 routed items and threw the rest away as unparseable,
+# having already paid for them. One verdict runs to roughly 120 tokens once the
+# `why` sentence is counted, so the budget is sized from the batch with headroom,
+# and truncation is detected and reported rather than read as a checker that
+# simply had less to say.
+TOKENS_PER_VERDICT = 220
+TOKENS_OVERHEAD = 400
+
 SENTENCE_CLIP = 600
 DEFINITION_CLIP = 400
 
@@ -175,13 +186,35 @@ def build_prompt(kind: str, items: list[RoutedItem]) -> str:
     return f"{head}{_COMMON_TAIL}\n\nItems:\n{body}"
 
 
+def looks_truncated(raw: Optional[str]) -> bool:
+    """Did the reply stop mid-structure rather than finish?
+
+    `complete()` returns text, not a stop reason, so the tell is structural: a
+    JSON array that opened and never closed. Worth naming separately from any
+    other parse failure, because a truncated batch is spend already incurred and
+    verdicts silently missing, not a checker that answered differently.
+    """
+    text = strip_fence(raw or "").strip()
+    return bool(text) and text.startswith("[") and not text.endswith("]")
+
+
+def budget_for(batch_size: int) -> int:
+    """Output tokens to ask for, sized to the batch."""
+    return TOKENS_PER_VERDICT * batch_size + TOKENS_OVERHEAD
+
+
 def parse_verdicts(raw: str, valid: set[int]) -> tuple[list[Verdict], Optional[str]]:
     try:
         parsed = json.loads(strip_fence(raw))
         if not isinstance(parsed, list):
             raise ValueError("checker did not return a JSON array")
     except Exception as exc:                               # noqa: BLE001
-        return [], f"unparseable checker response: {type(exc).__name__}: {exc}"
+        reason = f"unparseable checker response: {type(exc).__name__}: {exc}"
+        if looks_truncated(raw):
+            reason = ("TRUNCATED: the checker's JSON array never closed, so its "
+                      "verdicts were paid for and lost. Raise the max_tokens "
+                      "budget or shrink BATCH_SIZE. " + reason)
+        return [], reason
     out: list[Verdict] = []
     for row in parsed:
         if not isinstance(row, dict) or not isinstance(row.get("i"), int) \
@@ -222,11 +255,16 @@ def route(matches: list[Match], runner: Runner,
         for start in range(0, len(queue.items), BATCH_SIZE):
             batch = queue.items[start:start + BATCH_SIZE]
             prompt = build_prompt(kind, batch)
-            call = runner.complete(TASK, f"{PROMPT_VERSION}:{kind}", prompt)
-            record = {"items": [it.index for it in batch],
-                      "call": call.as_dict(), "prompt": prompt}
+            budget = budget_for(len(batch))
+            call = runner.complete(TASK, f"{PROMPT_VERSION}:{kind}", prompt,
+                                   max_tokens=budget)
+            record = {"items": [it.index for it in batch], "items_sent": len(batch),
+                      "max_tokens": budget, "call": call.as_dict(),
+                      "prompt": prompt}
             if call.ok:
                 verdicts, error = parse_verdicts(call.response, {it.index for it in batch})
+                record["verdicts_returned"] = len(verdicts)
+                record["truncated"] = looks_truncated(call.response)
                 if error:
                     record["parse_error"] = error
                 for v in verdicts:
@@ -286,6 +324,16 @@ def summarise(queues: dict[str, RoutingResult]) -> dict:
         "task": TASK, "task_note": TASK_NOTE, "prompt_version": PROMPT_VERSION,
         "batch_size": BATCH_SIZE,
         "reject_min_confidence": REJECT_MIN_CONFIDENCE,
+        "tokens_per_verdict": TOKENS_PER_VERDICT,
+        "verdict_coverage": {
+            "routed": sum(len(q.items) for q in queues.values()),
+            "verdicts_obtained": sum(len(q.verdicts) for q in queues.values()),
+            "truncated_batches": sum(1 for q in queues.values()
+                                     for b in q.batches if b.get("truncated")),
+            "note": "a routed item with no verdict is spend incurred and an "
+                    "answer lost; truncated_batches names the cause when it is "
+                    "the output budget",
+        },
         "queues": {kind: {"items": len(q.items), "batches": len(q.batches),
                           "verdicts": len(q.verdicts), "state": q.state,
                           "note": q.note}
