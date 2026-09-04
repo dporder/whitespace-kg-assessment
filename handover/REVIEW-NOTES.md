@@ -172,6 +172,29 @@ exchange over real HTTP myself before merging, four citations, all ok, crops res
 after my own gate run on the integrated state: 285 tests green, decisions defaulting to
 golden/decisions.jsonl per spec.
 
+## 5b. UI redesign rounds (ui-builder, Dan's design review driving them, merged)
+
+Dan reviewed the first canvases as the operator and reported genuine confusion, which became the
+brief: the bar is a non-technical domain expert, UX writing is the deliverable as much as pixels.
+Round: rows compose their own plain-English question server-side (the Schedule 2 row now asks
+"Which one does the writer mean?" with candidates described in human terms), paths and bare
+scores banished to disclosures, per-claim footnotes and one evidence panel in chat, a
+connections graph view in the brand's process vocabulary, both registers per the brand memo.
+The gate on that round split usefully: the tester passed everything mechanical, the adversarial
+reviewer proved two blockers under the green (the connections endpoint's tool-only claim was
+false for node labels, which read the corpus directly; a term-row field the server never sent),
+plus an untested copy layer citing a test file that did not exist. All closed: naming now flows
+through the tool layer (get_provision, follow_references, define and cite all report the name
+the agreement uses, both backends sharing one composer), the copy layer has 26 tests including
+one that deliberately typos a verdict, and Dan's second-round refinements landed (counted tabs
+so the page shows one review type at a time, prose behind disclosure, the unresolved-ref row
+reframed from error-reading to "confirm now and the link connects when that schedule arrives",
+with a test asserting no error-vocabulary in that row). Chat locked as approved by Dan.
+Merged after my own verification run: 316 tests on the integrated state, governing_citation
+live-checked, answer_graph labels tool-derived with external edges distinct. One recorded edge
+case: a path passed directly to answer_graph that only exists as an external referent renders
+unsettled (first-add wins); in the real flow legislation enters via its edge and reads external.
+
 ## 6. Parser stages 0 to 2 (parser-builder, round 1 back, config corrected, fix round running)
 
 **What it delivered.** Stages 0 to 2 complete: Core Terms parses to 444 nodes with zero
