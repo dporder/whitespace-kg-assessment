@@ -35,6 +35,17 @@ OVERCONFIDENCE_MARGIN = 0.10      # spec-silent; the declared margin of EVALUATI
 
 
 def bucket_of(score: float) -> tuple[float, float]:
+    """Half-open buckets, with 1.0 falling in the top one.
+
+    A score of exactly 1.0 belongs in [0.9, 1.0]; without the final clause it
+    fell through every half-open band and landed in the last one by accident,
+    which happened to be right, and a score above 1.0 or below 0 also landed
+    there silently. Clamping makes both explicit.
+    """
+    if score >= BUCKETS[-1][1]:
+        return BUCKETS[-1]
+    if score < 0:
+        return BUCKETS[0]
     for lo, hi in BUCKETS:
         if lo <= score < hi:
             return (lo, hi)
@@ -66,8 +77,10 @@ def build(ctx: Context) -> Section:
     scored_refs = [r for r in refs if r.confidence is not None]
     for r in scored_refs:
         key = (r.resolver or "unknown", bucket_of(float(r.confidence)))
-        cell = table.setdefault(key, {"decisions": 0, "labelled": 0, "correct": 0})
+        cell = table.setdefault(key, {"decisions": 0, "labelled": 0, "correct": 0,
+                                      "stated_sum": 0.0})
         cell["decisions"] += 1
+        cell["stated_sum"] += float(r.confidence)
         verdict = verdict_for.get(r.path)
         if verdict is None:
             continue
@@ -81,9 +94,16 @@ def build(ctx: Context) -> Section:
     rows: list[dict[str, Any]] = []
     for (resolver, (lo, hi)), cell in sorted(table.items()):
         observed = Rate(cell["correct"], cell["labelled"])
-        overconfident = (observed.rate is not None and lo - observed.rate > OVERCONFIDENCE_MARGIN)
+        # Compared against the mean score actually stated in the bucket, not the
+        # bucket floor. A resolver claiming 0.99 in the [0.9, 1.0) band is
+        # promising 0.99; measuring it against 0.9 hides a tenth of every
+        # overconfidence gap, which is the wrong direction for this check to err.
+        mean_stated = cell["stated_sum"] / cell["decisions"]
+        overconfident = (observed.rate is not None
+                         and mean_stated - observed.rate > OVERCONFIDENCE_MARGIN)
         rows.append({"resolver": resolver, "bucket": f"[{lo:.1f}, {hi:.1f})",
                      "decisions": cell["decisions"],
+                     "mean_stated_confidence": round(mean_stated, 3),
                      "observed_precision": observed.as_dict(),
                      "stated_confidence_exceeds_observed_precision": overconfident})
 
@@ -132,8 +152,9 @@ def build(ctx: Context) -> Section:
         s.line(f"_{s.reason}_")
     s.line()
     s.line("**Reliability table**")
-    s.table(["resolver", "raw score bucket", "decisions", "observed precision", "overconfident"],
-            [[r["resolver"], r["bucket"], r["decisions"],
+    s.table(["resolver", "raw score bucket", "decisions", "mean stated",
+             "observed precision", "overconfident"],
+            [[r["resolver"], r["bucket"], r["decisions"], r["mean_stated_confidence"],
               str(Rate(r["observed_precision"]["count"], r["observed_precision"]["of"])),
               "**yes**" if r["stated_confidence_exceeds_observed_precision"] else "no"]
              for r in rows[:LIST_CAP]])

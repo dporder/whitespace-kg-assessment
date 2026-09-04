@@ -24,7 +24,7 @@ import re
 from collections import Counter
 from typing import Any
 
-from pipeline.eval.context import Context, LIST_CAP
+from pipeline.eval.context import Context, CYCLE_SCC_CAP, LIST_CAP
 from pipeline.eval.rates import MEASURED, NO_DATA, PARTIAL, Rate, Section, cap
 from pipeline.eval.text import title_case_runs
 
@@ -103,8 +103,34 @@ def defined_using_graph(ctx: Context) -> dict[str, Any]:
     g = nx.DiGraph()
     for src, dst in edges:
         g.add_edge(src, dst)
-    cycles = [sorted(c) for c in nx.simple_cycles(g)]
-    if cycles:
+
+    # Cycle enumeration is exponential in the worst case, and the real Joint
+    # Schedule 1 defines hundreds of terms in terms of each other, so `--full`
+    # could sit here indefinitely. Cycles are enumerated only inside strongly
+    # connected components small enough to be safe; a larger one is reported as
+    # what it is, a tangle of known size, rather than silently omitted or
+    # silently hung on.
+    cycles: list[list[str]] = []
+    unenumerated: list[dict[str, Any]] = []
+    for component in nx.strongly_connected_components(g):
+        if len(component) < 2:
+            continue
+        if len(component) > CYCLE_SCC_CAP:
+            members = sorted(component)
+            unenumerated.append({
+                "scc_size": len(component),
+                "member_sample": members[:LIST_CAP],
+                "reason": f"cycles not enumerated: strongly connected component of "
+                          f"{len(component)} terms exceeds the cap of {CYCLE_SCC_CAP}; "
+                          f"every term in it is on some cycle",
+            })
+            continue
+        sub = g.subgraph(component)
+        cycles.extend(sorted(c) for c in nx.simple_cycles(sub))
+    cycles.sort()
+
+    has_cycle = bool(cycles or unenumerated)
+    if has_cycle:
         cond = nx.condensation(g)
         depth = nx.dag_longest_path_length(cond) + 1
         note = "chain depth measured over the condensation, cycles collapsed"
@@ -112,7 +138,9 @@ def defined_using_graph(ctx: Context) -> dict[str, Any]:
         depth = nx.dag_longest_path_length(g) + 1
         note = None
     return {"status": "measured", "edges": len(edges), "edge_list": edges[:LIST_CAP],
-            "cycles": cycles, "max_chain_depth": depth, "note": note}
+            "cycles": cycles, "cycles_not_enumerated": unenumerated,
+            "scc_enumeration_cap": CYCLE_SCC_CAP,
+            "max_chain_depth": depth, "note": note}
 
 
 def build(ctx: Context) -> Section:
@@ -210,6 +238,9 @@ def build(ctx: Context) -> Section:
                  f"{len(g['cycles'])} cycle(s), max chain depth {g['max_chain_depth']}")
         for c in g["cycles"][:LIST_CAP]:
             s.bullet(f"cycle: {' -> '.join(c)}")
+        for u in g.get("cycles_not_enumerated", [])[:LIST_CAP]:
+            s.bullet(f"{u['reason']}; members include "
+                     f"{', '.join(u['member_sample'][:8])}")
     else:
         s.bullet(f"DEFINED_USING graph: {g['status']}, {g.get('reason') or g.get('note')}")
     return s

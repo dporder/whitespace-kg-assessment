@@ -27,6 +27,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import config
 from pipeline.eval.context import Context
 from pipeline.eval.gates import GateResult, exit_code
 from pipeline.eval.rates import Section
@@ -48,27 +49,59 @@ SECTION_SUBTITLES = {
 }
 
 
+def _digest(path: Path) -> str:
+    try:
+        return hashlib.sha1(path.read_bytes()).hexdigest()
+    except Exception:                                     # noqa: BLE001
+        return "unreadable"
+
+
 def inputs_fingerprint(ctx: Context) -> dict[str, Any]:
-    """A hash over exactly the files this run read. Replaces a timestamp."""
-    entries = []
+    """A hash over everything that can change this report. Replaces a timestamp.
+
+    "Everything" has to mean it, or the fingerprint quietly licenses a false
+    conclusion: two runs whose fingerprints match are supposed to be comparable,
+    so a changed page map, a re-exported PDF, an edited threshold or a file that
+    started failing to load must all move it. Stage output, golden labels, both
+    provided artifacts, `config.GATES` and the transitions snapshot are all in.
+    A file that failed to load contributes its path and error, because "absent"
+    and "present but broken" are different runs.
+    """
+    entries: list[dict[str, Any]] = []
     for rec in ctx.inputs.records:
-        if rec.state != "loaded" or rec.path is None:
+        if rec.path is None:
             continue
-        try:
-            digest = hashlib.sha1(Path(rec.path).read_bytes()).hexdigest()
-        except Exception:                                 # noqa: BLE001
-            digest = "unreadable"
-        entries.append({"file": str(rec.path), "sha1": digest})
+        if rec.state == "loaded":
+            entries.append({"file": str(rec.path), "sha1": _digest(Path(rec.path))})
+        elif rec.state == "failed":
+            entries.append({"file": str(rec.path), "sha1": "failed-to-load",
+                            "error": rec.error})
     for path in ctx.golden.files:
-        try:
-            digest = hashlib.sha1(Path(path).read_bytes()).hexdigest()
-        except Exception:                                 # noqa: BLE001
-            digest = "unreadable"
-        entries.append({"file": path, "sha1": digest})
-    entries.sort(key=lambda e: e["file"])
-    combined = hashlib.sha1(
-        "".join(f"{e['file']}:{e['sha1']}" for e in entries).encode()).hexdigest()
-    return {"combined": combined, "files": entries}
+        entries.append({"file": path, "sha1": _digest(Path(path))})
+
+    # The two provided artifacts three sections diff against.
+    if ctx.page_map.source_file:
+        entries.append({"file": ctx.page_map.source_file,
+                        "sha1": _digest(Path(ctx.page_map.source_file)),
+                        "role": "provided page map"})
+    if ctx.outline.state == "loaded" and ctx.outline.source_file:
+        entries.append({"file": ctx.outline.source_file,
+                        "sha1": _digest(Path(ctx.outline.source_file)),
+                        "role": "embedded outline (PDF)"})
+
+    # The snapshot resolution_transitions compared against, when there was one.
+    # That section records the path it actually read; see transitions.build.
+    previous = ctx.options.get("previous_snapshot_read")
+    if previous:
+        entries.append({"file": str(previous), "sha1": _digest(Path(previous)),
+                        "role": "ref status snapshot compared against"})
+
+    entries.sort(key=lambda e: (e["file"], e.get("role", "")))
+    thresholds = json.dumps(config.GATES, sort_keys=True)
+    material = "".join(f"{e['file']}:{e['sha1']}:{e.get('error', '')}" for e in entries)
+    combined = hashlib.sha1((material + "|gates:" + thresholds).encode()).hexdigest()
+    return {"combined": combined, "files": entries,
+            "config_gates": json.loads(thresholds)}
 
 
 def assemble(ctx: Context, sections: list[Section],

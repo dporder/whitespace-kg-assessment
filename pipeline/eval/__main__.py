@@ -81,17 +81,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def resolve_scope(args: argparse.Namespace, present: list[str]) -> tuple[str, list[str], str]:
-    if args.batch:
-        if args.batch not in config.BATCHES:
-            raise SystemExit(f"unknown batch {args.batch!r}; "
-                             f"config.BATCHES has {sorted(config.BATCHES)}")
-        part = config.BATCHES[args.batch]["part"]
-        in_scope = [p for p in present if p == part]
-        return f"batch:{args.batch}", in_scope, "in_scope_parts"
+def batches_in(inputs: inputs_mod.Inputs) -> list[str]:
+    """Batch ids the loaded stage output carries, from the nodes themselves."""
+    seen = {n.batch_id for _part, n in inputs.nodes() if n.batch_id}
+    seen |= {r.batch_id for r in inputs.all_refs() if r.batch_id}
+    return sorted(seen)
+
+
+def resolve_scope(args: argparse.Namespace, present: list[str],
+                  batches: list[str]) -> tuple[str, list[str], str]:
+    """SPEC 2.6: by default the report covers the parts touched by the batch.
+
+    With `--batch` that is exact. Without it, the batch is inferred from the
+    stage output's own `batch_id`s when they name exactly one, which is the
+    normal case after a batch load. When the output holds several batches there
+    is no single batch to be scoped to, so the run covers every part present and
+    the report's scope block says which reading applied rather than implying a
+    batch it did not have.
+    """
     if args.full:
         return "full", present, "whole_document"
-    return "present", present, "in_scope_parts"
+    batch = args.batch
+    inferred = False
+    if batch is None and len(batches) == 1:
+        batch, inferred = batches[0], True
+    if batch is not None:
+        if batch not in config.BATCHES:
+            if not inferred:
+                raise SystemExit(f"unknown batch {batch!r}; "
+                                 f"config.BATCHES has {sorted(config.BATCHES)}")
+        else:
+            part = config.BATCHES[batch]["part"]
+            mode = f"batch:{batch}" + (" (inferred from the stage output's batch_id)"
+                                       if inferred else "")
+            return mode, [p for p in present if p == part], "in_scope_parts"
+    return ("present (no single batch in the stage output; every part present)",
+            present, "in_scope_parts")
 
 
 def build_context(args: argparse.Namespace) -> Context:
@@ -106,9 +131,15 @@ def build_context(args: argparse.Namespace) -> Context:
     source_root = run_dir if source == inputs_mod.OUTPUT_SOURCE else args.fixtures_dir
 
     present = inputs_mod.discover_parts(source_root)
-    scope_mode, scope_parts, cross = resolve_scope(args, present)
+    # Load everything present first, only to read the batch ids the output
+    # carries, then narrow to the scope and reload. Two passes over a handful of
+    # JSON files is cheaper than guessing the batch from the file names.
+    surveyed = inputs_mod.load(source, source_root, run, present, run_dir=run_dir)
+    scope_mode, scope_parts, cross = resolve_scope(args, present, batches_in(surveyed))
 
-    loaded = inputs_mod.load(source, source_root, run, scope_parts, run_dir=run_dir)
+    loaded = (surveyed if scope_parts == present
+              else inputs_mod.load(source, source_root, run, scope_parts,
+                                   run_dir=run_dir))
     page_map_artifact = provided_mod.load_page_map()
     outline_artifact = (provided_mod.ProvidedOutline(state="absent",
                                                      error="--no-pdf: the PDF was not opened")

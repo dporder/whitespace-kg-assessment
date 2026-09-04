@@ -26,8 +26,6 @@ from pipeline.eval.rates import MEASURED, NO_DATA, Rate, Section, cap
 from pipeline.eval.text import similarity
 from pipeline.schemas import Node
 
-RESOLVED_STATUSES = ("resolved", "external")
-
 
 def ref_index(ctx: Context) -> dict[tuple[str, int, int], Node]:
     """(parent path, start, end) -> ref node."""
@@ -57,18 +55,29 @@ def resolve_subject(rec: GoldenRecord, by_id: dict[str, Node]) -> Optional[tuple
 
 def find_ref(subject: tuple[str, int, int],
              index: dict[tuple[str, int, int], Node]) -> tuple[Optional[Node], str]:
-    """Exact span match first, then any overlapping span on the same node."""
+    """Exact span match, then the best overlapping span on the same node.
+
+    "Best" matters where one list phrase became several refs sharing a
+    `group_id` ("Clauses 2.10, 9, 14"): a label covering the whole phrase
+    overlaps all of them, and picking whichever the dict happened to yield first
+    made the score depend on iteration order. The most-overlapping ref wins,
+    ties broken by span so the choice is deterministic; when the winner belongs
+    to a group that fact is reported, because a label spanning a whole group is
+    a labelling question, not a resolution result.
+    """
     if subject in index:
         return index[subject], "exact"
     path, start, end = subject
-    for (p, s, e), ref in index.items():
-        if p == path and s < end and start < e:
-            return ref, "overlapping span"
-    return None, "not detected"
-
-
-def is_resolved(ref: Node) -> bool:
-    return ref.status in RESOLVED_STATUSES or bool(ref.target_path)
+    overlaps = [((min(e, end) - max(s, start)), (s, e), ref)
+                for (p, s, e), ref in index.items()
+                if p == path and s < end and start < e]
+    if not overlaps:
+        return None, "not detected"
+    _width, _span, ref = max(overlaps, key=lambda o: (o[0], -o[1][0], -o[1][1]))
+    if ref.group_id and len(overlaps) > 1:
+        return ref, (f"overlapping span, best of {len(overlaps)} refs split from one "
+                     f"list phrase (group {ref.group_id})")
+    return ref, "overlapping span"
 
 
 def population_summary(ctx: Context) -> dict[str, Any]:
@@ -163,7 +172,8 @@ def build(ctx: Context) -> Section:
     positives = [r for r in rows if r["verdict"] in ("target", "unresolvable")]
     negatives = [r for r in rows if r["verdict"] == "not_a_reference"]
     detected_positives = [r for r in positives if r["detected"]]
-    boundary_mismatches = [r for r in detected_positives if r["match"] == "overlapping span"]
+    boundary_mismatches = [r for r in detected_positives
+                           if r["match"].startswith("overlapping span")]
     detection_recall = Rate(len(detected_positives), len(positives))
     false_positives = [r for r in negatives if r["detected"]]
     detection_precision = Rate(len(detected_positives),

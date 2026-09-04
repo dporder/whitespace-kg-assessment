@@ -109,6 +109,14 @@ def _stratifier(strata: list[str]):
     return key
 
 
+def _clip(text: Optional[str], limit: int) -> str:
+    """Truncate for the prompt, marking it. A checker shown a sentence cut off
+    mid-clause with no marker may call a correct decision wrong because the
+    evidence appears to be missing."""
+    text = text or ""
+    return text if len(text) <= limit else text[:limit] + " […truncated]"
+
+
 def _run_checker(items: list[dict[str, Any]]) -> tuple[Optional[list[dict]], str]:
     """Ask the independent checker. Returns (verdicts, note)."""
     try:
@@ -125,7 +133,7 @@ def _run_checker(items: list[dict[str, Any]]) -> tuple[Optional[list[dict]], str
               "array of objects {\"i\": <index>, \"agree\": true|false, "
               "\"why\": \"<short reason>\"} and nothing else.\n\n"
               + json.dumps([{"i": i, **{k: v for k, v in item.items() if k != "sentence"},
-                             "sentence": (item.get("sentence") or "")[:400]}
+                             "sentence": _clip(item.get("sentence"), 400)}
                             for i, item in enumerate(items)], indent=1))
     try:
         raw = fn(LLM_TASK, prompt)
@@ -195,15 +203,32 @@ def build(ctx: Context) -> Section:
 
     agreed = [v for v in verdicts if v.get("agree") is True]
     disagreed = [v for v in verdicts if v.get("agree") is False]
+    # A verdict that is neither true nor false is a checker failure, not an
+    # agreement and not a disagreement. Counted explicitly: 38 unusable verdicts
+    # out of 40 must not read as a green 2/2, which is what dropping them did.
+    unusable = [v for v in verdicts
+                if not isinstance(v, dict) or v.get("agree") not in (True, False)
+                or not isinstance(v.get("i"), int) or not 0 <= v["i"] < len(drawn)]
     agreement = Rate(len(agreed), len(agreed) + len(disagreed))
-    s.status = MEASURED if agreement.has_data else PARTIAL
+    s.status = MEASURED if (agreement.has_data and not unusable) else PARTIAL
+    if unusable:
+        s.reason = (f"{len(unusable)} of {len(verdicts)} checker verdict(s) were "
+                    f"unusable (missing or non-boolean 'agree', or an out-of-range "
+                    f"item index) and are counted in neither side of the rate")
     s.metrics["stratified_audit_agreement"] = agreement
     s.data["agreement"] = agreement.as_dict()
+    s.data["checker_verdicts"] = {
+        "returned": len(verdicts), "agreed": len(agreed),
+        "disagreed": len(disagreed), "unusable": len(unusable),
+        "scored": Rate(len(agreed) + len(disagreed), len(drawn)).as_dict(),
+    }
     s.data["disagreements"] = [
         {**{k: v for k, v in drawn[d["i"]].items() if k != "sentence"},
          "why": d.get("why")}
         for d in disagreed if isinstance(d.get("i"), int) and d["i"] < len(drawn)][:LIST_CAP]
-    s.line(f"Checked **{len(verdicts)}** sampled item(s), agreement **{agreement}**.")
+    s.line(f"Drew **{len(drawn)}** item(s), the checker returned "
+           f"**{len(verdicts)}** verdict(s), of which **{len(unusable)}** were "
+           f"unusable. Agreement over the usable ones: **{agreement}**.")
     s.line()
     s.table(["item", "why the checker disagreed"],
             [[d.get("path") or d.get("term"), d.get("why")] for d in s.data["disagreements"]])

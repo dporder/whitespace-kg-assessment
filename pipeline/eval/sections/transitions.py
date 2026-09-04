@@ -75,6 +75,10 @@ def build(ctx: Context) -> Section:
     previous, previous_path, note = find_previous(ctx)
     s.data["snapshot"] = {"refs": len(snapshot), "written_to": str(ctx.eval_dir / SNAPSHOT_NAME)}
     s.data["previous"] = {"path": str(previous_path) if previous_path else None, "note": note}
+    # The report's inputs fingerprint covers everything that can change the
+    # report, and this snapshot can, so tell it which file was read.
+    if previous_path is not None:
+        ctx.options["previous_snapshot_read"] = str(previous_path)
 
     if not snapshot:
         s.status = NO_DATA

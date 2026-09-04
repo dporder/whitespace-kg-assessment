@@ -46,6 +46,7 @@ CHECKS: dict[str, str] = {
     "content_hash": "a text-bearing node's content_hash matches its text",
     "citable_flags": "intro and ref nodes are not citable",
     "page_range": "page_start <= page_end and a child's pages sit inside its parent's",
+    "one_box_per_page": "a node carries at most one box entry per page it touches",
     "ref_span_integrity": "a ref's char_span reproduces its pointing words from its parent's text",
 }
 
@@ -145,9 +146,33 @@ def boxes_by_page(node: Node, prefer_own: bool = True) -> dict[int, tuple]:
     A form_row or a table has no ink of its own, only its cells' - falling back
     to the extent is what lets those nodes take part in the geometry checks
     instead of being silently skipped.
+
+    SPEC 2.1 says one entry per page touched. Where a node breaks that, the
+    entries for a page are unioned rather than the last one winning, so a
+    geometry check sees all the ink instead of an arbitrary piece of it. The
+    `one_box_per_page` check reports the breach separately.
     """
     src = node.bboxes_own if (prefer_own and node.bboxes_own) else node.bboxes_extent
-    return {b.page: tuple(b.bbox) for b in src}
+    out: dict[int, tuple] = {}
+    for b in src:
+        box = tuple(b.bbox)
+        if b.page in out:
+            p = out[b.page]
+            out[b.page] = (min(p[0], box[0]), min(p[1], box[1]),
+                           max(p[2], box[2]), max(p[3], box[3]))
+        else:
+            out[b.page] = box
+    return out
+
+
+def pages_with_several_boxes(node: Node) -> list[int]:
+    pages: dict[int, int] = {}
+    for b in list(node.bboxes_own) + list(node.bboxes_extent):
+        pages[b.page] = pages.get(b.page, 0) + 1
+    own = [b.page for b in node.bboxes_own]
+    extent = [b.page for b in node.bboxes_extent]
+    return sorted({p for p in own if own.count(p) > 1}
+                  | {p for p in extent if extent.count(p) > 1})
 
 
 def extent_by_page(node: Node) -> dict[int, tuple]:
@@ -265,6 +290,14 @@ def check_tree(part: str, root: Node,
         if node.page_start > node.page_end:
             add("page_range", node,
                 f"page_start {node.page_start} > page_end {node.page_end}")
+
+        # -- one box entry per page (SPEC 2.1) ---------------------------------
+        checked["one_box_per_page"] += 1
+        doubled = pages_with_several_boxes(node)
+        if doubled:
+            add("one_box_per_page", node,
+                f"several box entries on page(s) {doubled}; the geometry checks "
+                f"union them, but SPEC 2.1 says one entry per page touched")
 
         own = boxes_by_page(node)
         node_extent = extent_by_page(node)
@@ -519,6 +552,7 @@ def box_roundtrip(ctx: Context) -> dict[str, Any]:
         return {"status": "skipped", "reason": "PDF not found at config.PDF"}
 
     mismatches: list[dict[str, Any]] = []
+    dropped: list[dict[str, Any]] = []
     checked = agreed = 0
     try:
         with pymupdf.open(config.PDF) as doc:
@@ -528,7 +562,13 @@ def box_roundtrip(ctx: Context) -> dict[str, Any]:
                 extracted = []
                 for bb in node.bboxes_own:
                     if not (1 <= bb.page <= doc.page_count):
+                        # A box citing a page the PDF does not have cannot be
+                        # round-tripped, and dropping it silently would shrink
+                        # the denominator and flatter the agreement rate.
                         extracted = None
+                        dropped.append({"part": part, "path": node.path,
+                                        "reason": f"box cites page {bb.page}, the PDF "
+                                                  f"has {doc.page_count}"})
                         break
                     page = doc.load_page(bb.page - 1)
                     extracted.append(page.get_textbox(pymupdf.Rect(*bb.bbox)))
@@ -550,6 +590,8 @@ def box_roundtrip(ctx: Context) -> dict[str, Any]:
     return {"status": "measured",
             "threshold": BOX_ROUNDTRIP_AGREE,
             "agreement": Rate(agreed, checked).as_dict(),
+            "not_round_trippable": len(dropped),
+            "not_round_trippable_detail": cap(dropped, LIST_CAP)[0],
             "mismatches": shown, "mismatches_not_listed": hidden}
 
 
@@ -680,7 +722,10 @@ def build(ctx: Context) -> Section:
     if rt["status"] == "measured":
         r = rt["agreement"]
         s.bullet(f"box round trip: {Rate(r['count'], r['of'])} of text-bearing nodes "
-                 f"reproduce their text from their own boxes")
+                 f"reproduce their text from their own boxes"
+                 + (f"; {rt['not_round_trippable']} node(s) could not be checked at "
+                    f"all and are excluded from that rate"
+                    if rt["not_round_trippable"] else ""))
     else:
         s.bullet(f"box round trip: {rt['status']}, {rt.get('reason')}")
     d = s.data["distributions"]

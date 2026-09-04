@@ -38,10 +38,13 @@ class PageMapRow:
     name: str
     part_id: str
     row_index: int
+    raw_pages: str = ""        # the cell as written, before parsing
+    raw_name: str = ""         # the cell as written, before whitespace collapse
 
     def as_dict(self) -> dict[str, Any]:
         return {"row": self.row_index, "pages": list(self.pages),
-                "name": self.name, "part_id": self.part_id}
+                "name": self.name, "part_id": self.part_id,
+                "raw_pages_cell": self.raw_pages, "raw_name_cell": self.raw_name}
 
 
 @dataclass
@@ -180,9 +183,15 @@ def load_page_map(candidates: Optional[list[Path]] = None) -> ProvidedPageMap:
             rng = _parse_range(pages_cell)
             if rng is None:
                 continue
+            # The raw cells are kept beside the parsed ones. "Joint Schedule 7  -
+            # Financial Difficulties" has a double space and "Joint Schedule 11
+            # Processing Data" has no dash at all; those are facts about the
+            # provided artifact, and a report that only ever shows the tidied
+            # form cannot be used to argue about the artifact itself.
             name = re.sub(r"\s+", " ", name_cell).strip()
             parsed.append(PageMapRow(pages=rng, name=name,
-                                     part_id=part_id_for(name), row_index=i))
+                                     part_id=part_id_for(name), row_index=i,
+                                     raw_pages=pages_cell, raw_name=name_cell))
         out.state = "loaded"
         out.source_file = str(path)
         out.rows = parsed

@@ -24,13 +24,44 @@ the system (EVALUATION.md section 3).
 | `path` | one of | The subject. For a ref this is the ref's own path, `<parent-path>/ref@<start>-<end>`, which already carries the span. For an outline triage item it is the queue id printed in the report. |
 | `node_id` + `char_span` | one of | The subject as a span of a node's text, when a path is not to hand. `char_span` is `[start, end]`, offsets into that node's `text` (its `title` for a heading match), exactly as `TermUse.char_span` in `schemas.py`. |
 | `verdict` | yes | See the vocabularies. An unrecognised verdict is counted and reported, never silently dropped. |
-| `chosen_candidate` | sometimes | The correct target path (`ref`/`target`) or the governing term (`term`/`use`). Required where the vocabulary says so. |
+| `chosen_candidate` | **yes** for `ref`/`target` and `term`/`use` | The correct target path, or the governing term. See below: a record that omits it where it is required is malformed and is never scored. |
+| `anomaly_index` | **yes** for `anomaly`/`confirmed` and `anomaly`/`rejected` | Which of the node's `anomalies` the verdict is about, 0-based. Part of the subject key. |
 | `reviewer` | yes | Who decided. Free text. |
 | `ts` | yes | ISO 8601 UTC. Ordering within a file is the file's own order; `ts` is for provenance and for the sampling frame, not for sorting. |
 | `note` | no | Free text for a human. Never parsed. |
 
 Unknown extra keys are ignored by the reader, so the review UI may carry its own
 bookkeeping without breaking the harness.
+
+### Why `chosen_candidate` is required, not merely expected
+
+A verdict of `target` or `use` asserts what the right answer *is*. Without it the
+harness has only bad options, and it took a different bad option for each kind
+before this was enforced: for refs it compared the pipeline's target against
+`None` and scored a **label defect as a parser failure**; for terms it fell back
+to the pipeline's own answer and **graded the pipeline against itself**, which is
+silently wrong exactly where it matters most, on alias collisions. Refusing the
+record is better than either. A missing `chosen_candidate` therefore joins the
+malformed-lines count, is reported with its file and line, and never reaches a
+rate.
+
+`unresolvable`, `not_a_reference` and `not_a_use` assert that there is no right
+answer to name, so they need no `chosen_candidate`.
+
+### Why `anomaly_index` is part of the subject
+
+A node can carry several anomalies and a verdict on one is not a verdict on the
+others. Without the index in the subject key the second decision on a node
+silently replaced the first and one reviewer's work was lost. It is required for
+the node-anomaly verdicts (`confirmed`, `rejected`).
+
+The triage verdicts (`agree`, `parser_wrong`, `outline_wrong`, `both_differ`) do
+not carry one: their subject is the `outline_vs_provided` queue id, which names a
+disagreement between two descriptions of the document, not an anomaly recorded
+on a node. There is no index for them to carry. This is the one place where this
+document is narrower than SPEC section 6's sentence "Anomaly records carry an
+`anomaly_index`", and it is a narrowing of scope rather than a contradiction of
+the vocabulary.
 
 ## Verdicts, `kind: "ref"`
 
@@ -49,7 +80,7 @@ them reported separately, because conflating them hides which half is broken.
 
 | verdict | means | scored as |
 |---|---|---|
-| `use` | The span is a use of a defined term. `chosen_candidate` names the term; it is **required** when labelling a use the pipeline missed, and otherwise names the governing term when the pipeline picked the wrong one (alias collision). | Detection true positive. Wrong term = a false positive for the term the pipeline chose and a false negative for the term named. |
+| `use` | The span is a use of a defined term. `chosen_candidate` names the **governing** term, which may differ from the one the pipeline matched (alias collisions), and is required on every `use` record, including ones where the pipeline agrees. | Detection true positive when the pipeline matched the same term. Wrong term = a false positive for the term the pipeline chose and a false negative for the term named. |
 | `not_a_use` | The span is capitalised but is not a use of a defined term. | False positive if the pipeline emitted a `USES_TERM` there. |
 
 False positives and false negatives are broken out by `ambiguity_kind`. For a
@@ -60,13 +91,17 @@ deterministically (sentence initial, heading, else none) and marks the row
 
 ## Verdicts, `kind: "anomaly"`
 
-| verdict | means |
-|---|---|
-| `agree` | The derived tree and the provided outline say the same thing after all. |
-| `parser_wrong` | The derived tree is wrong here. |
-| `outline_wrong` | The embedded outline is wrong here. |
-| `both_differ` | Both disagree with the page; neither is right. |
-| `confirmed` / `rejected` | A node anomaly's proposed reading was accepted or rejected. |
+| verdict | subject | means |
+|---|---|---|
+| `agree` | queue id | The derived tree and the provided outline say the same thing after all. |
+| `parser_wrong` | queue id | The derived tree is wrong here. |
+| `outline_wrong` | queue id | The embedded outline is wrong here. |
+| `both_differ` | queue id | Both disagree with the page; neither is right. |
+| `confirmed` | node + `anomaly_index` | A node anomaly's proposed reading was accepted. |
+| `rejected` | node + `anomaly_index` | A node anomaly's proposed reading was rejected. |
+
+The verdict is `rejected`, not `reject`: these are past-tense outcomes
+throughout.
 
 The first four are the `outline_vs_provided` triage. Their `path` is the queue
 id the report prints for the disagreement: the derived node's path when there is
