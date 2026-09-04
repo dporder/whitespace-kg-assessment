@@ -211,3 +211,101 @@ def test_an_llm_extracted_statute_that_does_normalise_still_becomes_external(
     resolution = resolve_pointer(corpus, pointer)
     assert resolution.status == "external"
     assert resolution.target_path == "legislation/bribery-act-2010"
+
+
+# --------------------------------------------------------------------------
+# one span, two refs: the collision the four-part run turned up
+# --------------------------------------------------------------------------
+def js1_shaped_tree(doc_id, version, texts):
+    """A definitions schedule: a two-column table whose cells carry citations.
+
+    Shaped like Joint Schedule 1, which is where the collisions landed, because
+    a definition cell is one long text with many citations in it.
+    """
+    from pipeline.schemas import Node, content_hash, lineage_key, node_id
+
+    def node(path, kind, **kw):
+        text = kw.pop("text", None)
+        return Node(id=node_id(doc_id, version, path),
+                    lineage_key=lineage_key(doc_id, path),
+                    content_hash=content_hash(text) if text else None,
+                    path=path, kind=kind, text=text, page_start=1, page_end=1, **kw)
+
+    cells = []
+    for i, text in enumerate(texts):
+        cells.append(node(f"joint-schedule-1/1/table/{i}/1", "cell", text=text,
+                          row=i, col=1, cell_role="value", order=2 + i))
+    table = node("joint-schedule-1/1/table", "table", n_rows=len(texts), n_cols=2,
+                 order=1, children=cells)
+    head = node("joint-schedule-1/1", "heading", order=0, children=[table],
+                title="Definitions")
+    return node("joint-schedule-1", "part", order=0, children=[head],
+                title="Joint Schedule 1 (Definitions)", part_family="joint-schedule",
+                unit_label="Paragraph", batch_id="B2")
+
+
+def build_part_refs(tree, corpus, identity, part="joint-schedule-1"):
+    from pipeline.references.__main__ import resolve_part
+    from pipeline.references.detect import detect_part
+
+    detection = detect_part(part, tree)
+    return resolve_part(part, detection, corpus, identity, "B2")
+
+
+def test_the_same_citation_detected_twice_becomes_one_ref(doc_id, version, identity,
+                                                          core_terms):
+    """A duplicate of the same target on the same characters is one citation."""
+    from pipeline.references.corpus import Corpus
+    from pipeline.references.detect import Pointer
+    from pipeline.references.__main__ import resolve_part
+    from pipeline.references.detect import PartDetection
+
+    tree = js1_shaped_tree(doc_id, version, ["means the thing in Clause 3.1."])
+    corpus = Corpus.from_trees({"core-terms": core_terms, "joint-schedule-1": tree})
+    detection = PartDetection(part="joint-schedule-1")
+    cell = tree.children[0].children[0].children[0]
+    for _ in range(2):
+        detection.pointers.append(Pointer(
+            parent_path=cell.path, part="joint-schedule-1", span=(20, 30),
+            text=cell.text[20:30], ref_kind="clause", unit="Clause", number="3.1"))
+    refs, _statutes, _ctx, violations = resolve_part(
+        "joint-schedule-1", detection, corpus, identity, "B2")
+    assert len(refs) == 1, "the same citation of the same target minted two refs"
+    notes = [v for v in violations if v["kind"] == "duplicate_citation_deduped"]
+    assert len(notes) == 1 and notes[0]["severity"] == "note"
+
+
+def test_two_different_targets_on_one_span_both_survive(doc_id, version, identity,
+                                                        core_terms):
+    """Distinct citations sharing characters are both real, so both get ids."""
+    from pipeline.references.corpus import Corpus
+    from pipeline.references.detect import PartDetection, Pointer
+    from pipeline.references.__main__ import resolve_part
+
+    tree = js1_shaped_tree(doc_id, version, ["means the thing in Clause 3.1."])
+    corpus = Corpus.from_trees({"core-terms": core_terms, "joint-schedule-1": tree})
+    cell = tree.children[0].children[0].children[0]
+    detection = PartDetection(part="joint-schedule-1")
+    for number in ("3.1", "9.2"):
+        detection.pointers.append(Pointer(
+            parent_path=cell.path, part="joint-schedule-1", span=(20, 30),
+            text=cell.text[20:30], ref_kind="clause", unit="Clause", number=number))
+    refs, _statutes, _ctx, violations = resolve_part(
+        "joint-schedule-1", detection, corpus, identity, "B2")
+
+    assert len(refs) == 2, "a real second citation was dropped"
+    assert len({r.id for r in refs}) == 2, "two refs collided on one id"
+    assert len({r.path for r in refs}) == 2
+    assert any(p.endswith("+1") for p in (r.path for r in refs))
+    assert any("span_shared_with_another_ref" in a
+               for r in refs for a in r.anomalies)
+    assert not [v for v in violations if v.get("severity") != "note"]
+
+
+def test_a_deduped_duplicate_does_not_fail_the_run(tmp_path, monkeypatch):
+    """A note records something handled correctly; only a real violation fails
+    the exit code, or a tidy dedupe would read as a broken stage."""
+    from pipeline.references.__main__ import main
+
+    assert main(["--input", "fixtures", "--run", "t", "--no-llm", "--quiet",
+                 "--output-dir", str(tmp_path)]) == 0

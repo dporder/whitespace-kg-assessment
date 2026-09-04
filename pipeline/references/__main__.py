@@ -190,7 +190,7 @@ def resolve_part(part: str, detection: PartDetection, corpus: Corpus,
     statutes: list[Legislation] = []
     contexts: dict[str, dict] = {}
     violations: list[dict] = []
-    seen: set[str] = set()
+    seen: dict[str, Node] = {}
     for order, pointer in enumerate(detection.pointers):
         parent = corpus.node(pointer.parent_path)
         if parent is None:
@@ -201,11 +201,30 @@ def resolve_part(part: str, detection: PartDetection, corpus: Corpus,
         ref = ref_node(pointer, resolution, parent, identity, order=order,
                        batch_id=batch_id)
         if ref.path in seen:
-            violations.append({"kind": "duplicate_ref_path", "part": part,
-                               "path": ref.path,
-                               "detail": "two refs claim the same characters"})
-            continue
-        seen.add(ref.path)
+            # Two refs on one span. Which of the two things it is decides what
+            # to do, and neither may end as a lost ref or a duplicate id.
+            prior = seen[ref.path]
+            if (prior.target_path == ref.target_path and prior.ref_kind == ref.ref_kind
+                    and prior.text == ref.text):
+                # The same citation of the same target found twice. One ref.
+                violations.append({"kind": "duplicate_citation_deduped", "part": part,
+                                   "path": ref.path, "severity": "note",
+                                   "detail": f"a second detection of {ref.text!r} "
+                                             f"pointing at the same target was dropped"})
+                continue
+            # Distinct targets sharing one span: real, and each needs its own
+            # id. The ordinal SPEC 2.2 defines for range members disambiguates
+            # them, in detection order, so the paths stay deterministic.
+            ordinal = 1
+            while f"{ref.path}+{ordinal}" in seen:
+                ordinal += 1
+            pointer.expansion_index = ordinal
+            ref = ref_node(pointer, resolution, parent, identity, order=order,
+                           batch_id=batch_id)
+            ref.anomalies.append(
+                f"span_shared_with_another_ref: these characters carry more than one "
+                f"citation, so the path takes the ordinal +{ordinal}")
+        seen[ref.path] = ref
         if not span_intact(ref, parent):
             violations.append({"kind": "span_mismatch", "part": part, "path": ref.path,
                                "detail": f"text {ref.text!r} is not the characters "
@@ -458,14 +477,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         "transitions": _transitions(previous, flat) if args.reresolve else None,
         "violations": violations,
     }
+    # A note records something worth knowing that the run handled correctly; a
+    # violation is something the run could not handle. Only the second kind
+    # fails the exit code, or a tidy dedupe would read as a broken stage.
+    blocking = [v for v in violations if v.get("severity") != "note"]
+    report["violations_blocking"] = len(blocking)
     write_json(refs_dir / "report.json", report)
     if violations:
         write_json(refs_dir / "violations.json",
-                   {"count": len(violations), "violations": violations})
+                   {"count": len(violations), "blocking": len(blocking),
+                    "violations": violations})
 
     if not args.quiet:
         _print_summary(report)
-    return 2 if violations else 0
+    return 2 if blocking else 0
 
 
 def _counter(values) -> dict:
@@ -538,7 +563,9 @@ def _print_summary(report: dict) -> None:
           f"near-miss pairs={report['legislation']['near_miss']['pairs_over_threshold']}")
     print(f"  REVIEW     queue={report['review_queue']}")
     if report["violations"]:
-        print(f"  VIOLATIONS {len(report['violations'])}: "
+        blocking = [v for v in report["violations"] if v.get("severity") != "note"]
+        print(f"  VIOLATIONS {len(blocking)} blocking, "
+              f"{len(report['violations']) - len(blocking)} note(s): "
               f"{_counter(v['kind'] for v in report['violations'])}")
 
 
