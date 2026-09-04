@@ -15,8 +15,17 @@
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 1560,
-      "title": "Review queue \u2014 the screen being built",
+      "h": 1120,
+      "title": "Review queue \u2014 the screen, Cross-references tab",
+      "page": "page-1"
+    },
+    {
+      "file": "OtherTypes.dc.html",
+      "x": 1560,
+      "y": 0,
+      "w": 1100,
+      "h": 1080,
+      "title": "The same screen, the other two tabs",
       "page": "page-1"
     },
     {
@@ -54,12 +63,12 @@
       "y": 0,
       "w": 520,
       "page": "page-1",
-      "text": "WHAT THIS BOARD IS\nOne screen: the review queue, where a person answers the questions the system could not answer by itself. This is a single design, already built \u2014 nothing here is asking you to choose between options.\n\nWHO IT IS FOR\nA contracts or procurement specialist. They know what a schedule and a defined term are. They have never seen a file path or a confidence score, and they should need no training to start.\n\nWHAT CHANGED THIS ROUND\n\u00b7 Every row now says what is being reviewed and what question is being answered, in plain words.\n\u00b7 Provisions are named the way the agreement names them \u2014 \"Core Terms, Clause 9.2\" \u2014 not by internal path. The path moved into a Technical details disclosure.\n\u00b7 Candidate answers say what they are: \"Framework Schedule 2 \u2014 part of the framework agreement itself\".\n\u00b7 Bare scores (0.5, 0.95) are gone from the row. Where the number carried meaning it is now a sentence: \"The system found nothing to prefer one over the other.\"\n\u00b7 Each section carries a short How to decide.\n\nWHAT I WOULD VALUE YOUR EYES ON\n1. Does the question on each row match the decision you would actually be making?\n2. Are the four answers on a cross-reference the right four?\n3. Anything still reading as jargon."
+      "text": "WHAT THIS BOARD IS\nOne screen: the review queue, where a person answers the questions the system could not answer by itself. A single design, already built \u2014 nothing here is asking you to choose between options.\n\nThe board to the right is the SAME screen with the other two tabs selected, so you can see one example of each review type.\n\nWHO IT IS FOR\nA contracts or procurement specialist. They know what a schedule and a defined term are. They have never seen a file path or a confidence score, and they should need no training to start.\n\nWHAT CHANGED THIS ROUND\n\u00b7 One review type at a time. Tabs across the top carry the pending count for each, and picking one makes the whole page that type \u2014 so it is never unclear which kind of judgement is being asked for.\n\u00b7 Much less text. The question and the answers are what stay on screen; the reasoning moved behind \"Why am I being asked?\" and the guidance behind \"How to decide\", both closed by default.\n\u00b7 The unresolved cross-reference no longer reads as an error. It now asks you to confirm the target, so the link connects by itself when that schedule is loaded.\n\nWHAT I WOULD VALUE YOUR EYES ON\n1. Is one type at a time the right call, or would you rather see the mix?\n2. Is there still a sentence on screen that is not pulling its weight?"
     },
     {
       "id": "note-crops",
       "x": -580,
-      "y": 620,
+      "y": 720,
       "w": 520,
       "page": "page-1",
       "text": "ABOUT THE PAGE IMAGES\nThe grey blocks standing in for page crops are placeholders, drawn here rather than pasted. The running app cuts the real image out of the PDF when the row loads.\n\nOne caveat that is expected for now: the fixture coordinates are invented, so a crop in the running app shows real ink from the real page but not the sentence beside it. That resolves itself the moment real pipeline output replaces the fixtures."
@@ -67,7 +76,7 @@
     {
       "id": "note-brand",
       "x": -580,
-      "y": 900,
+      "y": 1000,
       "w": 520,
       "page": "page-1",
       "text": "ON THE VISUAL STYLING\nNow built in the Whitespace product register from the brand memo: a neutral near-black ground, cards a step up from it, one flat action blue for anything you can act on, Inter for text and JetBrains Mono for references and page numbers. Status is a small pill, never a wash across a row.\n\nThe marketing lavender and the gradient appear only where the memo allows them: the soft glow in the corner behind the composer, and the connectors on the connections view. Nothing else borrows from the marketing look.\n\nBritish English throughout, sentence case on product labels."

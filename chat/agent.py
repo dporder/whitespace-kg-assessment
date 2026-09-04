@@ -344,21 +344,12 @@ def verify_citations(answer: str, runner: ToolRunner) -> list[Citation]:
                 status=status,
                 # a crop is offered only for a citation that actually checked out
                 crop_url=crop_url(path) if status == "ok" else None,
-                name=_name(path),
+                # taken from tool output like everything else: if no tool
+                # reported a name for this path, the answer does not get one
+                name=runner.ledger.names.get(path),
             )
         )
     return out
-
-
-def _name(path: str) -> str | None:
-    """How the agreement names this provision, for the reader-facing label."""
-    try:
-        from .naming import name_for_path
-        from .source import corpus
-
-        return name_for_path(corpus(), path)
-    except Exception:
-        return None
 
 
 def describe_backend() -> dict:

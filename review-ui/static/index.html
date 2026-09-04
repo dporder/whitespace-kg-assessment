@@ -16,7 +16,8 @@
     --action:#1f6feb; --border:#3e3f47; --divider:#5c5d64;
     --muted:#adafb7; --copy:#c8c8ca; --quiet:#8c8c8c; --link:#76b5fd;
     --person:#854aca; --teal:#30d3b1;
-    --ok:#00c758; --bad:#ff6568; --warn:#f99c00;
+    /* settled-positive is the memo's own pill green, not a derived one */
+    --ok:#2e9144; --bad:#ff6568; --warn:#f99c00;
   }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:#fff;
@@ -37,9 +38,9 @@
   input.rev:focus { outline:0; border-color:var(--action); }
 
   /* tabs with count badges, active marked by a blue underline */
-  .tabs { display:flex; gap:26px; border-bottom:1px solid rgba(255,255,255,.08); }
-  .tab { display:flex; align-items:center; gap:8px; padding:0 0 11px; cursor:pointer;
-         font-size:13px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs { display:flex; gap:30px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .tab { display:flex; align-items:center; gap:9px; padding:0 0 13px; cursor:pointer;
+         font-size:15px; font-weight:500; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
   .tab.on { color:#fff; border-bottom-color:var(--action); }
   .tab .b { min-width:22px; height:21px; border-radius:4px; background:rgba(255,255,255,.07);
             color:var(--muted); font-size:11px; display:flex; align-items:center;
@@ -53,8 +54,17 @@
 
   .card { background:var(--card); border:1px solid var(--border); border-radius:10px; }
 
-  .sechead { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-top:10px; }
-  .sectitle { font-size:18px; font-weight:600; letter-spacing:-.01em; }
+  .sechead { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-top:18px; }
+  .sectitle { font-size:30px; font-weight:600; letter-spacing:-.02em; }
+  .note { font-size:13px; line-height:1.6; color:#8fd6a4; }
+  details.why { margin-top:2px; }
+  details.why > summary { cursor:pointer; font-size:12px; color:var(--muted); list-style:none;
+                          display:inline-flex; align-items:center; gap:6px; }
+  details.why > summary::-webkit-details-marker { display:none; }
+  details.why > summary::before { content:'+'; font-family:'JetBrains Mono',monospace; }
+  details.why[open] > summary::before { content:'\2013'; }
+  .whybox { margin-top:8px; padding-left:14px; border-left:2px solid var(--border);
+            display:flex; flex-direction:column; gap:6px; }
   .count { font-size:11px; color:var(--quiet); }
   .secsum { font-size:13px; line-height:1.65; color:var(--muted); max-width:820px; }
   details.how > summary { cursor:pointer; font-size:12.5px; color:var(--link); list-style:none;
@@ -77,7 +87,7 @@
   .where { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--quiet); }
   .state { font-size:11px; font-weight:500; padding:3px 10px; border-radius:999px; }
   .state.open { color:var(--warn); background:rgba(249,156,0,.12); border:1px solid rgba(249,156,0,.4); }
-  .state.done { color:var(--ok); background:rgba(0,199,88,.12); border:1px solid rgba(0,199,88,.4); }
+  .state.done { color:#8fd6a4; background:rgba(46,145,68,.18); border:1px solid rgba(46,145,68,.5); }
 
   .split { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
   .evidence { width:300px; flex-shrink:0; display:flex; flex-direction:column; gap:7px; }
@@ -181,7 +191,7 @@
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
-let ROWS = [], COUNTS = {}, GUIDE = {}, CURSOR = 0, TERMPICK = {};
+let ROWS = [], COUNTS = {}, GUIDE = {}, CURSOR = 0, TERMPICK = {}, ACTIVE = 'ref';
 const ORDER = ['ref', 'term', 'anomaly'];
 const TONE = { ref: 'det', term: 'rule', anomaly: 'ink' };
 
@@ -204,55 +214,62 @@ function render() {
   const q = $('#queue'); q.replaceChildren();
   if (!ROWS.length) { q.append(el('div', 'empty', 'Nothing left to review.')); return; }
 
-  const tallies = $('#tallies'); tallies.replaceChildren();
-  let idx = 0;
-  ORDER.forEach(kind => {
+  // One review type at a time. Three kinds of judgement on one page was the
+  // thing that made this hard to read; the tabs make the switch explicit.
+  const present = ORDER.filter(k => ROWS.some(r => r.kind === k));
+  if (!present.includes(ACTIVE)) ACTIVE = present[0];
+
+  const tabs = $('#tabs'); tabs.replaceChildren();
+  present.forEach(kind => {
     const rows = ROWS.filter(r => r.kind === kind);
-    if (!rows.length) return;
-    const g = GUIDE[kind] || {};
     const open = rows.filter(r => !r.decided).length;
+    const t = el('div', 'tab' + (kind === ACTIVE ? ' on' : ''));
+    t.append(document.createTextNode((GUIDE[kind] || {}).title || kind),
+             el('span', 'b', String(open)));
+    t.onclick = () => { ACTIVE = kind; CURSOR = 0; render(); window.scrollTo({ top: 0 }); };
+    tabs.append(t);
+  });
 
-    const head = el('div', 'sechead'); head.id = 'sec-' + kind;
-    head.append(el('span', 'sectitle', `${rows.length} ${g.title || kind}`),
-                el('span', 'count', open ? `${open} still to answer` : 'all answered'));
-    q.append(head);
-    if (g.summary) q.append(el('div', 'secsum', g.summary));
+  const g = GUIDE[ACTIVE] || {};
+  const rows = ROWS.filter(r => r.kind === ACTIVE);
+  const open = rows.filter(r => !r.decided).length;
 
-    if (g.how) {
-      const det = el('details', 'how');
-      det.append(el('summary', null, 'How to decide'));
-      const box = el('div', 'howbox');
-      box.append(el('h4', null, 'How to decide'));
-      const ol = el('ol');
-      g.how.forEach(h => ol.append(el('li', null, h)));
-      box.append(ol);
-      if (g.why) box.append(el('div', 'why', g.why));
-      det.append(box);
-      q.append(det);
-    }
+  const head = el('div', 'sechead');
+  head.append(el('span', 'sectitle', g.title || ACTIVE),
+              el('span', 'count', open ? `${open} still to answer`
+                                       : `all ${rows.length} answered`));
+  q.append(head);
+  if (g.summary) q.append(el('div', 'secsum', g.summary));
 
-    rows.forEach(r => { q.append(rowCard(r, idx)); idx++; });
+  if (g.how) {
+    const det = el('details', 'how');
+    det.append(el('summary', null, 'How to decide'));
+    const box = el('div', 'howbox');
+    const ol = el('ol');
+    g.how.forEach(h => ol.append(el('li', null, h)));
+    box.append(ol);
+    if (g.why) box.append(el('div', 'why', g.why));
+    det.append(box);
+    q.append(det);
+  }
 
+  rows.forEach((r, i) => q.append(rowCard(r, i)));
+
+  const tallies = $('#tallies'); tallies.replaceChildren();
+  present.forEach(kind => {
+    const n = ROWS.filter(r => r.kind === kind && !r.decided).length;
     const t = el('div', 'tally');
-    t.append(el('span', 'explain', g.title || kind));
-    const v = el('span', 'v', String(open)); t.append(v);
-    t.firstChild.nextSibling.style.flexGrow = '1';
+    const label = el('span', 'explain', (GUIDE[kind] || {}).title || kind);
+    label.style.flexGrow = '1';
+    t.append(label, el('span', 'v', String(n)));
+    if (kind !== ACTIVE) t.style.opacity = '.55';
+    t.style.cursor = 'pointer';
+    t.onclick = () => { ACTIVE = kind; CURSOR = 0; render(); window.scrollTo({ top: 0 }); };
     tallies.append(t);
   });
 
-  const tabs = $('#tabs'); tabs.replaceChildren();
-  ORDER.forEach((kind, i) => {
-    const rows = ROWS.filter(r => r.kind === kind);
-    if (!rows.length) return;
-    const open = rows.filter(r => !r.decided).length;
-    const t = el('div', 'tab' + (i === 0 ? ' on' : ''));
-    t.append(document.createTextNode((GUIDE[kind] || {}).title || kind), el('span', 'b', String(open)));
-    t.onclick = () => { const n = document.getElementById('sec-' + kind); if (n) n.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('on')); t.classList.add('on'); };
-    tabs.append(t);
-  });
-  $('#kbd').textContent = 'J and K move · A accepts the first answer · N the last · 1 to 9 pick a listed answer';
-  setCursor(Math.min(CURSOR, ROWS.length - 1), false);
+  $('#kbd').textContent = 'J and K move · A accepts the first answer · N the last';
+  setCursor(Math.min(CURSOR, rows.length - 1), false);
 }
 
 function highlight(text, span) {
@@ -300,14 +317,7 @@ function rowCard(r, i) {
   split.append(ev);
 
   const dec = el('div', 'decide');
-  if (cp.situation) {
-    const s = el('div', 'situation');
-    s.innerHTML = '';
-    s.append(document.createTextNode(cp.situation));
-    dec.append(s);
-  }
   dec.append(highlight(r.sentence.text, r.sentence.span));
-  if (cp.explain) dec.append(el('div', 'explain', cp.explain));
 
   if (r.kind === 'term' && r.detail.governing_text) {
     const box = el('div', 'defbox');
@@ -321,6 +331,20 @@ function rowCard(r, i) {
   }
 
   if (cp.question) dec.append(el('div', 'question', cp.question));
+  if (cp.note) dec.append(el('div', 'note', cp.note));
+
+  // The reasoning is one click away rather than on the page: the question and
+  // the answers are what a reviewer needs, the rest is why they were asked.
+  if (cp.situation || cp.explain) {
+    const why = el('details', 'why');
+    why.append(el('summary', null, 'Why am I being asked?'));
+    const box = el('div', 'whybox');
+    if (cp.situation) box.append(el('div', 'explain', cp.situation));
+    if (cp.explain) box.append(el('div', 'explain', cp.explain));
+    if (cp.confidence_words) box.append(el('div', 'explain', cp.confidence_words));
+    why.append(box);
+    dec.append(why);
+  }
 
   if (r.kind === 'term' && (r.detail.term_options || []).length > 1) {
     const wrap = el('div');
@@ -359,7 +383,6 @@ function rowCard(r, i) {
   dec.append(answers);
 
   const foot = el('div', 'foot');
-  if (cp.confidence_words) foot.append(el('span', 'note', cp.confidence_words));
   if (cp.other_terms_hint) foot.append(el('span', 'note', cp.other_terms_hint));
   const sp2 = el('span'); sp2.style.flexGrow = '1'; foot.append(sp2);
   foot.append(techDetails(r));

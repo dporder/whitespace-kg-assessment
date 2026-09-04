@@ -58,6 +58,18 @@ RETURN d.text AS text
 ORDER BY d.order
 """
 
+Q_ANCESTORS = """
+MATCH (a:Node)-[:CONTAINS*0..]->(n:Node {path: $path})
+RETURN a.path AS path, a.kind AS kind, a.label AS label, a.title AS title,
+       a.unit_label AS unit_label, a.cell_role AS cell_role, a.col AS col, a.text AS text
+ORDER BY size(a.path)
+"""
+
+Q_DEFINITION_LABEL_CELL = """
+MATCH (c:Node {path: $path})
+RETURN c.text AS text
+"""
+
 Q_CHILDREN = """
 MATCH (n:Node {path: $path})-[:CONTAINS]->(c:Node)
 WHERE c.kind <> 'ref'
@@ -148,6 +160,26 @@ def _boxes(props: dict) -> list[dict]:
 
 class Neo4jBackend(ToolBackend):
     name = "neo4j"
+
+    def _human_name(self, path: str) -> str:
+        """The same naming rules the file backend serves, from graph reads only."""
+        from ..naming import compose, title_case_part
+
+        rows = self._read(Q_ANCESTORS, path=path)
+        if not rows:
+            return title_case_part(part_of(path))
+        node = rows[-1]
+        part_row = next((r for r in rows if r.get("kind") == "part"), None)
+        part_name = ((part_row or {}).get("title")) or title_case_part(part_of(path))
+        ancestors = [r for r in rows[:-1] if r.get("kind") != "part"]
+
+        label_cell_text = None
+        if node.get("kind") == "cell" and node.get("col") not in (None, 0):
+            parts = path.rsplit("/", 2)
+            if len(parts) == 3:
+                got = self._read(Q_DEFINITION_LABEL_CELL, path=f"{parts[0]}/{parts[1]}/0")
+                label_cell_text = got[0]["text"] if got else None
+        return compose(part_name, ancestors, node, label_cell_text)
 
     def __init__(self, driver=None):
         self._driver = driver
@@ -266,6 +298,7 @@ class Neo4jBackend(ToolBackend):
         return {
             "path": path,
             "found": True,
+            "name": self._human_name(path),
             "kind": props.get("kind"),
             "label": props.get("label"),
             "title": props.get("title"),
@@ -295,10 +328,13 @@ class Neo4jBackend(ToolBackend):
             r = dict(rec["r"])
             cands = [c for c in rec["candidates"] if c and c.get("path")]
             span = r.get("char_span")
+            target = r.get("target_path")
             rows.append(
                 {
                     "ref_path": r.get("path"),
                     "text": r.get("text"),
+                    "from_name": self._human_name(rec["from_path"]),
+                    "target_name": self._human_name(target) if target else None,
                     "ref_kind": r.get("ref_kind"),
                     "status": r.get("status"),
                     "target_path": r.get("target_path"),
@@ -341,6 +377,8 @@ class Neo4jBackend(ToolBackend):
                     "aliases": list(t.get("aliases") or []),
                     "pointer": d.get("pointer") or t.get("pointer"),
                     "definition_path": rec["definition_path"],
+                    "definition_name": (self._human_name(rec["definition_path"])
+                                        if rec["definition_path"] else None),
                     "definition_text": rec["definition_text"],
                     "page": rec["page"],
                 }

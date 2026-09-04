@@ -134,36 +134,65 @@ def ref_copy(c, ref, cands: list[dict]) -> dict:
     named = [cd for cd in cands if cd["loaded"]]
     unloaded = [cd for cd in cands if not cd["loaded"]]
 
+    note = None
     if len(cands) > 1:
         explain = (f"This document set contains more than one thing called {quoted}."
                    if ref.ref_kind in ("schedule", "annex", "part")
                    else f"More than one part of the agreement could be meant by {quoted}.")
         question = "Which one does the writer mean?"
+        answers = [
+            {"verdict": "target", "chosen_candidate": cd["path"],
+             "label": cd["name"], "sublabel": cd["meaning"], "kind": "candidate",
+             "loaded": cd["loaded"]}
+            for cd in cands
+        ]
+        answers.append({"verdict": "unresolvable", "kind": "other",
+                        "label": "None of these",
+                        "sublabel": "it points at something this document set does not contain"})
     elif unloaded:
-        explain = (f"It looks like {unloaded[0]['name']}, but that part has not been "
-                   "loaded into the system yet, so the pointer could not be followed.")
-        question = f"Is {unloaded[0]['name']} what the writer meant?"
+        # Not an error, and not a dead end: the reviewer is confirming the
+        # detection and the intended target so the link snaps into place the
+        # day that part is loaded.
+        target = unloaded[0]
+        explain = (f"{target['name']} is not in the system yet, so there is "
+                   "nothing to link it to today.")
+        question = f"Does this really point at {target['name']}?"
+        note = ("Confirming now means the link connects automatically when "
+                f"{target['name']} arrives.")
+        answers = [
+            {"verdict": "target", "chosen_candidate": target["path"],
+             "label": "Yes, that is the target", "sublabel": target["meaning"],
+             "kind": "candidate", "loaded": False},
+            {"verdict": "unresolvable", "kind": "other",
+             "label": "It points somewhere else",
+             "sublabel": "not at this, and not at anything else in this document set"},
+        ]
     elif named:
         explain = "The system found one possible target but could not confirm it."
-        question = f"Is {named[0]['name']} what the writer meant?"
+        question = f"Does this really point at {named[0]['name']}?"
+        answers = [
+            {"verdict": "target", "chosen_candidate": named[0]["path"],
+             "label": "Yes, that is the target", "sublabel": named[0]["meaning"],
+             "kind": "candidate", "loaded": True},
+            {"verdict": "unresolvable", "kind": "other",
+             "label": "It points somewhere else",
+             "sublabel": "not at this, and not at anything else in this document set"},
+        ]
     else:
-        explain = "Nothing in the loaded document set matches it."
+        explain = "Nothing in this document set matches it."
         question = "Does this point at something outside this document set?"
+        answers = [
+            {"verdict": "unresolvable", "kind": "primary",
+             "label": "Yes, it points outside this set",
+             "sublabel": "a real cross-reference with nothing here to link to"},
+        ]
 
-    answers = [
-        {"verdict": "target", "chosen_candidate": cd["path"],
-         "label": cd["name"], "sublabel": cd["meaning"], "kind": "candidate",
-         "loaded": cd["loaded"]}
-        for cd in cands
-    ]
-    answers.append({"verdict": "unresolvable", "kind": "other",
-                    "label": "None of these",
-                    "sublabel": "it points at something this document set does not contain"})
     answers.append({"verdict": "not_a_reference", "kind": "other",
                     "label": "It is not a cross-reference",
                     "sublabel": f"{quoted} is ordinary wording here"})
     return {"situation": situation, "explain": explain, "question": question,
-            "answers": answers, "confidence_words": _confidence_words(cands)}
+            "note": note, "answers": answers,
+            "confidence_words": _confidence_words(cands)}
 
 
 AMBIGUITY_WORDS = {
@@ -422,6 +451,7 @@ def term_rows(c) -> list[dict]:
                     "definition_used": use.definition_used,
                     "governing_scope": site.scope if site else None,
                     "governing_path": site_node.path if site_node else None,
+                    "governing_citation": human_citation(c, site_node) if site_node else None,
                     "governing_text": site_node.text if site_node else None,
                 },
             }

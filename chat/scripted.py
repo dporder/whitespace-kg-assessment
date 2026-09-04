@@ -37,7 +37,7 @@ IPR = {
             {"n": 1, "why": "independent lookups, nothing depends on the other",
              "queries": [
                  {"ask": "find the clause on ownership of New IPR", "tool": "find_provision"},
-                 {"ask": "define Central Buying Office", "tool": "define"},
+                 {"ask": "look up the defined terms the answer will use", "tool": "define"},
              ]},
             {"n": 2, "why": "needs the path batch 1 finds",
              "queries": [
@@ -52,9 +52,13 @@ IPR = {
         ],
     },
     "turns": [
-        {"text": "Finding the ownership clause and the governing definition. ",
+        # Every term the answer wraps as [[term:...]] is looked up here, because
+        # rule 2b only lets it wrap terms `define` actually returned.
+        {"text": "Finding the ownership clause and the governing definitions. ",
          "tools": [("find_provision", {"query": "New IPR ownership under a Contract"}),
-                   ("define", {"term": "Central Buying Office"})]},
+                   ("define", {"term": "Central Buying Office"}),
+                   ("define", {"term": "Provider"}),
+                   ("define", {"term": "Outputs"})]},
         {"text": "",
          "tools": [("get_provision", {"path": "core-terms/9/9.2"}),
                    ("follow_references", {"path": "core-terms/9/9.2", "direction": "outbound"}),

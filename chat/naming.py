@@ -54,44 +54,68 @@ def _definition_label_cell(c, node):
     return c.node(f"{parts[0]}/{parts[1]}/0")
 
 
+def compose(part_name: str, ancestors: list[dict], node: dict,
+            label_cell_text: str | None = None) -> str:
+    """The naming rules, over plain dicts.
+
+    Kept dict-shaped so both backends can serve it: the file backend adapts its
+    Node objects, the Neo4j backend passes the property maps it already reads.
+    `ancestors` runs from just below the part down to the node's parent.
+    """
+    kind = node.get("kind")
+    if kind == "part":
+        return part_name
+
+    # Cells and intros carry no number of their own, so name them by what they
+    # are rather than by the nearest numbered ancestor, which would read as if
+    # the whole clause were meant.
+    owner = next((a for a in reversed(ancestors) if a.get("label")), None)
+    if kind == "cell":
+        if label_cell_text:
+            return f"{part_name}, the definition of {label_cell_text.strip()}"
+        text = (node.get("text") or "").strip()
+        if node.get("col") == 0 and text.startswith('"'):
+            return f"{part_name}, the term {text}"
+        if owner is not None:
+            role = _CELL_ROLE_WORDS.get(node.get("cell_role") or "", "a cell")
+            noun = "row" if owner.get("kind") == "form_row" else (owner.get("unit_label") or "row")
+            return f"{part_name}, {noun} {owner['label']}, {role}"
+        return part_name
+    if kind == "intro" and owner is not None:
+        return f"{part_name}, {(owner.get('unit_label') or 'Clause')} {owner['label']}, opening words"
+
+    chain = [a for a in (ancestors + [node]) if a.get("label") and a.get("kind") != "part"]
+    if not chain:
+        return part_name
+
+    deepest = chain[-1]
+    unit = deepest.get("unit_label") or _KIND_UNITS.get(
+        deepest.get("kind"), str(deepest.get("kind", "")).capitalize())
+    if len(chain) > 1 and str(deepest["label"]).startswith("("):
+        parent = chain[-2]
+        punit = parent.get("unit_label") or "Clause"
+        return f"{part_name}, {punit} {parent['label']}, {unit.lower()} {deepest['label']}"
+    return f"{part_name}, {unit} {deepest['label']}"
+
+
+def _as_dict(n) -> dict:
+    return {"path": n.path, "kind": n.kind, "label": n.label, "title": n.title,
+            "unit_label": n.unit_label, "cell_role": n.cell_role, "col": n.col, "text": n.text}
+
+
 def human_citation(c, node) -> str:
     if node is None:
         return ""
     part_node = c.node(part_of(node.path))
     part_name = (part_node.title if part_node is not None and part_node.title
                  else title_case_part(part_of(node.path)))
-    if node.kind == "part":
-        return part_name
-
-    # Cells and intros carry no number of their own, so name them by what they
-    # are rather than by the nearest numbered ancestor, which would read as if
-    # the whole clause were meant.
-    owner = next((n for n in reversed(c.ancestors(node.path)) if n.label), None)
-    if node.kind == "cell":
-        label_cell = _definition_label_cell(c, node)
-        if label_cell is not None and label_cell.text:
-            return f"{part_name}, the definition of {label_cell.text.strip()}"
-        if node.col == 0 and node.text and node.text.strip().startswith('"'):
-            return f"{part_name}, the term {node.text.strip()}"
-        if owner is not None:
-            role = _CELL_ROLE_WORDS.get(node.cell_role or "", "a cell")
-            noun = "row" if owner.kind == "form_row" else (owner.unit_label or "row")
-            return f"{part_name}, {noun} {owner.label}, {role}"
-        return part_name
-    if node.kind == "intro" and owner is not None:
-        return f"{part_name}, {(owner.unit_label or 'Clause')} {owner.label}, opening words"
-
-    chain = [n for n in (c.ancestors(node.path) + [node]) if n.label and n.kind != "part"]
-    if not chain:
-        return part_name
-
-    deepest = chain[-1]
-    unit = deepest.unit_label or _KIND_UNITS.get(deepest.kind, deepest.kind.capitalize())
-    if len(chain) > 1 and deepest.label.startswith("("):
-        parent = chain[-2]
-        punit = parent.unit_label or "Clause"
-        return f"{part_name}, {punit} {parent.label}, {unit.lower()} {deepest.label}"
-    return f"{part_name}, {unit} {deepest.label}"
+    label_cell = _definition_label_cell(c, node) if node.kind == "cell" else None
+    return compose(
+        part_name,
+        [_as_dict(a) for a in c.ancestors(node.path) if a.kind != "part"],
+        _as_dict(node),
+        label_cell.text if label_cell is not None else None,
+    )
 
 
 def name_for_path(c, path: str) -> str:
