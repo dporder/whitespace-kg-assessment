@@ -1,11 +1,4 @@
-# RM6116 into a knowledge graph
-
-Dan Porder's submission for the Whitespace technical assessment, September 2026.
-
-A note on state. I went past the suggested time cap and the build is still landing, so this
-repo's history is live, with agents committing through the morning of the review. The commit
-log is the honest record of what exists at any moment, and how the agents were run is itself
-part of the submission.
+# RM6116 into a knowledge graph, a Scalable Approach
 
 ## Where to look
 
