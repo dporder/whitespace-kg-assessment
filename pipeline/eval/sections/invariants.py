@@ -24,6 +24,7 @@ harness's own GEOMETRY_EPS survives only for `extent_covers_own` and
 from __future__ import annotations
 
 import re
+from collections import Counter
 from typing import Any, Iterable, Optional
 
 import config
@@ -183,6 +184,24 @@ def extent_by_page(node: Node) -> dict[int, tuple]:
     return {b.page: tuple(b.bbox) for b in node.bboxes_extent}
 
 
+NO_OWN_INK = "no own ink; containment covered by extent_nests"
+
+
+def own_boxes_by_page(node: Node) -> dict[int, tuple]:
+    """Page -> the node's OWN box. Empty for a node that has no ink of its own.
+
+    SPEC 2.1: the own-box checks compare own ink only. A table, a form row or a
+    part holds no ink itself, only its children's, so it has no own edge to
+    compare and the pair is counted not examined rather than compared against
+    its extent. Falling back to the extent looks helpful and is not: the extent
+    is derived from the children, so `joint-schedule-1/1.4/table` reported a
+    left edge of 67.2 against its parent's 72.0, which is its own cells sticking
+    out to the left, not a mis-parented table. Whether a child's ink sits inside
+    its parent's is `extent_nests`'s question, and it is asked there.
+    """
+    return {b.page: tuple(b.bbox) for b in node.bboxes_own}
+
+
 def roman_to_int(text: str) -> Optional[int]:
     total, prev = 0, 0
     for ch in reversed(text):
@@ -280,7 +299,8 @@ def sibling_overlap_tolerance(prev_box: tuple, next_box: tuple) -> float:
 
 def check_tree(part: str, root: Node,
                ledger: Optional[AnomalyLedger] = None
-               ) -> tuple[list[Violation], dict[str, int], dict[str, int]]:
+               ) -> tuple[list[Violation], dict[str, int], dict[str, int],
+                          dict[str, Counter]]:
     """Every check over one part tree. Returns violations, per-check counts of
     what was actually examined, and per-check counts of what could not be.
 
@@ -292,6 +312,7 @@ def check_tree(part: str, root: Node,
     violations: list[Violation] = []
     checked: dict[str, int] = {k: 0 for k in CHECKS}
     skipped: dict[str, int] = {k: 0 for k in CHECKS}
+    skip_reasons: dict[str, Counter] = {k: Counter() for k in CHECKS}
     ledger = ledger if ledger is not None else AnomalyLedger()
 
     def add(check: str, node: Node, detail: str, against: Optional[Node] = None,
@@ -299,6 +320,12 @@ def check_tree(part: str, root: Node,
         violations.append(Violation(
             check, part, node.path, detail,
             ledger.claim(check, (node, against), follower)))
+
+    def not_examined(check: str, reason: str, count: int = 1) -> None:
+        """A pair the check could not look at, and why. Not a pass: a silent
+        skip and a clean result are different facts."""
+        skipped[check] += count
+        skip_reasons[check][reason] += count
 
     seen_order: list[int] = []
     for node in walk(root):
@@ -353,7 +380,7 @@ def check_tree(part: str, root: Node,
                     add("extent_covers_own", node,
                         f"own box {box} on page {page} escapes extent {node_extent[page]}")
         elif node.bboxes_own or node.bboxes_extent:
-            skipped["extent_covers_own"] += 1
+            not_examined("extent_covers_own", "node carries only one of own box and extent")
 
         for child in anatomy:
             child_box = boxes_by_page(child)
@@ -386,16 +413,21 @@ def check_tree(part: str, root: Node,
                     f"{node.page_start}-{node.page_end}", node)
 
             # -- child left edge ----------------------------------------------
-            shared = sorted(set(own) & set(child_box))
-            if shared:
-                checked["child_left_edge"] += 1
-                page = shared[0]
-                if child_box[page][0] < own[page][0] - INDENT_TOLERANCE:
-                    add("child_left_edge", child,
-                        f"left edge {child_box[page][0]:.1f} is left of parent's "
-                        f"{own[page][0]:.1f} on page {page}", node)
+            # Own ink on both sides, never an extent. See own_boxes_by_page.
+            own_ink, child_ink = own_boxes_by_page(node), own_boxes_by_page(child)
+            if not own_ink or not child_ink:
+                not_examined("child_left_edge", NO_OWN_INK)
             else:
-                skipped["child_left_edge"] += 1
+                shared = sorted(set(own_ink) & set(child_ink))
+                if not shared:
+                    not_examined("child_left_edge", "parent and child share no page")
+                else:
+                    checked["child_left_edge"] += 1
+                    page = shared[0]
+                    if child_ink[page][0] < own_ink[page][0] - INDENT_TOLERANCE:
+                        add("child_left_edge", child,
+                            f"left edge {child_ink[page][0]:.1f} is left of parent's "
+                            f"{own_ink[page][0]:.1f} on page {page}", node)
 
             # -- extent nests --------------------------------------------------
             if child_extent and node_extent:
@@ -409,27 +441,29 @@ def check_tree(part: str, root: Node,
                             f"extent {box} on page {page} escapes parent extent "
                             f"{node_extent[page]}", node)
             else:
-                skipped["extent_nests"] += 1
+                not_examined("extent_nests", "parent or child has no extent")
 
         # -- own box above first child ------------------------------------------
+        # The other own-box check: own ink on both sides or no comparison.
         if anatomy:
             first = anatomy[0]
-            first_box = boxes_by_page(first)
-            if own and first_box:
+            own_ink = own_boxes_by_page(node)
+            first_ink = own_boxes_by_page(first)
+            if not own_ink or not first_ink:
+                not_examined("own_box_above_first_child", NO_OWN_INK)
+            else:
                 checked["own_box_above_first_child"] += 1
-                own_first_page = min(own)
-                child_first_page = min(first_box)
+                own_first_page = min(own_ink)
+                child_first_page = min(first_ink)
                 if child_first_page < own_first_page:
                     add("own_box_above_first_child", node,
                         f"first child starts on page {child_first_page}, before the "
                         f"node's own page {own_first_page}", first)
                 elif child_first_page == own_first_page and \
-                        first_box[child_first_page][1] < own[own_first_page][1] - VERTICAL_TOLERANCE:
+                        first_ink[child_first_page][1] < own_ink[own_first_page][1] - VERTICAL_TOLERANCE:
                     add("own_box_above_first_child", node,
-                        f"own box top {own[own_first_page][1]:.1f} is below first child's "
-                        f"{first_box[child_first_page][1]:.1f}", first)
-            else:
-                skipped["own_box_above_first_child"] += 1
+                        f"own box top {own_ink[own_first_page][1]:.1f} is below first "
+                        f"child's {first_ink[child_first_page][1]:.1f}", first)
 
         # -- sibling reading order and overlap -----------------------------------
         # Two checks, not one: SPEC 2.1 pins `siblings_ascend` (a sibling out of
@@ -439,8 +473,8 @@ def check_tree(part: str, root: Node,
         for prev, nxt in zip(anatomy, anatomy[1:]):
             pb, nb = boxes_by_page(prev), boxes_by_page(nxt)
             if not pb or not nb:
-                skipped["siblings_ascend"] += 1
-                skipped["sibling_overlap"] += 1
+                not_examined("siblings_ascend", "a sibling has no box at all")
+                not_examined("sibling_overlap", "a sibling has no box at all")
                 continue
             checked["siblings_ascend"] += 1
             p_page, n_page = max(pb), min(nb)
@@ -479,13 +513,16 @@ def check_tree(part: str, root: Node,
         if len(labelled) >= 2:
             mode = numbering_mode([c.label for c in labelled])
             if mode is None:
-                skipped["numbering_gap"] += len(labelled) - 1
+                not_examined("numbering_gap",
+                             "sibling labels use no recognised numbering system",
+                             len(labelled) - 1)
             else:
                 for prev, nxt in zip(labelled, labelled[1:]):
                     a = label_sequence_value(prev.label, mode)
                     b = label_sequence_value(nxt.label, mode)
                     if a is None or b is None:
-                        skipped["numbering_gap"] += 1
+                        not_examined("numbering_gap", "a sibling label does not parse "
+                                     "in the group's numbering system")
                         continue
                     checked["numbering_gap"] += 1
                     if b != a + 1:
@@ -507,7 +544,7 @@ def check_tree(part: str, root: Node,
             f"order descends in preorder at position {first_bad} "
             f"({seen_order[first_bad - 1]} then {seen_order[first_bad]})",
             ledger.claim("order_preorder", (root,))))
-    return violations, checked, skipped
+    return violations, checked, skipped, skip_reasons
 
 
 def check_ref_spans(ctx: Context,
@@ -676,17 +713,22 @@ def build(ctx: Context) -> Section:
     all_violations: list[Violation] = []
     checked: dict[str, int] = {k: 0 for k in CHECKS}
     skipped: dict[str, int] = {k: 0 for k in CHECKS}
+    skip_reasons: dict[str, Counter] = {k: Counter() for k in CHECKS}
     for part in sorted(ctx.inputs.trees):
-        v, c, sk = check_tree(part, ctx.inputs.trees[part], ledger)
+        v, c, sk, why = check_tree(part, ctx.inputs.trees[part], ledger)
         all_violations.extend(v)
         for k in CHECKS:
             checked[k] += c.get(k, 0)
             skipped[k] += sk.get(k, 0)
+            skip_reasons[k].update(why.get(k, {}))
 
     ref_v, ref_checked, ref_skipped = check_ref_spans(ctx, ledger)
     all_violations.extend(ref_v)
     checked["ref_span_integrity"] += ref_checked
     skipped["ref_span_integrity"] += ref_skipped
+    if ref_skipped:
+        skip_reasons["ref_span_integrity"]["ref parent missing, textless, or unspanned"] \
+            += ref_skipped
 
     unexplained = [v for v in all_violations if not v.explained_by]
     explained = [v for v in all_violations if v.explained_by]
@@ -710,6 +752,7 @@ def build(ctx: Context) -> Section:
         check_rows.append({
             "check": check, "description": description,
             "examined": checked[check], "not_examined": skipped[check],
+            "not_examined_reasons": dict(skip_reasons[check].most_common()),
             "violations": len(hits),
             "unexplained": len([v for v in hits if not v.explained_by]),
             "pass": not [v for v in hits if not v.explained_by],
@@ -772,6 +815,14 @@ def build(ctx: Context) -> Section:
             [[r["check"], r["description"], r["examined"], r["not_examined"],
               r["violations"], r["unexplained"], "yes" if r["pass"] else "**NO**"]
              for r in check_rows])
+    not_looked_at = [(check, reason, n) for check in CHECKS
+                     for reason, n in skip_reasons[check].most_common()]
+    if not_looked_at:
+        s.line()
+        s.line("**Not examined**, and why. A pair the harness could not look at is "
+               "not a pair that passed.")
+        s.table(["check", "reason", "pairs"],
+                [[c, r, n] for c, r, n in not_looked_at])
     if all_violations:
         s.line()
         s.line("**Locations**")
