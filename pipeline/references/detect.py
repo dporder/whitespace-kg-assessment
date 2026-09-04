@@ -162,9 +162,17 @@ def _pointers_for(node: Node, citation: grammar.Citation, part: str,
             else:
                 pointer.number = None
         if member.expanded:
+            # SPEC 2.2: an implied interior member anchors to the whole range
+            # phrase, the only ink that names it, and the implication is
+            # recorded. Without this a reviewer, the audit judge and the UI all
+            # see a ref whose span overlaps its siblings' and cannot tell an
+            # expected overlap from a real span defect.
             pointer.notes = pointer.notes + [
-                f"range_member_without_own_characters: {member.number} was expanded "
-                f"from the series, JS1 1.3.10"]
+                f"implied_range_member: {member.number} has no printed characters of "
+                f"its own, so it anchors to {pointer.text!r}, the phrase that implies "
+                f"it; overlap with its printed siblings' anchors is expected here "
+                f"rather than a span defect, and the path ordinal keeps its id "
+                f"distinct (JS1 1.3.10, series are inclusive)"]
         out.append(pointer)
     return out
 

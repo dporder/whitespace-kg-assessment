@@ -489,20 +489,24 @@ def test_a_sweep_spares_edge_types_this_load_could_not_produce(graph, small_tree
     graph.also_rollback(complete)
     graph.also_rollback(partial)
 
+    def term_edges() -> int:
+        """This test's own term edges. The database is shared by every
+        worktree, so a global count is whatever someone else last loaded."""
+        return graph.read(
+            "MATCH (s:Node)-[u:USES_TERM]->(:Term) WHERE s.path STARTS WITH $p "
+            "RETURN count(u) AS n", p=part_id)[0]["n"]
+
     # a complete load: tree, refs and vocabulary
     load(graph, small_tree, small_refs, complete, sites, uses)
-    term_edges = graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
-                            )[0]["n"]
-    assert term_edges == 2, "the complete load did not write its term edges"
+    assert term_edges() == 2, "the complete load did not write its term edges"
 
     # a later load of the same scope whose run directory has no vocabulary
     rows = load(graph, small_tree, small_refs, partial)
     graph.sweep([part_id], partial, load_id=rows.load_id,
                 skip_types=["USES_TERM", "DEFINED_IN", "DEFINED_USING"])
 
-    survived = graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
-                          )[0]["n"]
-    assert survived == 2, "a load with no vocabulary deleted the term edges anyway"
+    assert term_edges() == 2, \
+        "a load with no vocabulary deleted the term edges anyway"
 
 
 def test_a_sweep_still_removes_a_type_this_load_does_produce(graph, small_tree,
@@ -516,13 +520,16 @@ def test_a_sweep_still_removes_a_type_this_load_does_produce(graph, small_tree,
     graph.also_rollback(first)
     graph.also_rollback(second)
 
+    def term_edges() -> int:
+        return graph.read(
+            "MATCH (s:Node)-[u:USES_TERM]->(:Term) WHERE s.path STARTS WITH $p "
+            "RETURN count(u) AS n", p=part_id)[0]["n"]
+
     load(graph, small_tree, small_refs, first, sites, uses)
-    assert graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
-                      )[0]["n"] == 2
+    assert term_edges() == 2
 
     # this load HAS vocabulary, and asserts only one of the two uses
     rows = load(graph, small_tree, small_refs, second, sites, uses[:1])
     graph.sweep([part_id], second, load_id=rows.load_id, skip_types=[])
 
-    assert graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
-                      )[0]["n"] == 1, "the use this load dropped was not swept"
+    assert term_edges() == 1, "the use this load dropped was not swept"

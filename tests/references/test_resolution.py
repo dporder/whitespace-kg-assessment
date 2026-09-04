@@ -529,3 +529,108 @@ def test_an_annex_citation_never_lands_on_a_paragraph(doc_id, version, identity)
     assert annex_2.target_path is None
     assert annex_2.target_path != f"{pid}/2"
     assert any("names no such division" in a for a in annex_2.anomalies)
+
+
+def test_an_implied_range_member_records_its_implication(doc_id, version, identity):
+    """SPEC 2.2, the audit's last find. "15.3" in "15.2 to 15.4" has no printed
+    characters, so it anchors to the phrase that implies it and its span
+    overlaps its printed siblings'. That is correct and must be recorded, or a
+    reviewer, the audit judge and the UI cannot tell an expected overlap from a
+    real span defect. The endpoints keep their own characters and are untouched.
+    """
+    from pipeline.references.corpus import Corpus
+    from pipeline.schemas import Node, content_hash, lineage_key, node_id
+
+    def node(path, kind, **kw):
+        text = kw.pop("text", None)
+        return Node(id=node_id(doc_id, version, path),
+                    lineage_key=lineage_key(doc_id, path),
+                    content_hash=content_hash(text) if text else None,
+                    path=path, kind=kind, text=text, page_start=1, page_end=1, **kw)
+
+    targets = [node(f"core-terms/15/15.{n}", "subclause", label=f"15.{n}", order=n,
+                    text=f"Provision 15.{n}.") for n in (2, 3, 4)]
+    head = node("core-terms/15", "heading", label="15", title="Exit", order=1,
+                children=targets)
+    citing = node("core-terms/15/15.1", "clause", label="15.1", order=0,
+                  text="Subject to Clauses 15.2 to 15.4, the Supplier must exit.")
+    tree = node("core-terms", "part", order=0, children=[citing, head],
+                title="Core Terms", part_family="core", unit_label="Clause",
+                batch_id="B1")
+
+    corpus = Corpus.from_trees({"core-terms": tree})
+    refs = resolved_refs("core-terms", tree, corpus, identity)
+    members = [r for group in refs.values() for r in group if r.group_id]
+    assert len(members) == 3, "the range did not expand to three members"
+
+    by_target = {r.target_path: r for r in members}
+    implied = by_target["core-terms/15/15.3"]
+    printed = [by_target["core-terms/15/15.2"], by_target["core-terms/15/15.4"]]
+
+    # the implication is recorded
+    assert any(a.startswith("implied_range_member:") for a in implied.anomalies)
+    note = next(a for a in implied.anomalies if a.startswith("implied_range_member:"))
+    assert "no printed characters of its own" in note
+    assert "expected here" in note, "the note must say the overlap is expected"
+
+    # it anchors to the phrase, and the ordinal keeps its path distinct
+    assert implied.text == "15.2 to 15.4"
+    assert implied.path.endswith("+1"), "the same-span ordinal did not fire"
+    assert len({r.path for r in members}) == 3
+    assert len({r.id for r in members}) == 3, "two range members collided on one id"
+
+    # the printed endpoints are untouched: own characters, no ordinal, no note
+    assert [r.text for r in printed] == ["15.2", "15.4"]
+    for r in printed:
+        assert "+" not in r.path
+        assert not any(a.startswith("implied_range_member") for a in r.anomalies)
+        start, end = r.char_span
+        assert citing.text[start:end] == r.text
+
+    # the implied member's span is the phrase, overlapping both siblings
+    start, end = implied.char_span
+    assert citing.text[start:end] == "15.2 to 15.4"
+    for r in printed:
+        assert start <= r.char_span[0] and r.char_span[1] <= end
+
+
+def test_several_implied_members_stay_distinct(doc_id, version, identity):
+    """"27 to 32" implies four members that share one span, so the ordinal is
+    the only thing keeping them apart."""
+    from pipeline.references.corpus import Corpus
+    from pipeline.schemas import Node, content_hash, lineage_key, node_id
+
+    def node(path, kind, **kw):
+        text = kw.pop("text", None)
+        return Node(id=node_id(doc_id, version, path),
+                    lineage_key=lineage_key(doc_id, path),
+                    content_hash=content_hash(text) if text else None,
+                    path=path, kind=kind, text=text, page_start=1, page_end=1, **kw)
+
+    heads = [node(f"core-terms/{n}", "heading", label=str(n), title=f"Clause {n}",
+                  order=n, text=None,
+                  children=[node(f"core-terms/{n}/{n}.1", "clause", label=f"{n}.1",
+                                 order=n * 10, text="x.")])
+             for n in range(27, 33)]
+    citing = node("core-terms/12/12.3", "clause", label="12.3", order=0,
+                  text="A Default of Clauses 27 to 32 applies.")
+    twelve = node("core-terms/12", "heading", label="12", title="Default", order=1,
+                  children=[citing])
+    tree = node("core-terms", "part", order=0, children=[twelve, *heads],
+                title="Core Terms", part_family="core", unit_label="Clause",
+                batch_id="B1")
+
+    corpus = Corpus.from_trees({"core-terms": tree})
+    refs = resolved_refs("core-terms", tree, corpus, identity)
+    members = [r for group in refs.values() for r in group if r.group_id]
+
+    assert len(members) == 6, "27 to 32 should expand to six members"
+    implied = [r for r in members if "+" in r.path]
+    assert len(implied) == 4, "28, 29, 30 and 31 are all implied"
+    assert len({r.path for r in implied}) == 4
+    assert len({r.id for r in implied}) == 4, "implied members collided on one id"
+    assert {r.char_span for r in implied} == {implied[0].char_span}, \
+        "all four share the phrase span, which is why the ordinal is needed"
+    assert sorted(r.path.rsplit("+", 1)[1] for r in implied) == ["1", "2", "3", "4"]
+    assert all(any(a.startswith("implied_range_member:") for a in r.anomalies)
+               for r in implied)
