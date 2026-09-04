@@ -92,6 +92,42 @@ kept as arbitration, licence confirmed per checkpoint. Its note that the 40-samp
 certify a model switch (Wilson interval wider than the gate) is worth carrying into any future
 tuning of `AUDIT.confident_term_sample_size`.
 
+## 4. Stage 8 eval harness (eval-builder, three rounds, merged)
+
+**Round 1.** Harness landed complete: ten SPEC 2.6 sections over fixtures, gates with exit codes,
+no clock anywhere (an inputs fingerprint instead). Its first run caught two defects in my own
+fixtures, an unexplained excerpt numbering gap and a term used but never defined. Both fixed on
+master. It also settled the 46-versus-48 question two ways: the notes' own table and the PDF's
+embedded outline both say 48, the prose's 46 is the odd one out.
+
+**Tester gate, failed correctly.** Two branch tests encoded the pre-fix fixture state; the tester
+proved causation by bisecting fixtures rather than inferring. Sent back; the builder re-baselined,
+made the dangling-use check seed its own condition rather than depend on a broken fixture, and
+replaced a determinism test that described byte-identity without checking it with a real cold-run
+byte comparison.
+
+**Adversarial review, three blockers, all proven with executed probes.** A recorded anomaly
+granted blanket amnesty (prefix match on node, sibling, or parent) so a parser silently dropping a
+clause passed the zero-tolerance structural gate; the abstention gate published a bare int and
+passed green when zero unresolvables were labelled; an omitted chosen_candidate scored refs as
+parser failures and graded terms against the pipeline's own answer. Plus a duplicate rate that
+could exceed 1.0 (pairs summed into a member count), outline agreement double-counting, a
+fingerprint that omitted the artifacts two sections diff against, and an unbounded
+simple_cycles enumeration that would hang on the real JS1 vocabulary.
+
+**My rulings.** Anomaly explanation semantics: only on the two nodes a check compared, one anomaly
+explains one violation, and an anomaly naming a different follower than observed does not match.
+Abstention as a Rate over golden unresolvables so no-data flows to skipped, never pass.
+chosen_candidate required exactly where the format says, malformed otherwise, never defaulted to
+pipeline output. Union-find for duplicate clusters. Cycle enumeration capped per SCC with honest
+disclosure. Accepted two builder judgement calls: anomaly_index required for node-anomaly verdicts
+only (triage rows key on their queue id), and default scope inferred from the output's own batch
+ids when unambiguous.
+
+**Merged after my own gate run**, not the builder's word: 127 tests green and the CLI at exit 0 on
+the integrated state in a scratch worktree, and the amnesty regression test read line by line to
+confirm it encodes the reviewer's probe rather than a tautology.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
