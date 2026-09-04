@@ -63,3 +63,32 @@ plus one validator enforcing the per-kind table, not a pydantic union of twelve 
 schema, one walker, one id scheme is the stated point of the design; the discrimination lives in
 the rules.
 
+## 3. Research memo on NER model selection (build session)
+
+**Agent.** Researcher, primary sources only, no code, told to end with a shortlist and a deciding
+experiment built on the labels this repo actually accumulates.
+
+**What it did well.** It reframed the problem before comparing models: with a closed authoritative
+vocabulary this is disambiguation plus recovery, not open-vocabulary NER, and it grounded that in
+the shipped GLiNER checkpoint config rather than the paper. Two findings materially change the
+plan. First, `golden/decisions.jsonl` structurally cannot measure recall, every row descends from
+matcher output, so the deciding experiment now starts with roughly ten blind-annotated pages to
+mint the missing denominator. Second, GLiNER's flat decoder is greedy-by-confidence, not
+longest-match, so the spec's determinism guarantee would have to be re-imposed in post-processing
+whatever model wins. It also caught its own near-miss: a search snippet implied gazetteer features
+give +28.8 F1, the fetched paper says +0.52, and the memo carries the verified number.
+
+**What I verified before accepting.** The two load-bearing claims, checked against the primary
+sources directly, not the agent's word: the `gliner_medium-v2.1` config does carry
+`max_types: 25`, `max_len: 384`, `max_width: 12` and backbone `microsoft/deberta-v3-base` (which
+is what makes the DeBERTa control arm clean), and the Legal-BERT card does state cc-by-sa-4.0,
+uncased, US contracts from SEC EDGAR with UK material being legislation. Both hold exactly. Repo
+hygiene also checked: only the memo file created, no em dashes, unverified claims flagged in
+their own section rather than smoothed over.
+
+**Accepted.** Recommendation adopted for the design surface: no replacement plan, a zero-shot
+recall net beside the deterministic matcher, single entity type with string linking, longest-match
+kept as arbitration, licence confirmed per checkpoint. Its note that the 40-sample audit cannot
+certify a model switch (Wilson interval wider than the gate) is worth carrying into any future
+tuning of `AUDIT.confident_term_sample_size`.
+
