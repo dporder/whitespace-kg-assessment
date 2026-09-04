@@ -123,6 +123,37 @@ def test_the_call_reaches_the_llm_log(real_llm, tmp_path):
     assert LLM_TASK in json.dumps(body) or LLM_TASK in records[0].name
 
 
+def test_the_log_lands_under_the_run_being_reported_on(real_llm, tmp_path):
+    """Root cause of the empty log: llm.py logs to its own default run unless
+    told otherwise, so the judge's calls went somewhere other than the run the
+    report was about."""
+    if not hasattr(llm, "log_dir"):
+        pytest.skip("pipeline.llm exposes no log_dir")
+    llm.set_run_dir(tmp_path / "somewhere-else")
+    llm.set_client(FakeSDK(answering()))
+
+    eval_dir = tmp_path / "output" / "current" / "eval"
+    _run_checker(items(2), eval_dir)
+
+    assert llm.log_dir().parent == eval_dir.parent
+    assert list(llm.log_dir().glob("**/*.json")), "logged under the reported run"
+
+
+def test_a_single_element_array_in_prose_still_scores(real_llm, tmp_path):
+    """llm.py's parse_json looks for an object before an array, so a
+    one-element array wrapped in prose comes back as the inner dict. Every
+    sample whose size is not a round multiple of the batch ends in a batch like
+    this, so losing it would silently drop the tail of most audits."""
+    assert isinstance(llm.parse_json(
+        'Prose.\n```json\n[{"i": 0, "agree": true, "why": "ok"}]\n```\nMore prose.'),
+        dict), "pinning the upstream behaviour this tolerates"
+
+    llm.set_client(FakeSDK(answering(lambda body: f"Prose.\n```json\n{body}\n```\nMore.")))
+    verdicts, note, _diag = _run_checker(items(1), tmp_path / "eval")
+    assert verdicts is not None, note
+    assert len(verdicts) == 1
+
+
 def test_the_task_selects_the_judge_model_from_config(real_llm, tmp_path):
     import config
     sdk = FakeSDK(answering())

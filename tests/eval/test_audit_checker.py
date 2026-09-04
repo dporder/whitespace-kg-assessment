@@ -57,11 +57,24 @@ def answers_the_batch(wrapper=lambda body: body, agree=True):
     return reply
 
 
+def _install(monkeypatch, module):
+    """Stand the fake in for `pipeline.llm`.
+
+    Both places, deliberately. Once the real module has been imported by
+    another test, `from pipeline import llm` resolves the attribute on the
+    package and never looks at sys.modules, so patching only sys.modules leaves
+    these tests passing alone and failing in a full run.
+    """
+    import pipeline
+    monkeypatch.setitem(sys.modules, "pipeline.llm", module)
+    monkeypatch.setattr(pipeline, "llm", module, raising=False)
+    return module
+
+
 @pytest.fixture
 def install_llm(monkeypatch):
     def install(module):
-        monkeypatch.setitem(sys.modules, "pipeline.llm", module)
-        return module
+        return _install(monkeypatch, module)
     return install
 
 
@@ -182,14 +195,14 @@ def test_an_unavailable_checker_stops_early_rather_than_retrying_every_batch(
 # --------------------------------------------------------- section reporting
 
 def audit_section(workspace, replies, monkeypatch):
-    monkeypatch.setitem(sys.modules, "pipeline.llm", FakeLLM(replies))
+    _install(monkeypatch, FakeLLM(replies))
     return workspace.run("--run", "audited", use_llm=True)
 
 
 def test_the_section_is_measured_when_every_item_scores(workspace, monkeypatch):
     """The live run reported no_data on a sample it had drawn correctly. With
     the reply parsed, the same sample scores and the gate has a number."""
-    monkeypatch.setitem(sys.modules, "pipeline.llm", FakeLLM(
+    _install(monkeypatch, FakeLLM(
         [answers_the_batch(lambda body: f"Here you go:\n```json\n{body}\n```")]))
     run = workspace.run("--run", "audited", use_llm=True)
     section = run.section("stratified_audit")
@@ -214,8 +227,8 @@ def test_a_checker_answering_the_same_item_twice_gets_one_vote(install_llm, tmp_
 
 def test_a_partly_unparseable_audit_is_partial_with_counts_not_no_data(
         workspace, monkeypatch):
-    monkeypatch.setitem(sys.modules, "pipeline.llm",
-                        FakeLLM([verdicts_json(0, 10), ""]))
+    _install(monkeypatch,
+             FakeLLM([verdicts_json(0, 10), ""]))
     run = workspace.run("--run", "audited", use_llm=True)
     section = run.section("stratified_audit")
 
@@ -228,7 +241,7 @@ def test_a_partly_unparseable_audit_is_partial_with_counts_not_no_data(
 
 def test_a_wholly_unparseable_audit_stays_no_data_and_never_fails_the_gate(
         workspace, monkeypatch):
-    monkeypatch.setitem(sys.modules, "pipeline.llm", FakeLLM(["not json at all"]))
+    _install(monkeypatch, FakeLLM(["not json at all"]))
     run = workspace.run("--run", "audited", use_llm=True)
 
     assert run.section("stratified_audit")["status"] == "no_data"

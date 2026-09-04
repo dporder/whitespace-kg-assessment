@@ -227,6 +227,16 @@ def _run_checker(items: list[dict[str, Any]],
     parse = parser if callable(parser) else tolerant_json
     unavailable = getattr(llm, "LLMUnavailable", None)
 
+    # Put the judge's calls in this run's log. Without this llm.py logs to its
+    # own default run, so a judge that ran leaves nothing under the run being
+    # reported on and nobody can tell whether the call was made at all. That is
+    # what an empty output/<run>/llm_log looked like from the outside.
+    if eval_dir is not None and callable(getattr(llm, "set_run_dir", None)):
+        try:
+            diagnostics["llm_log_dir"] = str(llm.set_run_dir(eval_dir.parent))
+        except Exception as exc:                          # noqa: BLE001
+            diagnostics["llm_log_dir"] = f"could not be set: {type(exc).__name__}: {exc}"
+
     verdicts: list[dict] = []
     scored_any = False
     for start in range(0, len(items), AUDIT_BATCH_SIZE):
@@ -239,6 +249,13 @@ def _run_checker(items: list[dict[str, Any]],
         try:
             raw = _call_llm(llm, _prompt_for(batch, start), budget)
             parsed = parse(raw)
+            # A lone verdict object is a one-item list. Worth accepting on its
+            # own merits, and it also absorbs a parser that looks for an object
+            # before an array: llm.py's parse_json returns the inner dict for a
+            # single-element array wrapped in prose, which would otherwise lose
+            # the last batch of every sample whose size is not a round multiple.
+            if isinstance(parsed, dict) and "agree" in parsed:
+                parsed = [parsed]
             if not isinstance(parsed, list):
                 raise ValueError(f"checker returned {type(parsed).__name__}, not a list")
             verdicts.extend(v for v in parsed if isinstance(v, dict))
