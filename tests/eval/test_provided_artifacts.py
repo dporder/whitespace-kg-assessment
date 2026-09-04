@@ -7,6 +7,8 @@ document's numbers skip when the assignment is not present.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import config
@@ -135,3 +137,36 @@ def test_a_missing_pdf_is_reported_rather_than_raising(tmp_path):
     assert outline.state == "absent"
     assert outline.error == "PDF not found at config.PDF"
     assert outline.entries == []
+
+
+# ------------------------------------------------- containment, SPEC section 4
+
+PROVIDED_ARTIFACT_MARKERS = (
+    "get_toc",                    # the embedded outline
+    "DOCUMENT_NOTES",             # the notes' page map
+    "load_page_map",
+    "load_outline",
+    "eval.provided",
+)
+
+
+def test_no_stage_outside_eval_touches_the_provided_artifacts():
+    """SPEC section 4: "The embedded outline (498 entries) and the notes' page
+    map are stage 8 cross checks only. Importing them into stages 0 to 7 is a
+    spec violation."
+
+    Trivially true today, because stages 0 to 7 do not exist yet. It is here so
+    that it stops being trivially true the moment one of them lands and reaches
+    for the answer sheet.
+    """
+    pipeline_dir = Path(provided.__file__).resolve().parent.parent
+    offenders = []
+    for path in sorted(pipeline_dir.rglob("*.py")):
+        if "eval" in path.relative_to(pipeline_dir).parts:
+            continue
+        text = path.read_text()
+        for marker in PROVIDED_ARTIFACT_MARKERS:
+            if marker in text:
+                offenders.append(f"{path.relative_to(pipeline_dir)} mentions {marker!r}")
+    assert offenders == [], (
+        "a stage outside pipeline/eval reaches for a provided artifact: " + "; ".join(offenders))
