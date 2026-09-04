@@ -17,11 +17,12 @@ migration (DESIGN stage 6).
 rerun over unchanged text costs nothing, and the store is shared across runs. It
 sits beside the run directories rather than inside one for exactly that reason.
 
-**Blocked is not zero.** The OpenAI key in this environment has no credit
-tonight, so `embed` returns a result that says which vectors it has and which it
-does not, and the caller writes the missing ones into `pending.json` with the
-reason. Nothing invents a vector, and no `EmbeddingRecord` is emitted with a
-`vector_ref` pointing at a file that does not exist.
+**Blocked is not zero.** When a key is missing, refused or out of credit,
+`embed` returns a result that says which vectors it has and which it does not,
+and the caller writes the missing ones into `pending.json` with the reason.
+Nothing invents a vector, and no `EmbeddingRecord` is emitted with a
+`vector_ref` pointing at a file that does not exist, so one rerun completes the
+work when access returns.
 """
 from __future__ import annotations
 

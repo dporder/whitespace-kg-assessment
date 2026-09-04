@@ -109,6 +109,27 @@ def test_a_concept_with_no_valid_member_is_not_proposed(two_part_trees, tmp_path
     assert [c for r in results for c in r.proposed] == []
 
 
+def test_the_relation_field_is_a_verb_and_label_is_accepted_as_a_synonym(
+        two_part_trees, tmp_path, monkeypatch):
+    """The prompt asks for `relation`; live Sonnet 5 output used `label` and put
+    the source concept's own name in it. Parsing accepts both keys, and
+    resolve.py is what rejects a verb that is really a concept label."""
+    install_llm(monkeypatch, FakeClaude(json.dumps({"concepts": [
+        {"label": "a", "confidence": 0.5, "provisions": ["clauses/1/1.1"],
+         "relations": [{"relation": "depends_on", "to": "b"},
+                       {"label": "constrains", "to": "c"},
+                       {"to": "d"}]}]})))
+    results = scan_mod.scan(two_part_trees, runner(tmp_path))
+    relations = [r for x in results for c in x.proposed for r in c.relations]
+    assert {(r["relation"], r["to"]) for r in relations} == \
+        {("depends_on", "b"), ("constrains", "c")}
+
+
+def test_the_prompt_says_a_relation_is_a_verb_not_a_concept_label():
+    assert "VERB PHRASE" in scan_mod.PROMPT
+    assert "never a concept label" in scan_mod.PROMPT
+
+
 def test_a_missing_confidence_is_zero_not_assumed_high(two_part_trees, tmp_path,
                                                        monkeypatch):
     install_llm(monkeypatch, FakeClaude(

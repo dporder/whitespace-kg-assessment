@@ -73,6 +73,7 @@ class Resolution:
     concepts: list[Concept] = field(default_factory=list)
     collisions: list[TermCollision] = field(default_factory=list)
     merges: list[Merge] = field(default_factory=list)
+    dropped_relations: list[dict] = field(default_factory=list)
     method: str = COSINE
     uncompared_pairs: int = 0
     note: str = ""
@@ -84,12 +85,14 @@ class Resolution:
             "minted": len(self.concepts),
             "not_minted_term_collision": len(self.collisions),
             "merged_away": len(self.merges),
+            "dropped_relations": len(self.dropped_relations),
             "resolution_method": self.method,
             "merge_threshold": config.CONCEPT_MERGE_COSINE,
             "pairs_not_compared_by_cosine": self.uncompared_pairs,
             "note": self.note,
             "collisions": [c.as_dict() for c in self.collisions],
             "merge_log": [m.as_dict() for m in self.merges],
+            "dropped_relation_log": self.dropped_relations,
         }
 
 
@@ -284,29 +287,54 @@ def resolve(proposed: list[ProposedConcept], trees: treeio.Trees,
     for key in keys:
         clusters.setdefault(union.find(key), []).append(by_id[key])
 
-    for root_id in sorted(clusters):
+    # A merged cluster's id is not any member's own id, so relation targets have
+    # to be remapped through the merge or every relation into an absorbed
+    # concept would dangle. Targets are matched by label, which is what the
+    # model actually names, and anything that resolves to no minted concept is
+    # dropped and logged rather than pointing at nothing.
+    cluster_of: dict[str, tuple[str, str, str]] = {}     # root -> (id, label, scope)
+    for root_id, members in clusters.items():
+        head = sorted(members, key=lambda c: (-c.confidence, c.label, c.id))[0]
+        scope_path = min((m.scope_path for m in members), key=lambda p: (len(p), p))
+        cluster_of[root_id] = (concept_id(scope_path, head.label), head.label,
+                               scope_path)
+    final_by_label: dict[str, str] = {}
+    for root_id, members in clusters.items():
+        for member in members:
+            final_by_label.setdefault(normalise_label(member.label),
+                                      cluster_of[root_id][0])
+
+    for root_id in sorted(clusters, key=lambda r: cluster_of[r][0]):
         members = sorted(clusters[root_id],
                          key=lambda c: (-c.confidence, c.label, c.id))
         head = members[0]
+        cid, _label, scope_path = cluster_of[root_id]
         node_ids: list[str] = []
-        relations: list[ConceptRelation] = []
         for member in members:
             for nid in member.member_node_ids:
                 if nid not in node_ids:
                     node_ids.append(nid)
-        # The highest altitude wins the scope: the shortest path among the
-        # merged, which is the unit that saw the most context.
-        scope_path = min((m.scope_path for m in members), key=lambda p: (len(p), p))
-        cid = concept_id(scope_path, head.label)
-        seen: set[tuple[str, str, str]] = set()
+        relations: list[ConceptRelation] = []
+        seen: set[tuple[str, str]] = set()
         for member in members:
             for relation in member.relations:
-                dst = concept_id(member.scope_path, relation["to"])
-                key3 = (cid, relation["label"], dst)
-                if dst != cid and key3 not in seen:
-                    seen.add(key3)
-                    relations.append(ConceptRelation(src=cid, label=relation["label"],
-                                                     dst=dst))
+                verb, target = relation["relation"], normalise_label(relation["to"])
+                dst = final_by_label.get(target)
+                if dst is None:
+                    result.dropped_relations.append({
+                        "from": head.label, "relation": verb, "to": relation["to"],
+                        "reason": "target is not a minted concept"})
+                    continue
+                if normalise_label(verb) in final_by_label:
+                    result.dropped_relations.append({
+                        "from": head.label, "relation": verb, "to": relation["to"],
+                        "reason": "the relation field held a concept label, not a "
+                                  "verb phrase"})
+                    continue
+                if dst == cid or (verb, dst) in seen:
+                    continue
+                seen.add((verb, dst))
+                relations.append(ConceptRelation(src=cid, label=verb, dst=dst))
         result.concepts.append(Concept(
             id=cid, label=head.label, scope_path=scope_path,
             member_node_ids=node_ids, relations=relations,

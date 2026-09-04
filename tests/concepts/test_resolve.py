@@ -200,13 +200,58 @@ def test_relations_point_at_minted_concepts(two_part_trees):
     from pipeline.concepts.scan import concept_id
     result = resolve([
         proposal("termination triggers", 0.9, ["n1"],
-                 relations=[{"label": "depends_on", "to": "payment mechanics"}]),
+                 relations=[{"relation": "depends_on", "to": "payment mechanics"}]),
         proposal("payment mechanics", 0.8, ["n2"])], two_part_trees)
-    relation = result.concepts[0].relations[0] if result.concepts[0].relations \
-        else result.concepts[1].relations[0]
+    relation = next(r for c in result.concepts for r in c.relations)
     assert relation.label == "depends_on"
     assert relation.dst == concept_id("clauses/1", "payment mechanics")
     assert relation.dst in {c.id for c in result.concepts}
+
+
+def test_a_relation_target_that_was_merged_away_is_remapped(two_part_trees):
+    """The merged cluster's id is nobody's own id, so a relation into an
+    absorbed concept has to follow it into the cluster or it dangles. This was
+    a real defect: the first live run produced six dangling relations."""
+    vectors = StubVectors({"exit management": [1.0, 0.0, 0.0, 0.0],
+                           "widget": [0.0, 1.0, 0.0, 0.0],
+                           "payment mechanics": [0.0, 0.0, 1.0, 0.0],
+                           "payment mechanism": [0.0, 0.0, 0.999, 0.02],
+                           "termination triggers": [0.0, 0.0, 0.0, 1.0]})
+    result = resolve([
+        proposal("payment mechanics", 0.9, ["n1"]),
+        proposal("payment mechanism", 0.5, ["n2"]),
+        proposal("termination triggers", 0.8, ["n3"],
+                 relations=[{"relation": "depends_on", "to": "payment mechanism"}]),
+    ], two_part_trees, vectors=vectors)
+    minted = {c.id for c in result.concepts}
+    assert len(minted) == 2
+    relation = next(r for c in result.concepts for r in c.relations)
+    assert relation.dst in minted
+    assert result.dropped_relations == []
+
+
+def test_a_relation_to_a_concept_that_was_never_minted_is_dropped_and_logged(
+        two_part_trees):
+    result = resolve([
+        proposal("termination triggers", 0.9, ["n1"],
+                 relations=[{"relation": "depends_on", "to": "a concept nobody "
+                                                             "proposed"}])],
+        two_part_trees)
+    assert result.concepts[0].relations == []
+    assert result.dropped_relations[0]["reason"] == "target is not a minted concept"
+
+
+def test_a_relation_verb_that_is_really_a_concept_label_is_dropped(two_part_trees):
+    """Models reach for the `label` key and put the source concept's own name in
+    it. That is not a relation, and minting it would put a concept label where a
+    verb phrase belongs on every CONCEPT_REL edge."""
+    result = resolve([
+        proposal("termination triggers", 0.9, ["n1"],
+                 relations=[{"relation": "termination triggers",
+                             "to": "payment mechanics"}]),
+        proposal("payment mechanics", 0.8, ["n2"])], two_part_trees)
+    assert all(not c.relations for c in result.concepts)
+    assert "verb phrase" in result.dropped_relations[0]["reason"]
 
 
 def test_resolution_is_deterministic(two_part_trees):

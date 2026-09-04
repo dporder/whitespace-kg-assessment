@@ -55,14 +55,19 @@ PROMPT = (
     "of this contract. Defined terms are handled elsewhere and outrank concepts.\n"
     "- List the provisions the concept covers by their exact `path` from the "
     "PROVISIONS list below. Never invent a path.\n"
-    "- `relations` are between concepts you are proposing in this same response. "
-    "Use a short verb phrase such as depends_on, constrains, triggers.\n"
+    "- `relations` join two concepts you are proposing in this same response. "
+    "`relation` is a VERB PHRASE describing the link, such as depends_on, "
+    "constrains or triggers, and is never a concept label. `to` is the exact "
+    "`label` of another concept in this same response. Omit `relations` "
+    "entirely rather than inventing a link.\n"
     "- State `confidence` (0.0 to 1.0) for each concept BEFORE listing its "
     "provisions: score the evidence first, then commit. A concept you are "
     "guessing at should carry a low score, not be omitted.\n\n"
     "Reply with a JSON object and nothing else:\n"
     + '{"concepts": [{"label": "...", "confidence": 0.0, '
-      '"provisions": ["path", ...], "relations": [{"label": "...", "to": "..."}]}]}'
+      '"provisions": ["path", ...], '
+      '"relations": [{"relation": "depends_on", "to": "<label of another '
+      'concept in this response>"}]}]}'
     + "\n\nUNIT {path} ({kind}){title}\n\n"
       "PROVISIONS (path :: text):\n{provisions}\n\n"
       "FULL TEXT OF THE UNIT:\n{source}")
@@ -181,9 +186,17 @@ def parse(raw: str, unit: ScanUnit, by_path: dict[str, Node]) -> ScanResult:
             continue
         confidence = row.get("confidence")
         confidence = float(confidence) if isinstance(confidence, (int, float)) else 0.0
-        relations = [r for r in (row.get("relations") or [])
-                     if isinstance(r, dict) and isinstance(r.get("label"), str)
-                     and isinstance(r.get("to"), str)]
+        # `relation` is the documented key; `label` is accepted because models
+        # reach for it, and resolve.py then checks the value really is a verb
+        # phrase and not a concept label repeated in the wrong field.
+        relations = []
+        for r in (row.get("relations") or []):
+            if not isinstance(r, dict) or not isinstance(r.get("to"), str):
+                continue
+            verb = r.get("relation") if isinstance(r.get("relation"), str) \
+                else r.get("label")
+            if isinstance(verb, str) and verb.strip():
+                relations.append({"relation": verb.strip(), "to": r["to"].strip()})
         result.proposed.append(ProposedConcept(
             label=label, confidence=max(0.0, min(1.0, confidence)),
             member_node_ids=list(dict.fromkeys(ids)),
