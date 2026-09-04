@@ -105,6 +105,44 @@ def term_population(ctx: Context) -> list[dict[str, Any]]:
     return out
 
 
+def _group_context(refs: list[Any], by_path: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """For each ref in a split list phrase, which member it is and of what.
+
+    SPEC 2.2: a phrase citing several targets becomes one ref per target,
+    sharing a `group_id`, and JS1 1.3.10 makes a series inclusive. Shown one
+    member in isolation the checker reads "27 to 32 resolved to clause 28" as a
+    range collapsed to a single target, which is a fair reading of one ref and
+    wrong about the six that were emitted. The phrase is recovered from the
+    parent's own stored text, spanning the group's outermost offsets, so it is
+    the document's words rather than a reconstruction.
+    """
+    groups: dict[str, list[Any]] = {}
+    for r in refs:
+        if r.group_id:
+            groups.setdefault(r.group_id, []).append(r)
+    out: dict[str, dict[str, Any]] = {}
+    for gid, members in groups.items():
+        ordered = sorted(members, key=lambda m: (m.char_span or (0, 0)))
+        spans = [m.char_span for m in ordered if m.char_span]
+        phrase = None
+        if spans:
+            parent = by_path.get(ordered[0].path.rsplit("/ref@", 1)[0])
+            if parent is not None and parent.text:
+                start, end = min(s[0] for s in spans), max(s[1] for s in spans)
+                phrase = parent.text[start:end]
+        for n, m in enumerate(ordered, start=1):
+            out[m.path] = {
+                "group_id": gid,
+                "one_of_a_split_phrase": (
+                    f"this ref is member {n} of {len(ordered)} expanded from the "
+                    f"phrase {phrase!r}" if phrase else
+                    f"this ref is member {n} of {len(ordered)} expanded from one "
+                    f"list phrase"),
+                "sibling_targets": [m2.target_path for m2 in ordered],
+            }
+    return out
+
+
 def ref_population(ctx: Context) -> list[dict[str, Any]]:
     """Deterministically resolved references, the refs half of layer 4."""
     part_of = _part_of_node(ctx)
@@ -112,6 +150,7 @@ def ref_population(ctx: Context) -> list[dict[str, Any]]:
     orders = _orders(ctx)
     out = []
     for part in sorted(ctx.inputs.refs):
+        group_context = _group_context(ctx.inputs.refs[part], by_path)
         for r in ctx.inputs.refs[part]:
             if r.resolver not in ("grammar", "scope") or not r.target_path:
                 continue
@@ -128,6 +167,7 @@ def ref_population(ctx: Context) -> list[dict[str, Any]]:
                 "pipeline_claim": (
                     f"the pointing words {r.text!r} are a {r.ref_kind} reference, "
                     f"status {r.status}, resolved to {r.target_path!r}"),
+                **group_context.get(r.path, {}),
                 "sentence": parent.text if parent else None,
                 "part": part_of.get(parent.id, part) if parent else part,
                 "term_word_count": word_count_bucket(r.text or ""),
@@ -218,11 +258,26 @@ def _guidance(batch: list[dict[str, Any]]) -> str:
         lines.append("What the statuses mean:")
         lines += [f"  - {s}: {REF_STATUS_GLOSSARY[s]}" for s in statuses
                   if s in REF_STATUS_GLOSSARY]
+    if any(item.get("one_of_a_split_phrase") for item in batch):
+        lines.append(
+            "Split list phrases: a phrase citing several targets is emitted as "
+            "one reference per target, each anchored to its own characters and "
+            "sharing a group_id. An item carrying one_of_a_split_phrase is one "
+            "member of such a group, not the whole citation, and its "
+            "sibling_targets are the other members. Joint Schedule 1 paragraph "
+            "1.3.10 stipulates: \"references to a series of Clauses or "
+            "Paragraphs shall be inclusive of the clause numbers specified\". "
+            "Judge whether this member points at the right target, not whether "
+            "one member covers the whole range.")
     if any(item.get("kind") == "term_use" for item in batch):
         lines.append(
             "Term uses: a term's declared aliases are listed with the item. A "
             "surface form that is a declared alias is a correct match for that "
-            "term; matching an alias is the intended behaviour, not a guess.")
+            "term; matching an alias is the intended behaviour, not a guess. "
+            "Joint Schedule 1 paragraph 1.3.1 stipulates: \"the singular "
+            "includes the plural and vice versa\", so a plural surface form of "
+            "a singular defined term is that term used, under the document's "
+            "own interpretation rule.")
     return ("\n" + "\n".join(lines) + "\n") if lines else ""
 
 

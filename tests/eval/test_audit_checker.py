@@ -125,6 +125,56 @@ def test_a_reference_audit_states_the_claim_and_defines_the_vocabulary():
     assert "correct and final state" in prompt, "the external-status gloss"
 
 
+def test_a_range_member_is_shown_as_one_of_n_with_its_siblings():
+    """Without it the checker read '27 to 32 resolved to clause 28' as a range
+    collapsed to one target, which is true of one ref and false of the six."""
+    item = {"kind": "reference", "text": "28", "ref_kind": "clause",
+            "status": "resolved", "target_path": "core-terms/28",
+            "group_id": "g-12.3-1",
+            "one_of_a_split_phrase": "this ref is member 2 of 6 expanded from the "
+                                     "phrase '27 to 32'",
+            "sibling_targets": ["core-terms/27", "core-terms/28", "core-terms/29"],
+            "sentence": "Clauses 27 to 32 apply."}
+    prompt = stratified_audit._prompt_for([item], 0)
+    assert "member 2 of 6" in prompt and "'27 to 32'" in prompt
+    assert "sibling_targets" in prompt
+    assert "not whether one member covers the whole range" in prompt
+    assert "1.3.10" in prompt
+
+
+def test_the_term_prompt_cites_the_singular_includes_plural_stipulation():
+    """JS1 1.3.1 is the rule the matcher lawfully applied; the checker was
+    rejecting plural surface forms without it."""
+    prompt = stratified_audit._prompt_for(
+        [{"kind": "term_use", "term": "Subcontractor", "surface": "Subcontractors"}], 0)
+    assert "1.3.1" in prompt
+    assert "the singular includes the plural and vice versa" in prompt
+
+
+def test_the_added_context_states_facts_and_never_asks_for_agreement():
+    """The discipline: context the pipeline acted on, never a nudge. If this
+    prompt ever tells the checker what to conclude, the audit stops measuring
+    anything."""
+    items = [{"kind": "reference", "text": "28", "ref_kind": "clause",
+              "status": "resolved", "target_path": "core-terms/28",
+              "one_of_a_split_phrase": "this ref is member 2 of 6 expanded from "
+                                       "the phrase '27 to 32'",
+              "sibling_targets": ["core-terms/28"]},
+             {"kind": "term_use", "term": "Subcontractor", "surface": "Subcontractors",
+              "declared_aliases": []}]
+    # The guidance block, not the whole prompt: the verdict definition ("true if
+    # the pipeline's claim is correct") legitimately contains that word and is
+    # fixed boilerplate. What must stay neutral is the context being added.
+    guidance = stratified_audit._guidance(items).lower()
+    assert guidance, "there is context to check"
+    for nudge in ("should agree", "is correct", "assume the pipeline", "answer true",
+                  "agree unless", "give the benefit", "therefore agree",
+                  "this is a correct", "the pipeline is right"):
+        assert nudge not in guidance, nudge
+    # It states rules and what the pipeline did, and cites the document for both.
+    assert "stipulates" in guidance and "1.3.1" in guidance
+
+
 def test_the_glossary_covers_only_the_kinds_in_the_batch():
     """The prompt is per-batch, so a term-only batch carries no ref glossary."""
     prompt = stratified_audit._prompt_for([{"kind": "term_use", "term": "T"}], 0)
