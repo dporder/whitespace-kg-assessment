@@ -119,6 +119,7 @@ QUARANTINE_THRESHOLDS = {
 
 MODELS = {
     "reference_residue": "claude-haiku-4-5",
+    "vocabulary_routing": "claude-haiku-4-5",   # typed ambiguity checks, bounded choice
     "reference_hard":    "claude-sonnet-5",
     "concepts":          "claude-sonnet-5",
     "summaries":         "claude-haiku-4-5",
