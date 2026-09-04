@@ -49,7 +49,9 @@ HIERARCHY_PROFILES = {
             # the opening bracket, so both are optional. Measured across all
             # 475 pages: the original item pattern matched 0 of Core Terms'
             # 169 lettered items; this one matches all 169.
-            "heading":  r"^\s{0,4}(\d{1,2})\.\s+(?=[A-Z])",
+            # Titles may open with a cross-reference bracket: FS-6 p89 prints
+            # "8. [Call-Off Schedule 4 (Call-Off Tender) ...".
+            "heading":  r"^\s{0,4}(\d{1,2})\.\s+(?=[A-Z\[])",
             # Some schedules print the heading number alone on its line with the
             # title elsewhere; the parser confirms via the part's own typography.
             "heading_bare": r"^\s{0,4}(\d{1,2})\.\s*$",
@@ -60,6 +62,10 @@ HIERARCHY_PROFILES = {
             # kind=item, the deepest addressable unit, per the kind-by-function rule.
             "item_dotted": r"^\s{0,14}(\d{1,2}\.\d{1,2}\.\d{1,2}\.\d{1,2})\.?\s+",
             "item":     r"^\s*\(?([a-z]{1,2}|(?:x{0,3})(?:ix|iv|v?i{0,3}))\)\s",
+            # Recital-style uppercase items, attested as bracketed single
+            # letters (A)-(D) in JS-11 p213 and JS-8 p196; both brackets
+            # required so abbreviations like (DBS) never match.
+            "item_upper": r"^\s*\(([A-Z])\)\s",
         },
         "max_dotted_depth": 4,          # 46 four-level lines verified across all 475 pages;
                                         # the earlier "zero four-level" claim was wrong
