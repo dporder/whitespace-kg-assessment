@@ -98,11 +98,16 @@ DEFAULT_PROFILE = "uk-ccs-framework"
 # guessed (see pipeline/parse/geometry.py for the per-constant evidence).
 PARSE_GEOMETRY = {
     "indent_tolerance": 2.0,       # glyph jitter: 3.1 at x=27.0, its child 3.1.1 at 26.4
+    "vertical_tolerance": 1.0,     # baseline jitter for ascent and own-above comparisons
     "min_indent_step": 6.0,
-    "sibling_overlap_share": 0.2,  # line boxes span ascent+descent, so lines overlap 0.8-2.9pt
+    "sibling_overlap_share": 0.2,  # of the SMALLER box; line boxes overlap 0.8-2.9pt by construction
     "header_band": 0.09,           # share of page height treated as header furniture
     "footer_band": 0.89,           # start of the footer band
 }
+# Canonical tolerance map, both stage 2 and stage 8 read exactly this:
+#   child_left_edge, extent_nests            -> indent_tolerance
+#   own_box_above_first_child, siblings_ascend -> vertical_tolerance
+#   sibling_overlap -> max(vertical_tolerance, sibling_overlap_share * min(box heights))
 
 # Any one of these firing quarantines the document rather than ingesting a guessed tree.
 QUARANTINE_THRESHOLDS = {
