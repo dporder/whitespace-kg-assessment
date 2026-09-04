@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
+    a { color: #3f6396; } a:hover { color: #2d4a73; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
+    .fbox { position: absolute; background: #ffffff; border: 1.5px solid #3f6396; border-radius: 3px; padding: 7px 9px; box-sizing: border-box; }
+    .ft { font-size: 11px; font-weight: 600; line-height: 1.25; }
+    .fs { font-size: 9.5px; color: #4a4e54; line-height: 1.35; margin-top: 2px; }
+    .term { position: absolute; background: #f5f4f1; border: 1.5px solid #1c1e21; border-radius: 30px; padding: 9px 14px; box-sizing: border-box; text-align: center; }
+    .store { position: absolute; background: #ffffff; border: 1.5px solid #3f6396; border-radius: 6px 6px 3px 3px; padding: 14px 9px 7px 9px; box-sizing: border-box; }
+    .store::before { content: ""; position: absolute; top: 6px; left: 6px; right: 6px; height: 0; border-top: 1.5px solid #3f6396; border-radius: 50%; }
+    .lanelabel { position: absolute; left: -4px; top: 8px; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+  </style>
+</helmet>
+<div style="width: 1632px; height: 1056px; background: #fbfaf8; display: flex; flex-direction: column; padding: 32px 40px; box-sizing: border-box; overflow: hidden;">
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #1c1e21; padding-bottom: 10px;">
+    <div style="display: flex; align-items: baseline; gap: 16px;">
+      <div style="font-size: 22px; font-weight: 700;">RM6116 into a knowledge graph</div>
+      <div style="font-size: 13px; color: #6b6f76;">Variation A. Flowchart with trust lanes. Where a shape sits tells you who to trust.</div>
+    </div>
+    <div style="font-size: 12px; color: #6b6f76;">Dan Porder, September 2026</div>
+  </div>
+
+  <div style="position: relative; flex: 1; margin-top: 14px;">
+
+    <!-- Lanes -->
+    <div style="position: absolute; left: 0; top: 0; width: 1552px; height: 452px; background: #f4f7fb; border: 1px solid #d9e2ee; border-radius: 4px;">
+      <div class="lanelabel" style="color: #3f6396;">Deterministic</div>
+    </div>
+    <div style="position: absolute; left: 0; top: 464px; width: 1552px; height: 206px; background: #fbf7ef; border: 1px solid #ecdfc6; border-radius: 4px;">
+      <div class="lanelabel" style="color: #a16b16;">Model assisted</div>
+    </div>
+    <div style="position: absolute; left: 0; top: 682px; width: 1552px; height: 214px; background: #faf7fd; border: 1px solid #e4dbee; border-radius: 4px;">
+      <div class="lanelabel" style="color: #75589b;">Human</div>
+    </div>
+
+    <!-- Arrows -->
+    <svg width="1552" height="896" viewBox="0 0 1552 896" style="position: absolute; top: 0; left: 0;">
+      <defs>
+        <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#5b6069"/></marker>
+      </defs>
+      <g stroke="#5b6069" stroke-width="1.4" fill="none" marker-end="url(#ah)">
+        <line x1="168" y1="66" x2="204" y2="66"/>
+        <line x1="382" y1="66" x2="410" y2="66"/>
+        <line x1="500" y1="66" x2="528" y2="66"/>
+        <line x1="716" y1="66" x2="748" y2="66"/>
+        <path d="M 950 66 L 1000 66"/>
+        <path d="M 860 104 L 860 138 L 700 138 L 700 158"/>
+        <path d="M 880 104 L 880 138 L 900 138 L 900 158"/>
+        <path d="M 1105 104 L 1105 128"/>
+        <path d="M 790 196 L 1000 196 L 1000 176"/>
+        <path d="M 985 196 L 1000 196"/>
+        <path d="M 1200 160 L 1240 160 L 1240 84 L 1256 84"/>
+        <path d="M 1200 160 L 1240 160 L 1240 152 L 1256 152"/>
+        <path d="M 1105 232 L 1105 254"/>
+        <path d="M 1390 118 L 1420 118"/>
+        <path d="M 1390 62 L 1420 62"/>
+        <path d="M 1205 290 L 1262 290"/>
+        <path d="M 1345 316 L 1345 360 L 1105 360 L 1105 336" stroke-dasharray="5 4"/>
+        <path d="M 446 104 L 446 700" stroke-dasharray="5 4"/>
+        <path d="M 640 232 L 640 498"/>
+        <path d="M 700 536 L 700 232" />
+        <path d="M 900 232 L 900 498"/>
+        <path d="M 960 536 L 960 232"/>
+        <path d="M 1120 498 L 1120 440 M 1120 440 L 1113 448 M 1120 440 L 1127 448" stroke-dasharray="4 3"/>
+        <path d="M 1030 528 L 1046 528 L 1046 176" />
+        <path d="M 1030 600 L 1290 600 L 1290 176"/>
+        <path d="M 660 566 L 660 716"/>
+        <path d="M 1305 318 L 1305 750 L 790 750" />
+        <path d="M 790 730 L 830 730"/>
+        <path d="M 912 700 L 1180 700 L 1180 336" />
+      </g>
+      <g class="mono" font-size="9" fill="#5b6069">
+        <text x="392" y="58">fits?</text>
+        <text x="452" y="120" fill="#75589b">no</text>
+        <text x="1218" y="278">gate?</text>
+        <text x="1312" y="345" fill="#75589b">fail</text>
+        <text x="1052" y="120">load</text>
+        <text x="1190" y="560">labels tune</text>
+        <text x="820" y="744" fill="#75589b">decisions</text>
+      </g>
+    </svg>
+
+    <!-- Deterministic lane shapes -->
+    <div class="term" style="left: 18px; top: 40px; width: 150px;">
+      <div class="ft">Documents in</div>
+      <div class="fs">PDF, scans, forms, amendments</div>
+    </div>
+    <div class="fbox" style="left: 204px; top: 32px; width: 178px;">
+      <div class="ft">S0 Profile</div>
+      <div class="fs">pick family rulebook, five fit checks, route pages by cost</div>
+    </div>
+    <div style="position: absolute; left: 410px; top: 30px; width: 72px; height: 72px; border: 1.5px solid #3f6396; background: #ffffff; transform: rotate(45deg); border-radius: 3px;"></div>
+    <div class="fbox" style="left: 528px; top: 32px; width: 172px;">
+      <div class="ft">S1 Parse</div>
+      <div class="fs">words with boxes, parts by footer, tables as cells</div>
+    </div>
+    <div class="fbox" style="left: 748px; top: 32px; width: 202px;">
+      <div class="ft">S2 Assemble</div>
+      <div class="fs">numbering to tree, invariants, anomalies kept raw</div>
+    </div>
+    <div class="fbox" style="left: 1000px; top: 32px; width: 210px;">
+      <div class="ft">S7 Load</div>
+      <div class="fs">MERGE on deterministic ids, batch tag, rollback, sweep, salience</div>
+    </div>
+    <div class="store" style="left: 1256px; top: 46px; width: 134px; height: 52px;">
+      <div class="ft" style="font-size: 10.5px;">Graph store</div>
+      <div class="fs">Neo4j, RBAC labels</div>
+    </div>
+    <div class="store" style="left: 1256px; top: 118px; width: 134px; height: 52px;">
+      <div class="ft" style="font-size: 10.5px;">Vector index</div>
+      <div class="fs">outside the graph</div>
+    </div>
+    <div class="term" style="left: 1420px; top: 36px; width: 118px; height: 128px; border-color: #1c1e21;">
+      <div class="ft" style="margin-top: 22px;">Cited answers</div>
+      <div class="fs">agents and analysts, path + page + box</div>
+    </div>
+    <div class="fbox" style="left: 528px; top: 158px; width: 172px;">
+      <div class="ft">S3 References</div>
+      <div class="fs">detect by grammar, resolve by the document's own scope rules</div>
+    </div>
+    <div class="fbox" style="left: 748px; top: 158px; width: 202px;">
+      <div class="ft">S4 Vocabulary</div>
+      <div class="fs">declared + discovered terms, longest match, aliases</div>
+    </div>
+    <div class="fbox" style="left: 1000px; top: 128px; width: 140px; height: 48px; border-style: dashed;">
+      <div class="ft" style="font-size: 10.5px;">JSON export</div>
+      <div class="fs">engine neutral</div>
+    </div>
+    <div class="fbox" style="left: 1000px; top: 254px; width: 210px;">
+      <div class="ft">S8 Evaluate, every load</div>
+      <div class="fs">invariants, derived vs provided diffs, golden detection | resolution, audits, calibration</div>
+    </div>
+    <div style="position: absolute; left: 1262px; top: 252px; width: 66px; height: 66px; border: 1.5px solid #3f6396; background: #ffffff; transform: rotate(45deg); border-radius: 3px;"></div>
+    <div style="position: absolute; left: 30px; top: 380px; width: 400px; font-size: 10px; color: #4a4e54; line-height: 1.4;">
+      <span style="font-weight: 700; color: #3f6396;">This lane is replayable.</span> Same bytes in, same graph out. Reruns are upserts, any batch rolls back, and nothing here ever rewrites source text.
+    </div>
+
+    <!-- Model lane shapes -->
+    <div class="fbox" style="left: 560px; top: 498px; width: 164px; border-color: #a16b16;">
+      <div class="ft" style="color: #a16b16;">S3 residue</div>
+      <div class="fs">top 5 candidates shown together, NONE allowed, confidence before answer</div>
+    </div>
+    <div class="fbox" style="left: 820px; top: 498px; width: 164px; border-color: #a16b16;">
+      <div class="ft" style="color: #a16b16;">S4 ambiguity checks</div>
+      <div class="fs">one narrow prompt per failure mode, typo dense text routed separately</div>
+    </div>
+    <div class="fbox" style="left: 1046px; top: 498px; width: 150px; border-color: #a16b16;">
+      <div class="ft" style="color: #a16b16;">S5 Concepts</div>
+      <div class="fs">navigation only, never citable</div>
+    </div>
+    <div class="fbox" style="left: 1046px; top: 572px; width: 190px; border-color: #a16b16;">
+      <div class="ft" style="color: #a16b16;">S6 Summaries + embeddings</div>
+      <div class="fs">three altitudes, hits resolve to leaf text before citing</div>
+    </div>
+    <div class="fbox" style="left: 1310px; top: 498px; width: 150px; border-color: #a16b16; border-style: dashed;">
+      <div class="ft" style="color: #a16b16;">S8 judge</div>
+      <div class="fs">separate model, anchored to human labels</div>
+    </div>
+    <div style="position: absolute; left: 30px; top: 585px; width: 420px; font-size: 10px; color: #4a4e54; line-height: 1.4;">
+      <span style="font-weight: 700; color: #a16b16;">This lane is throttleable and optional.</span> The graph is already correct without it. Models only see what the deterministic lane could not settle, every call logged and replayable.
+    </div>
+
+    <!-- Human lane shapes -->
+    <div class="fbox" style="left: 380px; top: 716px; width: 140px; border-color: #75589b;">
+      <div class="ft" style="color: #75589b;">Quarantine review</div>
+      <div class="fs">wrong rulebook, human picks</div>
+    </div>
+    <div class="fbox" style="left: 560px; top: 716px; width: 230px; border-color: #75589b;">
+      <div class="ft" style="color: #75589b;">Review UI</div>
+      <div class="fs">ambiguous refs and term uses with the page crop and box, approve or pick or reject</div>
+    </div>
+    <div class="store" style="left: 830px; top: 704px; width: 150px; height: 56px; border-color: #75589b;">
+      <div class="ft" style="font-size: 10.5px; color: #75589b;">Golden labels</div>
+      <div class="fs">grow as a by-product</div>
+    </div>
+    <div style="position: absolute; left: 1040px; top: 716px; width: 470px; font-size: 10px; color: #4a4e54; line-height: 1.4;">
+      <span style="font-weight: 700; color: #75589b;">This lane compounds.</span> Every decision unblocks today and becomes regression ground truth forever. The fine tuned matchers train on exactly these labels, and the human moves up a level, auditing the judge on a stratified sample instead of every case.
+    </div>
+    <div style="position: absolute; left: 30px; top: 838px; width: 1490px; font-size: 10px; color: #6b6f76;">
+      Scale runs left to right too. New drafting family, new rulebook entry, never parser edits. Amendments arrive as new versions, SUPERSEDES between roots, clause history by lineage key, copy on write when storage bites. Refs to absent targets wait as unresolved and flip when the target document lands.
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

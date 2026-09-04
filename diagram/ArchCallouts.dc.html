@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
+    a { color: #3f6396; } a:hover { color: #2d4a73; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
+    .mini { background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; padding: 9px 11px; flex: 1; position: relative; }
+    .minit { font-size: 12px; font-weight: 600; }
+    .minis { font-size: 10px; color: #4a4e54; line-height: 1.4; margin-top: 3px; }
+    .co { background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; position: relative; }
+    .con { position: absolute; top: -10px; left: -10px; width: 22px; height: 22px; border-radius: 50%; background: #1c1e21; color: #ffffff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .cot { font-size: 12.5px; font-weight: 600; }
+    .cos { font-size: 10.5px; color: #3a3d42; line-height: 1.45; margin-top: 4px; }
+    .ref { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; background: #1c1e21; color: #ffffff; font-size: 9.5px; font-weight: 700; align-items: center; justify-content: center; position: absolute; top: 8px; right: 8px; }
+  </style>
+</helmet>
+<div style="width: 1632px; height: 1056px; background: #fbfaf8; display: flex; flex-direction: column; padding: 32px 40px; box-sizing: border-box; overflow: hidden;">
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #1c1e21; padding-bottom: 10px;">
+    <div style="display: flex; align-items: baseline; gap: 16px;">
+      <div style="font-size: 22px; font-weight: 700;">RM6116 into a knowledge graph</div>
+      <div style="font-size: 13px; color: #6b6f76;">Variation B. Compressed pipeline on top, the decisions that matter as numbered callouts below.</div>
+    </div>
+    <div style="font-size: 12px; color: #6b6f76;">Dan Porder, September 2026</div>
+  </div>
+
+  <!-- Compressed pipeline strip -->
+  <div style="display: flex; gap: 10px; margin-top: 14px; align-items: stretch;">
+    <div class="mini" style="border-top: 3px solid #3f6396;">
+      <span class="ref">1</span>
+      <div class="minit">Intake and routing</div>
+      <div class="minis">Rulebook fit with five checks, quarantine over guessing. Extraction ladder per page, cheap first, models last, page images kept.</div>
+    </div>
+    <div class="mini" style="border-top: 3px solid #3f6396;">
+      <div class="minit">Deterministic structure</div>
+      <div class="minis">Words with boxes, parts by footer signature, numbering to tree, invariants, anomalies recorded raw. Identity is doc, version, part, path.</div>
+    </div>
+    <div class="mini" style="border-top: 3px solid #2e7373;">
+      <span class="ref">2</span>
+      <div class="minit">Enrichment, parallel</div>
+      <div class="minis">References detected then resolved by the document's own rules. Declared and discovered vocabulary. Concepts and embeddings, flagged, never citable.</div>
+    </div>
+    <div class="mini" style="border-top: 3px solid #3f6396;">
+      <span class="ref">5</span>
+      <div class="minit">The graph</div>
+      <div class="minis">One Node schema, refs as nodes with status, terms and concepts outside the tree. Batch tags, rollback, sweep, salience, RBAC labels.</div>
+    </div>
+    <div class="mini" style="border-top: 3px solid #75589b;">
+      <span class="ref">3</span>
+      <div class="minit">Prove, review, serve</div>
+      <div class="minis">Eval every load with hard gates. Review queue feeds golden labels. Agents get bounded tools and every claim cites page and box.</div>
+    </div>
+  </div>
+
+  <!-- Callout grid -->
+  <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6f76; margin: 16px 0 8px 0;">The decisions worth interrogating</div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; flex: 1;">
+    <div class="co" style="border-top: 3px solid #3f6396;">
+      <div class="con">1</div>
+      <div class="cot">Refuse before you guess</div>
+      <div class="cos">The hierarchy is a per-family rulebook, and five fit checks decide whether it actually fits this document. Unknown units in the interpretation clause, numbering the grammar does not cover, text that attaches to no node, depth out of range, indentation disagreeing with numbering. Any alarm quarantines the document with evidence for a person. A confidently wrong tree corrupts every citation built on it, so the one unrecoverable failure is the one we refuse to risk.</div>
+    </div>
+    <div class="co" style="border-top: 3px solid #3f6396;">
+      <div class="con">2</div>
+      <div class="cot">References are nodes with a lifecycle</div>
+      <div class="cos">A citation can fail, hesitate, or need sign-off, so it graduates from edge to node. Detection and resolution are separate, separately scored steps. Resolution uses the rules the contract itself stipulates, and the document breaks its own rule three times, "Clause 1.x" written inside Schedules. Those resolve to the stipulated target, carry both candidates, and go to review. Unresolved never disappears, it waits for its target document to arrive, then flips.</div>
+    </div>
+    <div class="co" style="border-top: 3px solid #75589b;">
+      <div class="con">3</div>
+      <div class="cot">Errors have different prices</div>
+      <div class="cos">A stray capital mints a phantom term, a missing capital hides an obligation from search, and the second usually costs more. So the eval reports a confusion matrix with cost weights a domain expert sets, not bare accuracy. Typo-dense sections get their own routing, because there capitalisation stops being evidence in both directions. And audits sample confident matches too, stratified by term length, part and position, since checking only the self-declared hard cases lets systematic easy-case errors run silently.</div>
+    </div>
+    <div class="co" style="border-top: 3px solid #2e7373;">
+      <div class="con">4</div>
+      <div class="cot">Derive everything, then diff it</div>
+      <div class="cos">The assignment ships a page map, an outline and a definitions schedule. None is imported. The pipeline derives all three independently and diffs, and every disagreement is triaged, parser wrong, provided artifact wrong, or both differ from the page. Sampled disagreements go to a person whose verdicts tune the derivers, measured on documents the tuning never saw. The notes say 46 parts, their own table lists 48, and the derived map reports what the document supports.</div>
+    </div>
+    <div class="co" style="border-top: 3px solid #a16b16;">
+      <div class="con">5</div>
+      <div class="cot">A trust gradient, not a blend</div>
+      <div class="cos">Structure is deterministic and replayable. Vocabulary is rule-derived with its own internal dependency graph, terms defined using other terms. Concepts are model-derived, flagged, and never citable, a concept collides with a declared term and the term keeps the job. Confidence is calibrated, deterministic resolvers carry measured precision, models score before they commit to an answer, and no number ships that has never met ground truth.</div>
+    </div>
+    <div class="co" style="border-top: 3px solid #1c1e21;">
+      <div class="con">6</div>
+      <div class="cot">Built for the ten-thousandth document</div>
+      <div class="cos">Deterministic ids make reingestion an upsert, batch tags make any load reversible. Amendments are new version roots with SUPERSEDES, one clause's history is a lineage-key query, copy on write when storage bites. Salience is breadth times log-damped frequency, so being needed from many places beats being repeated. What breaks first is cross-document resolution, and the answer is scoped search within a collection plus review, not a bigger model.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
