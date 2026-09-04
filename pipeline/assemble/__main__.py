@@ -26,6 +26,22 @@ from pipeline.schemas import Node
 DEFAULT_RUN = "current"
 
 
+def serialise(node: Node) -> dict:
+    """Tree JSON matching the committed fixtures: no null fields and no empty
+    collections, so a node carries only what it actually has. Every dropped key
+    re-defaults on load through the same `Node` model."""
+    data = node.model_dump(mode="json", exclude_none=True)
+    return _prune(data)
+
+
+def _prune(value):
+    if isinstance(value, dict):
+        return {k: _prune(v) for k, v in value.items() if not (isinstance(v, list) and not v)}
+    if isinstance(value, list):
+        return [_prune(v) for v in value]
+    return value
+
+
 def count_kinds(node: Node, out: dict[str, int]) -> None:
     out[node.kind] = out.get(node.kind, 0) + 1
     for child in node.children:
@@ -72,16 +88,12 @@ def main(argv: list[str] | None = None) -> int:
         renumber(root)
         validated = Node.model_validate(root.model_dump())
         out_path = tree_dir / f"{layout['part']['id']}.json"
-        out_path.write_text(
-            dump_json(validated.model_dump(mode="json", exclude_none=True)), encoding="utf-8"
-        )
+        out_path.write_text(dump_json(serialise(validated)), encoding="utf-8")
 
         report = check_tree(layout["part"]["id"], validated)
         _attach_violations(validated, report)
         # Re-write with the geometric anomalies recorded on their nodes.
-        out_path.write_text(
-            dump_json(validated.model_dump(mode="json", exclude_none=True)), encoding="utf-8"
-        )
+        out_path.write_text(dump_json(serialise(validated)), encoding="utf-8")
         reports.append(report)
         total_unexplained += len(report.unexplained)
 

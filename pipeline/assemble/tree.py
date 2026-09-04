@@ -50,7 +50,7 @@ class Context:
     part_id: str
     version: str
     batch_id: Optional[str]
-    unit_label: str
+    unit_label: Optional[str]
     printed_pages: dict[int, Optional[str]]
     anomalies: list[str] = field(default_factory=list)
     order: int = 0
@@ -67,20 +67,31 @@ class Context:
         return self.printed_pages.get(page)
 
 
-def unit_label_for(part_id: str, family: Optional[str], profile: dict) -> tuple[str, str]:
+_SCHEDULE_FAMILIES = ("framework-schedule", "joint-schedule", "call-off-schedule")
+
+
+def unit_label_for(
+    part_id: str, family: Optional[str], profile: dict
+) -> tuple[Optional[str], Optional[str]]:
     """Unit label for a part's own numbered provisions, and where it came from.
 
     Joint Schedule 1 paragraph 1.3.8 stipulates that Clauses and Schedules are
     the Core Terms' and that references inside a Schedule to parts, paragraphs,
     annexes and tables are that Schedule's, so a provision of the Core Terms is
-    a Clause and the same shape inside a schedule is a Paragraph. Both labels
-    come from the document; the rulebook only supplies the mapping's default for
-    part families the interpretation clause does not name.
+    a Clause and the same shape inside a schedule is a Paragraph. Both come from
+    the document; the rulebook supplies the schedule default.
+
+    A part that is neither gets no unit label at all. The Award Form is numbered
+    rows of a form, and the interpretation clause does not name a unit for them:
+    nobody cites "Paragraph 3" of the Award Form, they cite row 3. Inventing a
+    label there would be the parser asserting something the document does not.
     """
     labels = profile.get("unit_labels", {})
     if part_id in labels:
         return labels[part_id], DOCUMENT_LABEL_SOURCE
-    return labels.get("_schedule_default", "Paragraph"), DOCUMENT_LABEL_SOURCE
+    if family in _SCHEDULE_FAMILIES:
+        return labels.get("_schedule_default", "Paragraph"), DOCUMENT_LABEL_SOURCE
+    return None, None
 
 
 def build_part(layout: dict, profile: dict) -> tuple[Node, list[str]]:
@@ -432,8 +443,6 @@ def _attach_table(ctx: Context, parent: Node, block: dict, profile: dict) -> Non
         page_start=block["page_start"],
         page_end=block["page_end"],
         own_boxes=[],
-        unit_label="Table",
-        unit_label_source=DOCUMENT_LABEL_SOURCE,
         anomalies=notes,
         n_rows=block["table_rows"],
         n_cols=block["table_cols"],
