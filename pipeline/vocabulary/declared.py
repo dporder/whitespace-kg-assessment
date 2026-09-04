@@ -324,10 +324,14 @@ def is_definitions_table(table: Node, under_cue: bool) -> bool:
     table of, say, milestones out of the vocabulary.
     """
     rows = _rows(table)
-    if len(rows) < 2:
-        return False
     defn = definition_rows(table)
-    if len(defn) < 2 or len(defn) / len(rows) < 0.6:
+    # A lead-in is strong evidence, so one row is enough under one. Without a
+    # lead-in the shape has to carry the whole argument, and a single row is not
+    # a pattern.
+    minimum = 1 if under_cue else 2
+    if len(rows) < minimum or len(defn) < minimum:
+        return False
+    if len(defn) / len(rows) < 0.6:
         return False
     quoted = sum(1 for label, _v in defn if quote_shape(label.text or "") != "none")
     return under_cue or quoted / len(defn) >= 0.5
@@ -338,6 +342,14 @@ def is_definitions_table(table: Node, under_cue: bool) -> bool:
 PROSE_DEFINITION = re.compile(
     r"[\"“‘]?(?P<term>[A-Z][^\"“”‘’\n]{0,110}?)[\"”’]"
     r"\s*(?:,\s*)?(?P<verb>means\b|has the meaning\b|shall mean\b)")
+
+# A quoted headword inside the lead-in's own node. Call-Off Schedule 9 prints
+# its part-local definitions as a two-column block, and stage 1 flattens that
+# block into the lead-in's text rather than into a table, so the headword
+# arrives inline: `In this Schedule ... : "Breach of Security" the occurrence
+# of:`. The lead-in is what licenses reading a bare quoted phrase as a headword
+# here; outside a definitions block the same shape is just a quotation.
+BLOCK_HEADWORD = re.compile(r"[\"“‘](?P<term>[A-Z][^\"“”‘’]{1,90}?)[\"”’]")
 
 
 def prose_definitions(node: Node) -> list[tuple[str, str]]:
@@ -350,6 +362,26 @@ def prose_definitions(node: Node) -> list[tuple[str, str]]:
             key = term_key(m.group("term"))
             if key and looks_like_term(key):
                 out.append((m.group("term"), m.group("verb")))
+    return out
+
+
+def block_headwords(text: str, cue_end: int) -> list[str]:
+    """Quoted headwords printed inside a definitions lead-in's own node.
+
+    Only the part of the text after the lead-in is read, and each candidate must
+    pass the same term-cell test a table label does. That guard is doing real
+    work on this document: Call-Off Schedule 9's Part B block reaches stage 4
+    with its two columns interleaved by stage 1, as `"Breach of means the
+    occurrence of: Security"`, and a headword rule without the capitalised-phrase
+    test would mint that string as a defined term. It is rejected here, and the
+    underlying extraction defect is reported rather than papered over.
+    """
+    out: list[str] = []
+    for m in BLOCK_HEADWORD.finditer(text, cue_end):
+        raw = m.group(0)
+        key = term_key(raw)
+        if looks_like_term_cell(raw) and is_capitalised_phrase(key):
+            out.append(raw)
     return out
 
 
@@ -429,6 +461,36 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
                 cue_path=cue.node.path, cue_text=cue.sentence,
                 scope_source=scope_source, shape="prose", raw_term_text=raw_term,
                 anomalies=[]))
+
+    # A definitions block stage 1 flattened into its own lead-in rather than
+    # into a table. Only the lead-in's own node is read this way.
+    minted = {(s.term, s.definition_node_id) for s in sites}
+    for cue in index.cues:
+        node = cue.node
+        value = node.text or ""
+        marker_at = value.find(cue.marker)
+        if marker_at < 0:
+            continue
+        scope, scope_source = _scope_from_cue(cue.sentence, pid)
+        if doc_level_part and scope_source == "block_default":
+            scope, scope_source = DOCUMENT_SCOPE, "part_identity"
+        for raw_term in block_headwords(value, marker_at + len(cue.marker)):
+            head, aliases = split_trailing_alias(raw_term)
+            key = term_key(head)
+            if not key or (key, node.id) in minted:
+                continue
+            minted.add((key, node.id))
+            sites.append(RawSite(
+                term=key, definition_node_id=node.id, scope=scope, aliases=aliases,
+                pointer=pointer_for(value), part=pid, term_node_id=node.id,
+                term_node_path=node.path, definition_node_path=node.path,
+                block_path=node.path, cue_path=node.path, cue_text=cue.sentence,
+                scope_source=scope_source, shape="block_headword",
+                raw_term_text=raw_term,
+                anomalies=["definition_block_not_parsed_as_a_table: the headword "
+                           "and its definition share one node, so the definition "
+                           "text on this site is the whole block, not the term's "
+                           "own words"]))
     return sites
 
 

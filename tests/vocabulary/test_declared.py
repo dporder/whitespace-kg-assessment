@@ -120,6 +120,60 @@ def test_an_ordinary_two_column_table_is_not_a_definitions_table():
     assert declared.ingest_part(part, {}) == []
 
 
+def test_a_definitions_block_flattened_into_its_lead_in_is_still_read():
+    """Call-Off Schedule 9 prints its part-local definitions as a two-column
+    block, and stage 1 flattens that block into the lead-in's own text rather
+    than into a table. The lead-in is what licenses reading a bare quoted phrase
+    as a headword there."""
+    from tests.vocabulary.conftest import mk
+    intro = mk("co9/1/1.1/intro", "intro", order=2, citable=False,
+               text='In this Schedule, the following words shall have the '
+                    'following meanings and they shall supplement the '
+                    'Definitions Schedule: "Breach of Security" the occurrence '
+                    'of:')
+    clause = mk("co9/1/1.1", "clause", order=1, label="1.1", children=[intro])
+    head = mk("co9/1", "heading", order=1, label="1", title="Definitions",
+              children=[clause])
+    part = mk("co9", "part", order=0, title="Call-Off Schedule 9 (Security)",
+              part_family="call-off-schedule", children=[head])
+    sites = sites_of(part, {})
+    assert "Breach of Security" in sites
+    site = sites["Breach of Security"]
+    assert site.scope == "part:co9"
+    assert site.shape == "block_headword"
+    assert any("not_parsed_as_a_table" in a for a in site.anomalies)
+
+
+def test_a_column_interleaved_headword_is_rejected_not_minted():
+    """Call-Off Schedule 9's Part B block really arrives with its two columns
+    interleaved: `"Breach of means the occurrence of: Security"`. A headword
+    rule without the capitalised-phrase guard would mint that as a term."""
+    from tests.vocabulary.conftest import mk
+    intro = mk("co9b/1/1.1/intro", "intro", order=2, citable=False,
+               text='In this Schedule the following words shall have the '
+                    'following meanings and they shall supplement Joint '
+                    'Schedule 1 (Definitions): "Breach of means the occurrence '
+                    'of: Security"')
+    clause = mk("co9b/1/1.1", "clause", order=1, label="1.1", children=[intro])
+    head = mk("co9b/1", "heading", order=1, label="1", title="Definitions",
+              children=[clause])
+    part = mk("co9b", "part", order=0, title="Call-Off Schedule 9 Part B",
+              part_family="call-off-schedule", children=[head])
+    assert declared.ingest_part(part, {}) == []
+
+
+def test_a_quoted_phrase_outside_a_definitions_block_is_not_a_headword():
+    from tests.vocabulary.conftest import mk
+    body = mk("q/1/1.1", "clause", order=2, label="1.1",
+              text='The Supplier shall not describe itself as a "Preferred '
+                   'Bidder" in any material.')
+    head = mk("q/1", "heading", order=1, label="1", title="Publicity",
+              children=[body])
+    part = mk("q", "part", order=0, title="Core Terms", part_family="core",
+              children=[head])
+    assert declared.ingest_part(part, {}) == []
+
+
 def test_a_table_whose_columns_are_reversed_is_reported_not_silently_empty(
         document_definitions_part):
     """The hardest failure to notice would be stage 1 labelling the definition

@@ -113,20 +113,30 @@ def merge(declared_sites: list[RawSite], discovered: list[RawSite],
         else:
             first_at[k] = m
 
-    # Parenthetical abbreviations attach to the term they abbreviate.
+    # Parenthetical abbreviations attach to the term they abbreviate, and the
+    # attachment runs both ways because the drafters declare whichever form they
+    # find convenient. `the Crown Commercial Service (CCS)` introduces a pair;
+    # Joint Schedule 1 declares the short form, `CCS`, so the long form is the
+    # alias. Handling only the phrase-is-the-term direction left every real
+    # abbreviation in this pack unattached, CCS, ICT, ISMS, NCSC, EIR and CEDR
+    # among them, and dropped the long forms from the matcher entirely.
     terms = defaultdict(list)
     for m in out:
         terms[m.term].append(m)
     unattached: list[AliasCandidate] = []
     for cand in aliases:
-        targets = terms.get(cand.phrase)
-        if not targets:
+        if cand.phrase in terms:                       # long form declared
+            cand.attached_to = cand.phrase
+            surface = cand.alias
+        elif cand.alias in terms:                      # short form declared
+            cand.attached_to = cand.alias
+            surface = cand.phrase
+        else:
             unattached.append(cand)
             continue
-        cand.attached_to = cand.phrase
-        for m in targets:
-            if cand.alias not in m.raw.aliases:
-                m.raw.aliases.append(cand.alias)
+        for m in terms[cand.attached_to]:
+            if surface != m.term and surface not in m.raw.aliases:
+                m.raw.aliases.append(surface)
     return out, unattached
 
 

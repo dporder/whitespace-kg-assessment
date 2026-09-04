@@ -70,6 +70,36 @@ def test_a_term_only_the_rule_finds_is_discovered(prose_part):
     assert by_term["Named Papers"].scope == "part:prose"
 
 
+def test_an_alias_attaches_when_the_SHORT_form_is_the_declared_term():
+    """`the Crown Commercial Service (CCS)` introduces a pair, and Joint
+    Schedule 1 declares the short form. Handling only the long-form direction
+    left every real abbreviation in this pack unattached and dropped the long
+    forms from the matcher: CCS, ICT, ISMS, NCSC, EIR and CEDR."""
+    from tests.vocabulary.conftest import definitions_table, mk
+    intro, table, _values = definitions_table(
+        "p", "In each Contract, the following words shall have the following "
+             "meanings:",
+        [('"CCS"', "the authority named in the Order Form;")])
+    body = mk("p/2/2.1", "clause", order=20, label="2.1",
+              text="The Crown Commercial Service (CCS) shall publish the notice.")
+    head = mk("p/1", "heading", order=1, label="1", title="Definitions",
+              children=[intro, table])
+    head2 = mk("p/2", "heading", order=19, label="2", title="Notices",
+               children=[body])
+    part = mk("p", "part", order=0, title="Joint Schedule 1 (Definitions)",
+              part_family="joint-schedule", children=[head, head2])
+
+    declared_sites = declared.ingest_part(part, {})
+    found = discovery.discover_part(part)
+    merged, unattached = sites_mod.merge(declared_sites, found.sites, found.aliases,
+                                         {"p"})
+    site = next(m for m in merged if m.term == "CCS")
+    assert "Crown Commercial Service" in site.raw.aliases
+    assert unattached == []
+    vocab = sites_mod.vocabulary_for("p", merged)
+    assert vocab.surfaces["Crown Commercial Service"].term == "CCS"
+
+
 def test_an_alias_found_in_running_text_attaches_to_its_term():
     """The Crown-Commercial-Service-(CCS) convention: the abbreviation becomes a
     matchable surface on the term it abbreviates, not a term of its own."""
