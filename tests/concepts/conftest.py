@@ -13,6 +13,11 @@ import types
 
 import pytest
 
+from tests.vocabulary.llm_seam import install_llm as _install
+from tests.vocabulary.llm_seam import (  # noqa: F401
+    no_live_llm, without_llm,
+)
+
 from pipeline.schemas import BBox, Node, content_hash, lineage_key, node_id
 
 DOC = "rm6116-test"
@@ -44,9 +49,8 @@ class FakeClaude:
 
 
 def install_llm(monkeypatch, fake: FakeClaude) -> None:
-    module = types.ModuleType("pipeline.llm")
-    module.complete = fake.complete
-    monkeypatch.setitem(sys.modules, "pipeline.llm", module)
+    """Stand `fake` in for pipeline.llm, in both places Python looks."""
+    _install(monkeypatch, fake.complete)
 
 
 def reply(*concepts) -> str:

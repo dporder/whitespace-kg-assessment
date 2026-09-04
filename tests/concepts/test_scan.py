@@ -167,8 +167,8 @@ def test_concept_ids_are_deterministic_in_scope_and_label():
 
 def test_without_llm_py_every_unit_is_queued_with_its_prompt(two_part_trees, tmp_path,
                                                              monkeypatch):
-    import sys
-    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    from tests.vocabulary.llm_seam import without_llm
+    without_llm(monkeypatch)
     results = scan_mod.scan(two_part_trees, runner(tmp_path))
     assert all(r.state == llmio.PENDING_MODULE for r in results)
     assert all(r.prompt for r in results)

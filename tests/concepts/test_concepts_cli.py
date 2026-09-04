@@ -203,7 +203,8 @@ def test_associated_term_is_not_computed_here(tmp_path, monkeypatch):
 
 def test_without_llm_py_the_run_is_honest_about_scanning_nothing(tmp_path,
                                                                  monkeypatch):
-    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    from tests.vocabulary.llm_seam import without_llm
+    without_llm(monkeypatch)
     code, run_dir = run(tmp_path)
     assert code == 0
     assert json.loads((run_dir / "concepts.json").read_text()) == []

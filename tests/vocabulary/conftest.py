@@ -119,3 +119,10 @@ def prose_part() -> Node:
               children=[a, b])
     return mk("prose", "part", order=0, title="Framework Schedule 3 (Prose)",
               part_family="framework-schedule", children=[head])
+
+# The enrichment suites are hermetic by default: `no_live_llm` is autouse and
+# stands a tripwire in front of the real client, so a test that reaches it
+# fails instead of spending money. See tests/vocabulary/llm_seam.py.
+from tests.vocabulary.llm_seam import (  # noqa: E402,F401
+    install_llm, no_live_llm, without_llm,
+)

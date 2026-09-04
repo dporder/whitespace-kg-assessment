@@ -10,6 +10,8 @@ import config
 from pipeline.schemas import EmbeddingRecord
 from pipeline.embeddings.__main__ import main
 from pipeline.vocabulary import llmio
+from tests.vocabulary.llm_seam import install_llm as _install
+from tests.vocabulary.llm_seam import without_llm
 
 FIXTURES = config.ROOT / "fixtures"
 
@@ -21,9 +23,8 @@ def run(tmp_path: Path, *extra: str) -> tuple[int, Path]:
 
 
 def install_llm(monkeypatch, reply="A short generated summary of the provision."):
-    module = types.ModuleType("pipeline.llm")
-    module.complete = lambda task, prompt: reply
-    monkeypatch.setitem(sys.modules, "pipeline.llm", module)
+    """Both places Python looks; see tests/vocabulary/llm_seam.py."""
+    _install(monkeypatch, lambda task, prompt, **kw: reply)
 
 
 def test_the_cli_runs_clean_and_writes_its_files(tmp_path, fake_openai):
@@ -62,7 +63,7 @@ def test_a_summary_with_no_model_is_pending_and_mints_no_record(tmp_path,
                                                                 monkeypatch):
     """The honest shape when pipeline/llm.py is absent: the item is queued with
     its reason, and no EmbeddingRecord claims a summary that was never written."""
-    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    without_llm(monkeypatch)
     _code, out = run(tmp_path)
     pending = json.loads((out / "pending.json").read_text())
     owed = [p for p in pending["items"] if p["blocked_on"] == "summary"]

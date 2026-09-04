@@ -14,6 +14,7 @@ import types
 import config
 from pipeline.vocabulary import llmio, routing
 from pipeline.vocabulary.matching import Match
+from tests.vocabulary.llm_seam import install_llm, without_llm
 
 
 def make_match(kind: str, term: str = "Widget", **kw) -> Match:
@@ -37,9 +38,8 @@ class FakeLLM:
 
 
 def install(monkeypatch, fake) -> None:
-    module = types.ModuleType("pipeline.llm")
-    module.complete = fake.complete
-    monkeypatch.setitem(sys.modules, "pipeline.llm", module)
+    """Both places Python looks; see tests/vocabulary/llm_seam.py."""
+    install_llm(monkeypatch, fake.complete)
 
 
 def runner(tmp_path, enabled=True) -> llmio.Runner:
@@ -106,7 +106,7 @@ def test_the_routing_model_comes_from_its_own_config_entry():
 
 
 def test_without_llm_py_the_queue_is_built_and_marked_pending(tmp_path, monkeypatch):
-    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    without_llm(monkeypatch)
     matches = [make_match("heading"), make_match("typo_dense")]
     r = runner(tmp_path)
     queues = routing.route(matches, r, no_definition, no_candidates)
@@ -263,7 +263,7 @@ def test_the_local_cache_serves_only_while_pipeline_llm_is_absent(tmp_path,
     assert call.state == llmio.DELEGATED
     r.write_cache(call)                       # what the cache warmer does
 
-    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    without_llm(monkeypatch)
     replayed = runner(tmp_path).complete("vocabulary_routing", "v1", "a prompt")
     assert replayed.state == llmio.REPLAYED
     assert replayed.response == call.response
