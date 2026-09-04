@@ -133,7 +133,14 @@ def run(args: argparse.Namespace) -> int:
     if not wanted:
         raise SystemExit(f"no stage 2 trees found under {source_root / 'tree'}")
 
-    trees = treeio.load_trees(source, source_root, run_id, wanted)
+    # Two scopes, deliberately different. Vocabulary is inherited document-wide
+    # (DESIGN tier 1), so the definitions are derived from every tree present,
+    # while term uses are emitted only for the parts in scope. Deriving the
+    # vocabulary from the batch alone would make `--batch B1` report zero term
+    # uses in Core Terms purely because Joint Schedule 1 is in B2, which is an
+    # artefact of the slicing rather than anything the document says.
+    trees = treeio.load_trees(source, source_root, run_id, present)
+    match_parts = list(wanted)
     doc_parts = document_scope_parts(trees)
 
     # -- vocabulary ----------------------------------------------------------
@@ -155,6 +162,8 @@ def run(args: argparse.Namespace) -> int:
     vocabularies: dict[str, sites_mod.PartVocabulary] = {}
     all_matches: list[matching.Match] = []
     for pid, part in trees.ordered():
+        if pid not in match_parts:
+            continue
         vocab = sites_mod.vocabulary_for(pid, merged)
         vocabularies[pid] = vocab
         all_matches.extend(matching.match_part(
@@ -248,7 +257,12 @@ def run(args: argparse.Namespace) -> int:
     violations = check_invariants(kept, merged, trees)
     summary = {
         "stage": STAGE, "run": run_id, "input_source": source,
-        "input_root": str(source_root), "parts": sorted(trees.parts),
+        "input_root": str(source_root),
+        "parts": sorted(match_parts),
+        "vocabulary_derived_from_parts": sorted(trees.parts),
+        "scope_note": ("vocabulary is inherited document-wide, so definition "
+                       "sites are derived from every tree present; term uses "
+                       "are emitted only for the parts in scope"),
         "document_scope_parts": sorted(doc_parts),
         "definition_sites": {
             "total": len(merged),

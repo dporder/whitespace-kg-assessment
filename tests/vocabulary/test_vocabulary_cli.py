@@ -105,6 +105,30 @@ def test_only_the_recorded_paths_differ_between_two_output_roots(tmp_path):
         assert left == right, name
 
 
+def test_a_batch_scopes_the_matching_but_not_the_vocabulary(tmp_path):
+    """Vocabulary is inherited document-wide, so scoping to B1 must not throw
+    away Joint Schedule 1's definitions: Core Terms would then report zero term
+    uses purely because the definitions schedule is in a different batch, which
+    is an artefact of the slicing rather than anything the document says."""
+    code = main(["--input", "fixtures", "--fixtures-dir", str(FIXTURES),
+                 "--output-dir", str(tmp_path), "--run", "t", "--quiet",
+                 "--batch", "B1"])
+    assert code == 0
+    summary = json.loads((tmp_path / "t" / "vocab" / "summary.json").read_text())
+    assert summary["parts"] == ["core-terms"]
+    assert "joint-schedule-1" in summary["vocabulary_derived_from_parts"]
+    assert summary["definition_sites"]["total"] > 0
+    assert summary["term_uses"]["total"] > 0
+    uses = json.loads((tmp_path / "t" / "vocab" / "term_uses.json").read_text())
+    trees_by_id = {}
+    from pipeline.vocabulary import treeio
+    for _p, node in treeio.load_trees("fixtures", FIXTURES, "t",
+                                      ["core-terms"]).nodes():
+        trees_by_id[node.id] = node
+    assert all(u["node_id"] in trees_by_id for u in uses), \
+        "term uses are emitted only for the parts in scope"
+
+
 def test_declared_and_discovered_are_reported_apart(tmp_path):
     _code, vocab = run(tmp_path)
     diff = json.loads((vocab / "discovery_diff.json").read_text())
