@@ -185,6 +185,11 @@ class Neo4jBackend(ToolBackend):
 
         rows = self._read(Q_ANCESTORS, path=path)
         if not rows:
+            # Legislation is not part of the tree, so it has no ancestors. Name
+            # the Act rather than falling back to the bare word "Legislation",
+            # which made every statute on the connections view look alike.
+            if path.startswith("legislation/"):
+                return title_case_part(path.split("/", 1)[1].split("/")[0])
             return title_case_part(part_of(path))
         node = rows[-1]
         part_row = next((r for r in rows if r.get("kind") == "part"), None)

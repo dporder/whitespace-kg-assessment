@@ -24,6 +24,13 @@ from pipeline.schemas import Concept, DefinitionSite, Node, RefsFile, TermUse
 from . import config as ui_config
 
 
+# Stage 3 writes its own bookkeeping beside the per-part refs files. These are
+# not RefsFiles and never were, so reporting them as validation failures buried
+# the real problems: "problems" should mean problems.
+REFS_SIDECARS = {"legislation.json", "llm_queue.json", "report.json",
+                 "review_queue.json", "residue.json", "candidates.json"}
+
+
 def _walk(node: Node):
     """Preorder, anatomy and ref children alike."""
     yield node
@@ -95,8 +102,17 @@ class Corpus:
                 c.by_id[n.id] = n
 
         for f in sorted((root / "refs").glob("*.json")):
+            if f.name in REFS_SIDECARS:
+                continue                                   # stage-3 metadata, not a RefsFile
             try:
-                rf = RefsFile.model_validate(json.loads(f.read_text()))
+                raw = json.loads(f.read_text())
+            except Exception as exc:                       # noqa: BLE001
+                c.problems.append(f"refs/{f.name}: {type(exc).__name__}: {exc}")
+                continue
+            if not (isinstance(raw, dict) and "part" in raw and "refs" in raw):
+                continue                                   # some other sidecar; not a problem
+            try:
+                rf = RefsFile.model_validate(raw)
             except Exception as exc:                       # noqa: BLE001
                 c.problems.append(f"refs/{f.name}: {type(exc).__name__}: {exc}")
                 continue

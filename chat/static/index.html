@@ -313,7 +313,7 @@ const STAGE_WORDS = [
   ['Finally', 'needed the one before']
 ];
 
-let health = {}, LAST = null;
+let health = {}, LAST = null, LAST_PLAN = null, LAST_TRACE = [];
 const NAMES = {};
 
 // Middle-truncate a long provenance path, the way their breadcrumbs do.
@@ -371,7 +371,12 @@ function renderProse(node, raw, marks) {
       s.dataset.key = key;
       const bad = marks.bad && marks.bad.has(key);
       if (bad) { s.classList.add('bad'); s.title = 'this source did not check out: ' + marks.bad.get(key); }
-      else { s.onclick = () => showCitation(path, page, n, s); s.title = 'open the source'; }
+      else {
+        s.dataset.citePath = path;
+        s.dataset.citePage = page;
+        s.dataset.citeN = String(n || '');
+        s.title = 'open the source';
+      }
       node.append(s);
     }
     last = re.lastIndex;
@@ -662,7 +667,11 @@ function ask() {
           const t = el('span', 'tick');
           t.innerHTML = '<svg width="7" height="6" viewBox="0 0 7 6" fill="none"><path d="M1 3l1.8 1.8L6 1.4" stroke="#fff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
           b.append(t);
-          b.onclick = () => showCitation(c.path, c.page, n, null);
+          // Carried as data and opened by the delegated listener below, so the
+          // chip cannot end up rendered-but-unwired.
+          b.dataset.citePath = c.path;
+          b.dataset.citePage = c.page == null ? '' : String(c.page);
+          b.dataset.citeN = String(n || '');
         } else { b.title = 'this source did not check out: ' + c.status; }
         chips.append(b);
       });
@@ -675,8 +684,7 @@ function ask() {
       const b = el('button', 'fold');
       b.innerHTML = '<svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 1.5L4 4.5L7 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
       b.append(document.createTextNode('How I found this'));
-      let open = null;
-      b.onclick = () => { if (open) { open.remove(); open = null; } else { open = howBox(plan, trace); said.append(open); } };
+      b.dataset.action = 'trace';
       strip.append(b);
     }
     if (ok.length) {
@@ -684,11 +692,11 @@ function ask() {
       const c = el('button', 'fold');
       c.innerHTML = '<svg width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="2" cy="2" r="1.4" fill="currentColor"/><circle cx="7" cy="3.4" r="1.4" fill="currentColor"/><circle cx="3.4" cy="7" r="1.4" fill="currentColor"/><path d="M2 2L7 3.4M2 2L3.4 7" stroke="currentColor" stroke-width="0.8"/></svg>';
       c.append(document.createTextNode('See the connections'));
-      c.onclick = () => showConnections([...new Set(ok.map(x => x.path))]);
+      c.dataset.action = 'connections';
       strip.append(c);
     }
     said.append(strip);
-    LAST = ok;
+    LAST = ok; LAST_PLAN = plan; LAST_TRACE = trace;
   });
   es.addEventListener('error', e => {
     status.remove();
@@ -737,13 +745,61 @@ function howBox(plan, trace) {
   return box;
 }
 
+// One delegated listener for everything inside an answer. Chips, footnotes and
+// the two fold buttons used to each carry their own handler, attached at render
+// time; when that attachment was lost the control still rendered and simply did
+// nothing. Delegation cannot come unstuck.
+$('#convo').addEventListener('click', e => {
+  const cite = e.target.closest('[data-cite-path]');
+  if (cite) {
+    const page = cite.dataset.citePage === '' ? null : Number(cite.dataset.citePage);
+    const n = cite.dataset.citeN ? Number(cite.dataset.citeN) : null;
+    showCitation(cite.dataset.citePath, page, n, cite.matches('sup.fn') ? cite : null);
+    return;
+  }
+  const act = e.target.closest('[data-action]');
+  if (!act) return;
+  if (act.dataset.action === 'connections') {
+    showConnections([...new Set((LAST || []).map(c => c.path))]);
+  } else if (act.dataset.action === 'trace') {
+    const said = act.closest('.said') || act.parentNode.parentNode;
+    const shown = said.querySelector('.flow');
+    if (shown) shown.remove();
+    else said.append(howBox(LAST_PLAN, LAST_TRACE));
+  }
+});
+
 $('#send').onclick = ask;
 // Enter sends, Shift+Enter makes a newline. Without preventDefault the
 // textarea also inserts the newline it was about to.
+// Enter identity is reported inconsistently: some stacks give key:'Enter',
+// some only code or keyCode, and some deliver a keydown with none of them.
+// Accept any of the signals rather than one, and never bail on isComposing
+// alone — a stray composition flag was enough to kill sending entirely.
+function isEnterKey(e) {
+  if (e.key === 'Enter' || e.key === '\n'
+      || e.code === 'Enter' || e.code === 'NumpadEnter'
+      || e.keyCode === 13 || e.which === 13) return true;
+  // Some automation and remote-input paths deliver Return as a keydown with no
+  // identity at all. A real key press always carries at least one of these, so
+  // an entirely blank keydown over a non-empty box can only be the send key.
+  return e.key === '' && e.code === '' && !e.keyCode && !e.which
+      && $('#q').value.trim().length > 0;
+}
 $('#q').addEventListener('keydown', e => {
-  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  if (!isEnterKey(e) || e.shiftKey) return;
   e.preventDefault();
   if (!$('#send').disabled) ask();
+});
+// Belt and braces: if a newline reaches the box at all — because the keydown
+// carried no identity and the browser inserted it — treat it as send and take
+// the newline back out. Shift+Enter still gets a real newline.
+$('#q').addEventListener('input', e => {
+  if (e.inputType === 'insertLineBreak'
+      || (e.inputType === 'insertText' && e.data === '\n')) {
+    e.target.value = e.target.value.replace(/\n+$/, '');
+    if (!$('#send').disabled) ask();
+  }
 });
 $('#q').addEventListener('input', () => {
   $('#send').classList.toggle('live', $('#q').value.trim().length > 0);
