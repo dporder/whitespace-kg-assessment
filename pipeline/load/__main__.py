@@ -450,8 +450,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                 referent_keys = [r.key_value for r in rows.nodes
                                  if r.key_field in ("name", "key")
                                  or "Concept" in r.labels]
+                # The reconciliation already names the edge types this run's
+                # inputs could not produce; the sweep must not delete those.
+                starved = [s["edge_type"] for s in
+                           report["reconciliation"]["edge_types_skipped"]]
                 swept = graph.sweep(parts, batch_id, load_id=load_id,
-                                    referent_keys=referent_keys)
+                                    referent_keys=referent_keys,
+                                    skip_types=starved)
                 audit.record("sweep",
                              reason="anything in this batch's scope that this load did "
                                     "not assert; keyed on load_id so a rerun of the "

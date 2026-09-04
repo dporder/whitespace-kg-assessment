@@ -106,9 +106,16 @@ WHERE coalesce(n.load_id, '') <> $load_id
 DETACH DELETE n
 RETURN count(*) AS n
 """
+# A load only sweeps edge types it could actually have produced. Stages 3 to 6
+# run in parallel and a run directory may hold refs but not vocabulary, so a
+# load with no term_uses.json cannot assert USES_TERM. Sweeping it anyway
+# deleted every term edge an earlier, more complete load had written, on the
+# strength of an input this run never had. Absence of evidence is not the
+# assertion that something is gone.
 Q_SWEEP_RELS = """
 MATCH (s:Node)-[r]->()
 WHERE coalesce(r.load_id, '') <> $load_id
+  AND NOT type(r) IN $skip_types
   AND any(prefix IN $scope WHERE s.path = prefix OR s.path STARTS WITH prefix + '/')
 DELETE r
 RETURN count(*) AS n
@@ -469,7 +476,8 @@ class Graph:
                                         "batch's edges with them")}
 
     def sweep(self, scope: list[str], batch_id: str, *, load_id: str,
-              referent_keys: Optional[list[str]] = None) -> dict:
+              referent_keys: Optional[list[str]] = None,
+              skip_types: Optional[list[str]] = None) -> dict:
         """Delete anything in scope this load did not assert.
 
         Two things bound the blast radius, and both are arguments rather than
@@ -483,9 +491,17 @@ class Graph:
         asserted. A Concept loaded for one batch whose member provisions arrive
         in a later one is legitimately edgeless in between, and an unrelated
         sweep must not take it.
+
+        `skip_types` are the edge types this load could not produce because the
+        stage that feeds them is not in its run directory. Those are left alone:
+        a load that never had term_uses.json has no opinion about USES_TERM, and
+        deleting the edges an earlier, complete load wrote would be converging
+        on the wrong state.
         """
         doomed = self.read(Q_SWEEP_NODE_IDS, load_id=load_id, scope=scope)
-        rels = self.run(Q_SWEEP_RELS, load_id=load_id, scope=scope)
+        skipped = sorted(skip_types or ())
+        rels = self.run(Q_SWEEP_RELS, load_id=load_id, scope=scope,
+                        skip_types=skipped)
         nodes = self.run(Q_SWEEP_NODES, load_id=load_id, scope=scope)
         orphans: list[dict] = []
         removed_orphans = 0
@@ -496,6 +512,7 @@ class Graph:
                 out = self.run(Q_DELETE_ORPHAN_REFERENTS, keys=keys, load_id=load_id)
                 removed_orphans = out[0]["n"] if out else 0
         return {"op": "sweep", "batch_id": batch_id, "load_id": load_id, "scope": scope,
+                "edge_types_left_alone": skipped,
                 "relationships_deleted": rels[0]["n"] if rels else 0,
                 "nodes_deleted": nodes[0]["n"] if nodes else 0,
                 "orphan_referents_deleted": removed_orphans,

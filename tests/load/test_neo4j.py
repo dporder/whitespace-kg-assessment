@@ -471,3 +471,58 @@ def test_an_edge_into_a_part_that_has_not_arrived_defers_then_lands(graph, small
     landed = graph.read("MATCH (:Node {id: $id})-[:RESOLVES_TO]->(t:Node) "
                         "RETURN t.path AS path", id=citing.id)
     assert f"{other_part}/1" in [r["path"] for r in landed]
+
+
+def test_a_sweep_spares_edge_types_this_load_could_not_produce(graph, small_tree,
+                                                               small_refs, small_vocab,
+                                                               throwaway_batch, part_id):
+    """Found on the shared graph after a run whose directory had no vocabulary.
+
+    Stages 3 to 6 run in parallel, so a run directory can hold refs and no
+    term_uses.json. Such a load cannot assert USES_TERM, and sweeping the type
+    anyway deleted every term edge an earlier, complete load had written. A load
+    with no vocabulary has no opinion about vocabulary edges.
+    """
+    sites, uses = small_vocab
+    complete = f"{throwaway_batch}-complete"
+    partial = f"{throwaway_batch}-partial"
+    graph.also_rollback(complete)
+    graph.also_rollback(partial)
+
+    # a complete load: tree, refs and vocabulary
+    load(graph, small_tree, small_refs, complete, sites, uses)
+    term_edges = graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
+                            )[0]["n"]
+    assert term_edges == 2, "the complete load did not write its term edges"
+
+    # a later load of the same scope whose run directory has no vocabulary
+    rows = load(graph, small_tree, small_refs, partial)
+    graph.sweep([part_id], partial, load_id=rows.load_id,
+                skip_types=["USES_TERM", "DEFINED_IN", "DEFINED_USING"])
+
+    survived = graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
+                          )[0]["n"]
+    assert survived == 2, "a load with no vocabulary deleted the term edges anyway"
+
+
+def test_a_sweep_still_removes_a_type_this_load_does_produce(graph, small_tree,
+                                                             small_refs, small_vocab,
+                                                             throwaway_batch, part_id):
+    """The other half: having the input and not asserting an edge still means
+    the edge is gone, or reruns would never converge."""
+    sites, uses = small_vocab
+    first = f"{throwaway_batch}-with"
+    second = f"{throwaway_batch}-without"
+    graph.also_rollback(first)
+    graph.also_rollback(second)
+
+    load(graph, small_tree, small_refs, first, sites, uses)
+    assert graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
+                      )[0]["n"] == 2
+
+    # this load HAS vocabulary, and asserts only one of the two uses
+    rows = load(graph, small_tree, small_refs, second, sites, uses[:1])
+    graph.sweep([part_id], second, load_id=rows.load_id, skip_types=[])
+
+    assert graph.read("MATCH (:Node)-[u:USES_TERM]->(:Term) RETURN count(u) AS n"
+                      )[0]["n"] == 1, "the use this load dropped was not swept"
