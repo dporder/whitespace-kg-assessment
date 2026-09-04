@@ -1,0 +1,91 @@
+[
+  {
+    "term": "Provider",
+    "node_id": "b596b236aa4c694b3e8c0678920262117804d458",
+    "char_span": [
+      4,
+      12
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Outputs",
+    "node_id": "b596b236aa4c694b3e8c0678920262117804d458",
+    "char_span": [
+      25,
+      32
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Good Working Practice",
+    "node_id": "3effa77976523486d1978c32e8a71224a163e317",
+    "char_span": [
+      0,
+      21
+    ],
+    "status": "ambiguous",
+    "ambiguity_kind": "sentence_initial",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Provider",
+    "node_id": "bfe4f617b305914982ab935feb0bf56db9088233",
+    "char_span": [
+      4,
+      12
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Central Buying Office",
+    "node_id": "af9d57561074182da92ddef60416eceea0aaa558",
+    "char_span": [
+      53,
+      74
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Central Buying Office",
+    "node_id": "e781800994229002f837868a508a9027c05174ce",
+    "char_span": [
+      32,
+      35
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Outputs",
+    "node_id": "5933cc9e95f723f1d7fd22b161aa296d62bf065c",
+    "char_span": [
+      4,
+      11
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  },
+  {
+    "term": "Provider",
+    "node_id": "5933cc9e95f723f1d7fd22b161aa296d62bf065c",
+    "char_span": [
+      28,
+      36
+    ],
+    "status": "confident",
+    "method": "exact_longest",
+    "definition_used": "document"
+  }
+]

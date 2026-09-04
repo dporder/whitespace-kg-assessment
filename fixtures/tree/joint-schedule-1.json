@@ -1,0 +1,405 @@
+{
+  "id": "fc1dc32d2fdd973766f6ec4996b46b383e4c01b1",
+  "lineage_key": "29a294711a3ade3bd2c86974a23b09ce663005ea",
+  "path": "joint-schedule-1",
+  "kind": "part",
+  "unit_label": "Paragraph",
+  "unit_label_source": "document",
+  "title": "Joint Schedule 1 (Definitions)",
+  "page_start": 1,
+  "page_end": 1,
+  "bboxes_extent": [
+    {
+      "page": 1,
+      "bbox": [
+        72.0,
+        110.0,
+        500.0,
+        260.0
+      ]
+    }
+  ],
+  "order": 0,
+  "children": [
+    {
+      "id": "7f8091a2ae491d59a191c1a0952acf46011a2ad9",
+      "lineage_key": "63305ca7a9e539e2e900ef441076e113e2557da6",
+      "path": "joint-schedule-1/2",
+      "kind": "heading",
+      "unit_label": "Paragraph",
+      "unit_label_source": "document",
+      "label": "2",
+      "title": "Defined Terms",
+      "page_start": 1,
+      "page_end": 1,
+      "printed_page": "1",
+      "bboxes_own": [
+        {
+          "page": 1,
+          "bbox": [
+            72.0,
+            110.0,
+            260.0,
+            126.0
+          ]
+        }
+      ],
+      "bboxes_extent": [
+        {
+          "page": 1,
+          "bbox": [
+            72.0,
+            110.0,
+            500.0,
+            260.0
+          ]
+        }
+      ],
+      "order": 1,
+      "children": [
+        {
+          "id": "3e43538e3001c6c8cec0d60aed09e919a86b9265",
+          "lineage_key": "80b9f20e2b07aed3ed7b309effbf16b66b25fe1d",
+          "path": "joint-schedule-1/2/table",
+          "kind": "table",
+          "page_start": 1,
+          "page_end": 1,
+          "printed_page": "1",
+          "bboxes_extent": [
+            {
+              "page": 1,
+              "bbox": [
+                72.0,
+                140.0,
+                500.0,
+                260.0
+              ]
+            }
+          ],
+          "order": 2,
+          "children": [
+            {
+              "id": "bc0e2c0f06cc27f4a846abf4439a6d4d050ecb57",
+              "lineage_key": "ee4077e352cdad01cadc3fd76cde6e79a5d50fd5",
+              "content_hash": "3785e34466a5dd439e5a5129f10d08fd61a93da4",
+              "path": "joint-schedule-1/2/table/0/0",
+              "kind": "cell",
+              "text": "\"Provider\"",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    140.0,
+                    200.0,
+                    155.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    140.0,
+                    200.0,
+                    155.0
+                  ]
+                }
+              ],
+              "order": 3,
+              "batch_id": "B2",
+              "row": 0,
+              "col": 0,
+              "cell_role": "label",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "71b6fd4fef600a0dfca27cd52db97f71c935a013",
+              "lineage_key": "b28845f0a88e661199d040bdc7b965b13dc1b6fc",
+              "content_hash": "766f4cb64b6d714e537b85ba30045ef96e8169f8",
+              "path": "joint-schedule-1/2/table/0/1",
+              "kind": "cell",
+              "text": "the person named as supplier in the Order Form;",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    140.0,
+                    500.0,
+                    155.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    140.0,
+                    500.0,
+                    155.0
+                  ]
+                }
+              ],
+              "order": 4,
+              "batch_id": "B2",
+              "row": 0,
+              "col": 1,
+              "cell_role": "value",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "5d638ad34fb7865f9350ea34d39a46543b45c1a9",
+              "lineage_key": "0532fef0542f35815056ac2c9e2a4d1d4de968c5",
+              "content_hash": "fe35edb21306c244b5c9a5ec7bf5b642ceb3bc4f",
+              "path": "joint-schedule-1/2/table/1/0",
+              "kind": "cell",
+              "text": "\"Materials\"",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    160.0,
+                    200.0,
+                    175.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    160.0,
+                    200.0,
+                    175.0
+                  ]
+                }
+              ],
+              "order": 5,
+              "batch_id": "B2",
+              "row": 1,
+              "col": 0,
+              "cell_role": "label",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "5933cc9e95f723f1d7fd22b161aa296d62bf065c",
+              "lineage_key": "53a47d039c005c22b02bc220ed03dd6e4914a5a1",
+              "content_hash": "17f668dfbd6c74866333a7d923001541087d9e25",
+              "path": "joint-schedule-1/2/table/1/1",
+              "kind": "cell",
+              "text": "all Outputs supplied by the Provider, as described in Schedule 6 (Materials);",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    160.0,
+                    500.0,
+                    190.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    160.0,
+                    500.0,
+                    190.0
+                  ]
+                }
+              ],
+              "order": 6,
+              "batch_id": "B2",
+              "row": 1,
+              "col": 1,
+              "cell_role": "value",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "b37e60031dca41f6d6c74a4b70369f1d2b5fe4ef",
+              "lineage_key": "81d271eb1566d0147d95ef873fb82c566053442d",
+              "content_hash": "c7b38eb0427cfb022161d56203969003c6a47e9e",
+              "path": "joint-schedule-1/2/table/2/0",
+              "kind": "cell",
+              "text": "\"Central Buying Office\" (\"CBO\")",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    195.0,
+                    200.0,
+                    225.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    195.0,
+                    200.0,
+                    225.0
+                  ]
+                }
+              ],
+              "order": 7,
+              "batch_id": "B2",
+              "row": 2,
+              "col": 0,
+              "cell_role": "label",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "e2c9084693d9c35a90d0c33edcfed61549bd0289",
+              "lineage_key": "5170434e33e68f53f136e2f88c408351c3685410",
+              "content_hash": "d33bb466ef9dd4261bb9112973d624437e46d1a9",
+              "path": "joint-schedule-1/2/table/2/1",
+              "kind": "cell",
+              "text": "the central purchasing authority;",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    195.0,
+                    500.0,
+                    210.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    195.0,
+                    500.0,
+                    210.0
+                  ]
+                }
+              ],
+              "order": 8,
+              "batch_id": "B2",
+              "row": 2,
+              "col": 1,
+              "cell_role": "value",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "5115729ffc40afe626ff737e4dcdf8c9810b7384",
+              "lineage_key": "13c1de2ae228f28b816cce8b52f1aa4324fa49b7",
+              "content_hash": "f9bd6ce8bc09ca4eb3878d7605693a3ca9220358",
+              "path": "joint-schedule-1/2/table/3/0",
+              "kind": "cell",
+              "text": "\"Good Working Practice\"",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    230.0,
+                    200.0,
+                    260.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    230.0,
+                    200.0,
+                    260.0
+                  ]
+                }
+              ],
+              "order": 9,
+              "batch_id": "B2",
+              "row": 3,
+              "col": 0,
+              "cell_role": "label",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "2377bf3ea00a7287d8609d6d6d7f7d86f2d29f61",
+              "lineage_key": "34902d9554687983b644bf2064b6833a37213f94",
+              "content_hash": "14d14fe1554a0308cbd2b1a7845b35a602f45cc2",
+              "path": "joint-schedule-1/2/table/3/1",
+              "kind": "cell",
+              "text": "standards which a skilled person would reasonably be expected to meet;",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    230.0,
+                    500.0,
+                    245.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    230.0,
+                    500.0,
+                    245.0
+                  ]
+                }
+              ],
+              "order": 10,
+              "batch_id": "B2",
+              "row": 3,
+              "col": 1,
+              "cell_role": "value",
+              "role_confidence": 0.99
+            }
+          ],
+          "batch_id": "B2",
+          "n_rows": 4,
+          "n_cols": 2
+        }
+      ],
+      "batch_id": "B2"
+    }
+  ],
+  "batch_id": "B2",
+  "part_family": "joint-schedule",
+  "template_version": "v3.10"
+}

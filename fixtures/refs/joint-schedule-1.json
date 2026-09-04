@@ -1,0 +1,43 @@
+{
+  "part": "joint-schedule-1",
+  "refs": [
+    {
+      "id": "ae312020a0e459409ce1e5c22747189416ca09e9",
+      "lineage_key": "540d09b69175a5c8fcad993d7561bc343dd02218",
+      "path": "joint-schedule-1/2/table/1/1/ref@54-76",
+      "kind": "ref",
+      "citable": false,
+      "text": "Schedule 6 (Materials)",
+      "page_start": 1,
+      "page_end": 1,
+      "bboxes_own": [
+        {
+          "page": 1,
+          "bbox": [
+            400.0,
+            160.0,
+            495.0,
+            175.0
+          ]
+        }
+      ],
+      "order": 0,
+      "batch_id": "B2",
+      "char_span": [
+        54,
+        76
+      ],
+      "ref_kind": "schedule",
+      "scope_rule": "title_paren",
+      "status": "unresolved",
+      "candidates": [
+        {
+          "path": "call-off-schedule-6",
+          "score": 0.9,
+          "reason": "title parenthetical matches; part not ingested"
+        }
+      ],
+      "resolver": "scope"
+    }
+  ]
+}

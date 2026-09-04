@@ -1,0 +1,235 @@
+{
+  "id": "c5e7c9b892ac6833f58820538568f48e8b0425f3",
+  "lineage_key": "ff87fb7626294ddbf44b721ee1081c0dad69f37a",
+  "path": "award-form",
+  "kind": "part",
+  "title": "Framework Award Form",
+  "page_start": 1,
+  "page_end": 1,
+  "bboxes_extent": [
+    {
+      "page": 1,
+      "bbox": [
+        72.0,
+        130.0,
+        490.0,
+        205.0
+      ]
+    }
+  ],
+  "order": 0,
+  "children": [
+    {
+      "id": "07c80646dff77cd9b81342fa1cdb85ae5d5d847d",
+      "lineage_key": "8ce9767a7ff5d4e7e46792ccf7bdd823984deb35",
+      "path": "award-form/2",
+      "kind": "form_row",
+      "label": "2",
+      "page_start": 1,
+      "page_end": 1,
+      "printed_page": "1",
+      "bboxes_extent": [
+        {
+          "page": 1,
+          "bbox": [
+            72.0,
+            130.0,
+            470.0,
+            145.0
+          ]
+        }
+      ],
+      "order": 1,
+      "children": [
+        {
+          "id": "847f5fcb00cc19ec5d3816b938705b0b1c16d5e3",
+          "lineage_key": "e46649e3c83cef578d7f72ed5b069ae0813a9a2b",
+          "content_hash": "7ceee3f3615a2bbe4ce0ac5a269a311e4821daf4",
+          "path": "award-form/2/label",
+          "kind": "cell",
+          "text": "Provider",
+          "page_start": 1,
+          "page_end": 1,
+          "printed_page": "1",
+          "bboxes_own": [
+            {
+              "page": 1,
+              "bbox": [
+                72.0,
+                130.0,
+                180.0,
+                145.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 1,
+              "bbox": [
+                72.0,
+                130.0,
+                180.0,
+                145.0
+              ]
+            }
+          ],
+          "order": 2,
+          "batch_id": "B3",
+          "row": 2,
+          "col": 0,
+          "cell_role": "label",
+          "role_confidence": 0.99
+        },
+        {
+          "id": "c02081573b959e8c199305ab79c3ea4a5f2e8dc8",
+          "lineage_key": "fe34380f782e93579be6c4990f8e8e720b721d21",
+          "content_hash": "369b495da54e4448b7759aefce5c11c75520f72c",
+          "path": "award-form/2/value",
+          "kind": "cell",
+          "text": "[Insert name (registered name if registered)]",
+          "page_start": 1,
+          "page_end": 1,
+          "printed_page": "1",
+          "bboxes_own": [
+            {
+              "page": 1,
+              "bbox": [
+                200.0,
+                130.0,
+                470.0,
+                145.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 1,
+              "bbox": [
+                200.0,
+                130.0,
+                470.0,
+                145.0
+              ]
+            }
+          ],
+          "order": 3,
+          "batch_id": "B3",
+          "row": 2,
+          "col": 1,
+          "cell_role": "value",
+          "role_confidence": 0.99
+        }
+      ],
+      "batch_id": "B3"
+    },
+    {
+      "id": "14cb174d735dbadd44fb07011cca849d36ae38df",
+      "lineage_key": "2e393695f41b04e5c7d0a84283603b51368fdccc",
+      "path": "award-form/3",
+      "kind": "form_row",
+      "label": "3",
+      "page_start": 1,
+      "page_end": 1,
+      "printed_page": "1",
+      "bboxes_extent": [
+        {
+          "page": 1,
+          "bbox": [
+            72.0,
+            160.0,
+            490.0,
+            205.0
+          ]
+        }
+      ],
+      "order": 4,
+      "children": [
+        {
+          "id": "120550221b2062ffe7fe7cd61431217257332840",
+          "lineage_key": "42404910196aa1dfad2341db5e30a69873666556",
+          "content_hash": "718993da1995d770092ec5418bdf147dcb89a815",
+          "path": "award-form/3/label",
+          "kind": "cell",
+          "text": "rFramework Contract",
+          "page_start": 1,
+          "page_end": 1,
+          "printed_page": "1",
+          "bboxes_own": [
+            {
+              "page": 1,
+              "bbox": [
+                72.0,
+                160.0,
+                180.0,
+                190.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 1,
+              "bbox": [
+                72.0,
+                160.0,
+                180.0,
+                190.0
+              ]
+            }
+          ],
+          "order": 5,
+          "anomalies": [
+            "stray_character_in_label: 'rFramework' for 'Framework', recorded verbatim"
+          ],
+          "batch_id": "B3",
+          "row": 3,
+          "col": 0,
+          "cell_role": "label",
+          "role_confidence": 0.98
+        },
+        {
+          "id": "82ef5d5494e2524a48d979a94c7861d8df123fe4",
+          "lineage_key": "8b20a46bb6a09df5966fedc90c41ac133cff5ddc",
+          "content_hash": "9280f671c526ecc3bc359c4b6f035b5fae0e169f",
+          "path": "award-form/3/value",
+          "kind": "cell",
+          "text": "This framework contract between the Central Buying Office and the Provider allows the Provider to be considered for Call-Off Contracts to supply the Outputs.",
+          "page_start": 1,
+          "page_end": 1,
+          "printed_page": "1",
+          "bboxes_own": [
+            {
+              "page": 1,
+              "bbox": [
+                200.0,
+                160.0,
+                490.0,
+                205.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 1,
+              "bbox": [
+                200.0,
+                160.0,
+                490.0,
+                205.0
+              ]
+            }
+          ],
+          "order": 6,
+          "batch_id": "B3",
+          "row": 3,
+          "col": 1,
+          "cell_role": "value",
+          "role_confidence": 0.99
+        }
+      ],
+      "batch_id": "B3"
+    }
+  ],
+  "batch_id": "B3",
+  "part_family": "award-form",
+  "template_version": "v3.10"
+}

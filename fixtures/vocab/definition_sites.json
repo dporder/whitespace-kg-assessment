@@ -1,0 +1,30 @@
+[
+  {
+    "term": "Provider",
+    "definition_node_id": "71b6fd4fef600a0dfca27cd52db97f71c935a013",
+    "source": "declared",
+    "scope": "document"
+  },
+  {
+    "term": "Materials",
+    "definition_node_id": "5933cc9e95f723f1d7fd22b161aa296d62bf065c",
+    "source": "declared",
+    "scope": "document",
+    "pointer": "Schedule 6"
+  },
+  {
+    "term": "Central Buying Office",
+    "definition_node_id": "e2c9084693d9c35a90d0c33edcfed61549bd0289",
+    "source": "both",
+    "scope": "document",
+    "aliases": [
+      "CBO"
+    ]
+  },
+  {
+    "term": "Good Working Practice",
+    "definition_node_id": "2377bf3ea00a7287d8609d6d6d7f7d86f2d29f61",
+    "source": "declared",
+    "scope": "document"
+  }
+]

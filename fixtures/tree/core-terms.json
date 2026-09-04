@@ -1,0 +1,533 @@
+{
+  "id": "89d2da895a1cc0b641a6d4748b34323edf7c0fcd",
+  "lineage_key": "2d5d4f8cd1229b32930bc191ff1659135e0662c1",
+  "path": "core-terms",
+  "kind": "part",
+  "unit_label": "Clause",
+  "unit_label_source": "document",
+  "title": "Core Terms",
+  "page_start": 1,
+  "page_end": 2,
+  "bboxes_extent": [
+    {
+      "page": 1,
+      "bbox": [
+        72.0,
+        90.0,
+        480.0,
+        245.0
+      ]
+    },
+    {
+      "page": 2,
+      "bbox": [
+        72.0,
+        90.0,
+        490.0,
+        250.0
+      ]
+    }
+  ],
+  "order": 0,
+  "children": [
+    {
+      "id": "2095a357314c09af38d7085525371cf2dbb789ff",
+      "lineage_key": "6e5f065fa65d364f7df78d31e9005d66bdfe607c",
+      "path": "core-terms/3",
+      "kind": "heading",
+      "unit_label": "Clause",
+      "unit_label_source": "document",
+      "label": "3",
+      "title": "What has to be provided",
+      "page_start": 1,
+      "page_end": 1,
+      "printed_page": "1",
+      "bboxes_own": [
+        {
+          "page": 1,
+          "bbox": [
+            72.0,
+            90.0,
+            340.0,
+            106.0
+          ]
+        }
+      ],
+      "bboxes_extent": [
+        {
+          "page": 1,
+          "bbox": [
+            72.0,
+            90.0,
+            480.0,
+            245.0
+          ]
+        }
+      ],
+      "order": 1,
+      "children": [
+        {
+          "id": "5e87607cb45d4c337f3874e4e17dd0135e2fa560",
+          "lineage_key": "78df5f54255b2d5b83ff0f2d7b0e4e328b31c39d",
+          "path": "core-terms/3/3.1",
+          "kind": "heading",
+          "unit_label": "Clause",
+          "unit_label_source": "document",
+          "label": "3.1",
+          "title": "All outputs",
+          "page_start": 1,
+          "page_end": 1,
+          "printed_page": "1",
+          "bboxes_own": [
+            {
+              "page": 1,
+              "bbox": [
+                86.0,
+                120.0,
+                250.0,
+                136.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 1,
+              "bbox": [
+                86.0,
+                120.0,
+                480.0,
+                245.0
+              ]
+            }
+          ],
+          "order": 2,
+          "children": [
+            {
+              "id": "317139667c3e8b1bef31ed74e2818faa5ad5a181",
+              "lineage_key": "4db5872a7d36bfcf95510feaba4f7e278058da40",
+              "path": "core-terms/3/3.1/3.1.1",
+              "kind": "subclause",
+              "unit_label": "Clause",
+              "unit_label_source": "document",
+              "label": "3.1.1",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    100.0,
+                    150.0,
+                    112.0,
+                    165.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    100.0,
+                    150.0,
+                    480.0,
+                    205.0
+                  ]
+                }
+              ],
+              "order": 3,
+              "children": [
+                {
+                  "id": "b596b236aa4c694b3e8c0678920262117804d458",
+                  "lineage_key": "e9bfbcfed0df242954e12d94ec4da6874b1b557f",
+                  "content_hash": "937904d6f9a98b440db484f116d7eb2b606e40a6",
+                  "path": "core-terms/3/3.1/3.1.1/intro",
+                  "kind": "intro",
+                  "citable": false,
+                  "text": "The Provider must supply Outputs:",
+                  "page_start": 1,
+                  "page_end": 1,
+                  "printed_page": "1",
+                  "bboxes_own": [
+                    {
+                      "page": 1,
+                      "bbox": [
+                        100.0,
+                        150.0,
+                        420.0,
+                        165.0
+                      ]
+                    }
+                  ],
+                  "bboxes_extent": [
+                    {
+                      "page": 1,
+                      "bbox": [
+                        100.0,
+                        150.0,
+                        420.0,
+                        165.0
+                      ]
+                    }
+                  ],
+                  "order": 4,
+                  "batch_id": "B1"
+                },
+                {
+                  "id": "5d66267d078b08e1aa78e8ea495fe1dbad7860b7",
+                  "lineage_key": "eba7b89583202b48d437b4d58cb6a4c4b59138e5",
+                  "content_hash": "352c01aecf993df6a041bce433e1f015dd09c0d9",
+                  "path": "core-terms/3/3.1/3.1.1/a",
+                  "kind": "item",
+                  "unit_label": "Paragraph",
+                  "unit_label_source": "profile",
+                  "label": "(a)",
+                  "text": "that meet the Requirement and comply with Law; and",
+                  "page_start": 1,
+                  "page_end": 1,
+                  "printed_page": "1",
+                  "bboxes_own": [
+                    {
+                      "page": 1,
+                      "bbox": [
+                        114.0,
+                        170.0,
+                        480.0,
+                        185.0
+                      ]
+                    }
+                  ],
+                  "bboxes_extent": [
+                    {
+                      "page": 1,
+                      "bbox": [
+                        114.0,
+                        170.0,
+                        480.0,
+                        185.0
+                      ]
+                    }
+                  ],
+                  "order": 5,
+                  "batch_id": "B1"
+                },
+                {
+                  "id": "3effa77976523486d1978c32e8a71224a163e317",
+                  "lineage_key": "37d048b777b8d0c108f96a640b3b92e839e0c5bc",
+                  "content_hash": "7d2d36d4ae6bbd2237526906d2ef1ae00769d89a",
+                  "path": "core-terms/3/3.1/3.1.1/b",
+                  "kind": "item",
+                  "unit_label": "Paragraph",
+                  "unit_label_source": "profile",
+                  "label": "(b)",
+                  "text": "Good Working Practice applies to everything supplied.",
+                  "page_start": 1,
+                  "page_end": 1,
+                  "printed_page": "1",
+                  "bboxes_own": [
+                    {
+                      "page": 1,
+                      "bbox": [
+                        114.0,
+                        190.0,
+                        480.0,
+                        205.0
+                      ]
+                    }
+                  ],
+                  "bboxes_extent": [
+                    {
+                      "page": 1,
+                      "bbox": [
+                        114.0,
+                        190.0,
+                        480.0,
+                        205.0
+                      ]
+                    }
+                  ],
+                  "order": 6,
+                  "batch_id": "B1"
+                }
+              ],
+              "batch_id": "B1"
+            },
+            {
+              "id": "bfe4f617b305914982ab935feb0bf56db9088233",
+              "lineage_key": "a424261f50e99e45b91ba38aec40d4db461edb5c",
+              "content_hash": "fb5651f4ce4f7a0d185e3281c18c3a78905c1e37",
+              "path": "core-terms/3/3.1/3.1.2",
+              "kind": "subclause",
+              "unit_label": "Clause",
+              "unit_label_source": "document",
+              "label": "3.1.2",
+              "text": "The Provider must supply Outputs with a warranty of at least 90 days from Handover against all obvious defects.",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    100.0,
+                    215.0,
+                    480.0,
+                    245.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    100.0,
+                    215.0,
+                    480.0,
+                    245.0
+                  ]
+                }
+              ],
+              "order": 7,
+              "batch_id": "B1"
+            }
+          ],
+          "batch_id": "B1"
+        }
+      ],
+      "batch_id": "B1"
+    },
+    {
+      "id": "a918ebbdc66a47dc44f0a53184ac8f93ee438101",
+      "lineage_key": "9cec196c27f51bf365c356fb81cc5020712790aa",
+      "path": "core-terms/9",
+      "kind": "heading",
+      "unit_label": "Clause",
+      "unit_label_source": "document",
+      "label": "9",
+      "title": "Intellectual Property Rights",
+      "page_start": 2,
+      "page_end": 2,
+      "printed_page": "2",
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            72.0,
+            90.0,
+            360.0,
+            106.0
+          ]
+        }
+      ],
+      "bboxes_extent": [
+        {
+          "page": 2,
+          "bbox": [
+            72.0,
+            90.0,
+            490.0,
+            250.0
+          ]
+        }
+      ],
+      "order": 8,
+      "children": [
+        {
+          "id": "72c89dfe68f0f761dbfb7eb446a0c24eeb7bfd11",
+          "lineage_key": "4906ea4689f6234f0d3808d73c60e515cd6c923f",
+          "path": "core-terms/9/9.1",
+          "kind": "clause",
+          "unit_label": "Clause",
+          "unit_label_source": "document",
+          "label": "9.1",
+          "page_start": 2,
+          "page_end": 2,
+          "printed_page": "2",
+          "bboxes_own": [
+            {
+              "page": 2,
+              "bbox": [
+                86.0,
+                120.0,
+                98.0,
+                135.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 2,
+              "bbox": [
+                86.0,
+                120.0,
+                480.0,
+                190.0
+              ]
+            }
+          ],
+          "order": 9,
+          "children": [
+            {
+              "id": "841e39a96eabebb7e8e32c86e05a51b4e0ee7f8a",
+              "lineage_key": "f372b9c6da5109b9410608029441438018a7a32e",
+              "content_hash": "bde59eb233c9e7ccbd915a78fed7691f39e6319c",
+              "path": "core-terms/9/9.1/intro",
+              "kind": "intro",
+              "citable": false,
+              "text": "Subject to Clause 3.1.2 and Framework Schedule 4 (Framework Management), each Party keeps ownership of its own Existing IPRs to enable it to both:",
+              "page_start": 2,
+              "page_end": 2,
+              "printed_page": "2",
+              "bboxes_own": [
+                {
+                  "page": 2,
+                  "bbox": [
+                    100.0,
+                    120.0,
+                    480.0,
+                    150.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 2,
+                  "bbox": [
+                    100.0,
+                    120.0,
+                    480.0,
+                    150.0
+                  ]
+                }
+              ],
+              "order": 10,
+              "batch_id": "B1"
+            },
+            {
+              "id": "5a5fd2a9a3e0e5a904724d7a1c749113a022163f",
+              "lineage_key": "7b826d8998ab938404622a16935646703b9c35e2",
+              "content_hash": "2e91b75bea930ca0e1a44f40e722030b1683053f",
+              "path": "core-terms/9/9.1/a",
+              "kind": "item",
+              "unit_label": "Paragraph",
+              "unit_label_source": "profile",
+              "label": "(a)",
+              "text": "receive and use the Outputs; and",
+              "page_start": 2,
+              "page_end": 2,
+              "printed_page": "2",
+              "bboxes_own": [
+                {
+                  "page": 2,
+                  "bbox": [
+                    114.0,
+                    155.0,
+                    460.0,
+                    170.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 2,
+                  "bbox": [
+                    114.0,
+                    155.0,
+                    460.0,
+                    170.0
+                  ]
+                }
+              ],
+              "order": 11,
+              "batch_id": "B1"
+            },
+            {
+              "id": "e781800994229002f837868a508a9027c05174ce",
+              "lineage_key": "8f16e34289ca7b162b482ab22ba44385af825073",
+              "content_hash": "8fa01f2de37412b9fd7ca5691d99645330ee2b90",
+              "path": "core-terms/9/9.1/b",
+              "kind": "item",
+              "unit_label": "Paragraph",
+              "unit_label_source": "profile",
+              "label": "(b)",
+              "text": "make use of outputs supplied to CBO by a Replacement Provider.",
+              "page_start": 2,
+              "page_end": 2,
+              "printed_page": "2",
+              "bboxes_own": [
+                {
+                  "page": 2,
+                  "bbox": [
+                    114.0,
+                    175.0,
+                    470.0,
+                    190.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 2,
+                  "bbox": [
+                    114.0,
+                    175.0,
+                    470.0,
+                    190.0
+                  ]
+                }
+              ],
+              "order": 12,
+              "batch_id": "B1"
+            }
+          ],
+          "batch_id": "B1"
+        },
+        {
+          "id": "af9d57561074182da92ddef60416eceea0aaa558",
+          "lineage_key": "b6f5abee230b0784063c50d54c6a30fe289f8596",
+          "content_hash": "b96f4736f3d7afba15d873b10a9b24e301d7a0a2",
+          "path": "core-terms/9/9.2",
+          "kind": "clause",
+          "unit_label": "Clause",
+          "unit_label_source": "document",
+          "label": "9.2",
+          "text": "Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, Schedule 2 and the Bribery Act 2010.",
+          "page_start": 2,
+          "page_end": 2,
+          "printed_page": "2",
+          "bboxes_own": [
+            {
+              "page": 2,
+              "bbox": [
+                86.0,
+                205.0,
+                490.0,
+                250.0
+              ]
+            }
+          ],
+          "bboxes_extent": [
+            {
+              "page": 2,
+              "bbox": [
+                86.0,
+                205.0,
+                490.0,
+                250.0
+              ]
+            }
+          ],
+          "order": 13,
+          "anomalies": [
+            "numbering_gap_after_9.2: 9.4 follows in source order"
+          ],
+          "batch_id": "B1"
+        }
+      ],
+      "batch_id": "B1"
+    }
+  ],
+  "batch_id": "B1",
+  "part_family": "core",
+  "template_version": "v3.0.11"
+}

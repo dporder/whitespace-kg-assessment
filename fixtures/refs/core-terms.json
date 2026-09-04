@@ -1,0 +1,217 @@
+{
+  "part": "core-terms",
+  "refs": [
+    {
+      "id": "fbbc1670fcaea76bc3c0596439f69f292c20df07",
+      "lineage_key": "88151ed2cbd6b28514778860df33aa6c5d374ccc",
+      "path": "core-terms/9/9.1/intro/ref@11-23",
+      "kind": "ref",
+      "citable": false,
+      "text": "Clause 3.1.2",
+      "page_start": 2,
+      "page_end": 2,
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            155.0,
+            120.0,
+            215.0,
+            133.0
+          ]
+        }
+      ],
+      "order": 0,
+      "batch_id": "B1",
+      "char_span": [
+        11,
+        23
+      ],
+      "ref_kind": "clause",
+      "scope_rule": "js1_1.3.8",
+      "status": "resolved",
+      "target_path": "core-terms/3/3.1/3.1.2",
+      "resolver": "scope"
+    },
+    {
+      "id": "943f472649b8bc935bb912d1a54bbaa5e46d8e3a",
+      "lineage_key": "6571d9101b535b5028694d49a3f8d90b42b13bda",
+      "path": "core-terms/9/9.1/intro/ref@28-71",
+      "kind": "ref",
+      "citable": false,
+      "text": "Framework Schedule 4 (Framework Management)",
+      "page_start": 2,
+      "page_end": 2,
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            230.0,
+            120.0,
+            460.0,
+            133.0
+          ]
+        }
+      ],
+      "order": 1,
+      "batch_id": "B1",
+      "char_span": [
+        28,
+        71
+      ],
+      "ref_kind": "schedule",
+      "scope_rule": "title_paren",
+      "status": "unresolved",
+      "candidates": [
+        {
+          "path": "framework-schedule-4",
+          "score": 0.95,
+          "reason": "title parenthetical names the family; part not ingested"
+        }
+      ],
+      "resolver": "scope"
+    },
+    {
+      "id": "c07d95d212846fcd5c52fca707bac78f4acf5754",
+      "lineage_key": "a0c05a672b42719ef4ff72ba8843e870a10ef3d4",
+      "path": "core-terms/9/9.2/ref@94-99",
+      "kind": "ref",
+      "citable": false,
+      "text": "3.1.1",
+      "page_start": 2,
+      "page_end": 2,
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            300.0,
+            220.0,
+            330.0,
+            233.0
+          ]
+        }
+      ],
+      "order": 2,
+      "batch_id": "B1",
+      "char_span": [
+        94,
+        99
+      ],
+      "group_id": "g-9.2-1",
+      "ref_kind": "clause",
+      "scope_rule": "js1_1.3.8",
+      "status": "resolved",
+      "target_path": "core-terms/3/3.1/3.1.1",
+      "resolver": "scope"
+    },
+    {
+      "id": "49f6d3393f00071d10faabef42086bbdc27b632a",
+      "lineage_key": "07ce280ccc084aa2d97f78e4c1fe887f07bcb792",
+      "path": "core-terms/9/9.2/ref@104-109",
+      "kind": "ref",
+      "citable": false,
+      "text": "3.1.2",
+      "page_start": 2,
+      "page_end": 2,
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            340.0,
+            220.0,
+            370.0,
+            233.0
+          ]
+        }
+      ],
+      "order": 3,
+      "batch_id": "B1",
+      "char_span": [
+        104,
+        109
+      ],
+      "group_id": "g-9.2-1",
+      "ref_kind": "clause",
+      "scope_rule": "js1_1.3.8",
+      "status": "resolved",
+      "target_path": "core-terms/3/3.1/3.1.2",
+      "resolver": "scope"
+    },
+    {
+      "id": "6dbdf3b9e55a098966a379579f949b9e8665eadc",
+      "lineage_key": "32a4e86a0f50f161df44f019693b9014101d8f0f",
+      "path": "core-terms/9/9.2/ref@111-121",
+      "kind": "ref",
+      "citable": false,
+      "text": "Schedule 2",
+      "page_start": 2,
+      "page_end": 2,
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            380.0,
+            220.0,
+            435.0,
+            233.0
+          ]
+        }
+      ],
+      "order": 4,
+      "batch_id": "B1",
+      "char_span": [
+        111,
+        121
+      ],
+      "ref_kind": "schedule",
+      "scope_rule": "none",
+      "status": "ambiguous",
+      "candidates": [
+        {
+          "path": "framework-schedule-2",
+          "score": 0.5,
+          "reason": "bare number, no title parenthetical"
+        },
+        {
+          "path": "call-off-schedule-2",
+          "score": 0.5,
+          "reason": "bare number, no title parenthetical"
+        }
+      ],
+      "confidence": 0.45,
+      "resolver": "llm"
+    },
+    {
+      "id": "4c24d5c37a2dc89ab7fbf099cc54c4d9c77a925d",
+      "lineage_key": "a3e6987e84604d90a9fdb95c3735b49f2c152ac4",
+      "path": "core-terms/9/9.2/ref@130-146",
+      "kind": "ref",
+      "citable": false,
+      "text": "Bribery Act 2010",
+      "page_start": 2,
+      "page_end": 2,
+      "bboxes_own": [
+        {
+          "page": 2,
+          "bbox": [
+            200.0,
+            235.0,
+            290.0,
+            248.0
+          ]
+        }
+      ],
+      "order": 5,
+      "batch_id": "B1",
+      "char_span": [
+        130,
+        146
+      ],
+      "ref_kind": "legislation",
+      "scope_rule": "none",
+      "status": "external",
+      "target_path": "legislation/bribery-act-2010",
+      "resolver": "grammar"
+    }
+  ]
+}

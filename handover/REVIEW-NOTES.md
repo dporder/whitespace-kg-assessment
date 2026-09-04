@@ -30,3 +30,36 @@ not the agent's, and the memo caught it.
 a real inconsistency in the document worth designing around. See the memo's verification section
 and the named resolver case in `SPEC.md`.
 
+## 2. Contract reconciliation before fan-out (orchestrator, build session)
+
+Spec changes land spec-first per `CLAUDE.md`, so these went into `SPEC.md` and `schemas.py`
+together, before any worker spawned.
+
+**Fixed, a real contract bug.** `schemas.py` forbade all children on `intro` nodes, but the spec
+says ref children annotate any text-bearing node, and a lead-in like "Subject to Clause 26, the
+Supplier must:" plainly contains a citation. The validator now distinguishes anatomy children
+(forbidden on intro and cell) from ref children (allowed wherever there is text to anchor them).
+
+**Pinned, where workers would otherwise have guessed differently.** The id formulas
+(`sha1("{doc}|{version}|{path}")`, helpers in `schemas.py` so there is one implementation), the
+hash-only text normalisation, the `intro` path segment, `order` as per-part preorder, the stage 3
+output shape (`RefsFile`, flat, because stage 2 trees carry no refs and stage 7 attaches by path),
+the graph edge JSONL row (`GraphEdge`), `definition_used` as the governing site's scope string,
+and `ASSOCIATED_TERM` computed in stage 7, since it joins stage 4 and 5 outputs which must not
+read each other. Added the missing `Legislation` model from SPEC 2.2. Allowed `title` on parts
+(display name; previously headings only). Tightened validation to the full kind table: kind-scoped
+fields rejected on other kinds, cells require text and grid position, tables require dimensions,
+form rows and tables hold only cells, documents hold only parts.
+
+**Fixtures decision.** Fixture text is synthetic mimicry rather than PDF excerpts, because the
+SPEC ground rule forbids copying document content into the repo outside `output/`. The structures
+are the document's real ones (bare grouping heading, intro sandwich, grouped list refs, unresolved
+and ambiguous and external refs, delegating definition, alias, form typo). Recorded in
+`fixtures/README.md` with the consequence for UI crops (real ink at those coordinates, not this
+text, until real output lands).
+
+**Kept as-is, consciously.** The "discriminated union" in the spec is implemented as one model
+plus one validator enforcing the per-kind table, not a pydantic union of twelve classes. One
+schema, one walker, one id scheme is the stated point of the design; the discrimination lives in
+the rules.
+

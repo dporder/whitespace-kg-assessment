@@ -1,0 +1,29 @@
+[
+  {
+    "id": "concept-ip-ownership",
+    "label": "intellectual property ownership",
+    "scope_path": "core-terms/9",
+    "member_node_ids": [
+      "72c89dfe68f0f761dbfb7eb446a0c24eeb7bfd11",
+      "af9d57561074182da92ddef60416eceea0aaa558"
+    ],
+    "relations": [
+      {
+        "src": "concept-ip-ownership",
+        "label": "depends_on",
+        "dst": "concept-supply-obligations"
+      }
+    ],
+    "confidence": 0.82
+  },
+  {
+    "id": "concept-supply-obligations",
+    "label": "supply obligations",
+    "scope_path": "core-terms/3",
+    "member_node_ids": [
+      "317139667c3e8b1bef31ed74e2818faa5ad5a181",
+      "bfe4f617b305914982ab935feb0bf56db9088233"
+    ],
+    "confidence": 0.78
+  }
+]
