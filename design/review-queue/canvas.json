@@ -1,32 +1,51 @@
 {
+  "pages": [
+    { "id": "page-1", "name": "The screen" },
+    { "id": "page-2", "name": "How we got here" }
+  ],
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 940, "title": "Review queue — approved build" },
-    { "file": "DirectionA.dc.html", "x": 1560, "y": 0, "w": 520, "h": 420, "title": "A · Evidence beside decision (chosen)" },
-    { "file": "DirectionB.dc.html", "x": 2160, "y": 0, "w": 520, "h": 420, "title": "B · Dense triage" },
-    { "file": "DirectionC.dc.html", "x": 2760, "y": 0, "w": 520, "h": 420, "title": "C · Dossier" }
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1560,
+      "title": "Review queue — the screen being built", "page": "page-1" },
+    { "file": "DirectionA.dc.html", "x": 0, "y": 0, "w": 520, "h": 420,
+      "title": "A · Evidence beside decision — CHOSEN, built", "page": "page-2" },
+    { "file": "DirectionB.dc.html", "x": 600, "y": 0, "w": 520, "h": 420,
+      "title": "B · Dense triage — explored, not chosen", "page": "page-2" },
+    { "file": "DirectionC.dc.html", "x": 1200, "y": 0, "w": 520, "h": 420,
+      "title": "C · Dossier — explored, not chosen", "page": "page-2" }
   ],
   "annotations": [
     {
-      "id": "decision-review-row",
-      "x": 1560,
-      "y": 560,
+      "id": "legend",
+      "x": -580,
+      "y": 0,
       "w": 520,
-      "text": "CHOSE A — Evidence beside decision.\n\nThe queue exists to turn a reviewer's judgement into ground truth, so a verdict reached without looking at the page is worse than no verdict at all: A is the only direction that makes the crop impossible to skip, and keyboard triage buys back the density it costs.\n\nB stays the right answer once the resolver has earned trust and volume dominates. C is the arbitration view for a contested item."
+      "page": "page-1",
+      "text": "WHAT THIS BOARD IS\nOne screen: the review queue, where a person answers the questions the system could not answer by itself. This is a single design, already built — nothing here is asking you to choose between options.\n\nWHO IT IS FOR\nA contracts or procurement specialist. They know what a schedule and a defined term are. They have never seen a file path or a confidence score, and they should need no training to start.\n\nWHAT CHANGED THIS ROUND\n· Every row now says what is being reviewed and what question is being answered, in plain words.\n· Provisions are named the way the agreement names them — \"Core Terms, Clause 9.2\" — not by internal path. The path moved into a Technical details disclosure.\n· Candidate answers say what they are: \"Framework Schedule 2 — part of the framework agreement itself\".\n· Bare scores (0.5, 0.95) are gone from the row. Where the number carried meaning it is now a sentence: \"The system found nothing to prefer one over the other.\"\n· Each section carries a short How to decide.\n\nWHAT I WOULD VALUE YOUR EYES ON\n1. Does the question on each row match the decision you would actually be making?\n2. Are the four answers on a cross-reference the right four?\n3. Anything still reading as jargon."
     },
     {
-      "id": "note-crop-placeholder",
-      "x": 2160,
-      "y": 560,
+      "id": "note-crops",
+      "x": -580,
+      "y": 620,
       "w": 520,
-      "text": "The crop panels here are drawn placeholders, not page images. SPEC ground rule 0 forbids copying document content into the repo outside output/, and a committed artboard is inside the repo. The running app renders the real crop server-side from the bbox via PyMuPDF at request time."
+      "page": "page-1",
+      "text": "ABOUT THE PAGE IMAGES\nThe grey blocks standing in for page crops are placeholders, drawn here rather than pasted. The running app cuts the real image out of the PDF when the row loads.\n\nOne caveat that is expected for now: the fixture coordinates are invented, so a crop in the running app shows real ink from the real page but not the sentence beside it. That resolves itself the moment real pipeline output replaces the fixtures."
     },
     {
-      "id": "note-palette",
-      "x": 2760,
-      "y": 560,
+      "id": "note-brand",
+      "x": -580,
+      "y": 900,
       "w": 520,
-      "text": "Palette and type are lifted from diagram/Main.dc.html, so the trust gradient means the same thing here as on the architecture canvas: blue deterministic, teal rule derived, amber model derived, purple human. A row's left edge tells you which tier proposed it; every control that records a human verdict is purple."
+      "page": "page-1",
+      "text": "ON THE VISUAL STYLING\nThis round rebuilt the structure and the writing, which is where the problem was. Colour and type still follow the architecture diagram's palette. The Whitespace brand language is being written up separately and will be applied once it lands, without changing this layout or wording."
+    },
+    {
+      "id": "history",
+      "x": 0,
+      "y": -300,
+      "w": 700,
+      "page": "page-2",
+      "text": "HOW WE GOT HERE — reference only, no decision needed.\n\nBefore building, three directions were sketched for a single review row. A was chosen and is what page 1 shows.\n\nWHY A: the queue exists to turn a reviewer's judgement into ground truth, so a verdict reached without looking at the page is worse than no verdict at all — A is the only one that makes the page image impossible to skip, and keyboard triage buys back the density it costs.\n\nB stays the right answer once the system has earned trust and volume dominates. C is the arbitration view for a single contested item. Both are kept here so the reasoning stays visible; neither needs your approval."
     }
   ],
-  "launch": { "view": "canvas" }
+  "launch": { "view": "canvas", "page": "page-1" }
 }

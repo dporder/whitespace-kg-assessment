@@ -57,7 +57,11 @@ def queue(
     if bad:
         raise HTTPException(400, f"unknown kind(s) {bad}; use ref, term, anomaly")
     rows = review_data.queue(kinds=wanted, part=part, include_decided=include_decided)
-    return JSONResponse({"counts": review_data.counts(rows), "rows": rows})
+    return JSONResponse({
+        "counts": review_data.counts(rows),
+        "guidelines": review_data.GUIDELINES,     # what each row type asks of a reviewer
+        "rows": rows,
+    })
 
 
 @app.get("/api/decisions")

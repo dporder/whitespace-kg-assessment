@@ -12,305 +12,284 @@
     body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
     a { color: #3f6396; } a:hover { color: #2d4a73; }
     .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
-    .kick { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; color: #ffffff; }
-    .chip { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 3px; border: 1px solid; }
-    .colhead { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6f76; }
-    .li { font-size: 11.5px; line-height: 1.5; color: #3a3d42; }
-    .card { background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; }
-    .sentence { font-size: 13px; line-height: 1.6; color: #1c1e21; }
-    .cand { display: flex; align-items: center; gap: 8px; border: 1px solid #d8d5cf; border-radius: 3px; padding: 5px 9px; background: #ffffff; }
-    .radio { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #9a948f; display: inline-block; flex-shrink: 0; }
-    .btn { font-size: 11px; font-weight: 600; border-radius: 3px; padding: 5px 13px; }
-    .kbd { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; font-size: 9px; color: #6b6f76; border: 1px solid #d8d5cf; border-radius: 2px; padding: 1px 4px; background: #ffffff; }
+    .card { background: #ffffff; border: 1px solid #d8d5cf; border-radius: 5px; }
+    .chip { display: inline-block; font-size: 10.5px; font-weight: 500; padding: 2px 9px; border-radius: 3px; border: 1px solid; }
+    .cite { font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
+    .where { font-size: 12px; color: #6b6f76; }
+    .situation { font-size: 14px; line-height: 1.6; color: #1c1e21; }
+    .explain { font-size: 13px; line-height: 1.6; color: #3a3d42; }
+    .question { font-size: 16px; font-weight: 600; line-height: 1.45; color: #1c1e21; }
+    .quote { font-size: 13.5px; line-height: 1.7; color: #3a3d42; border-left: 2px solid #e6e3de; padding-left: 12px; }
+    .ansname { font-size: 13.5px; font-weight: 600; }
+    .anssub { font-size: 12px; color: #6b6f76; line-height: 1.45; }
+    .sectitle { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .secsum { font-size: 13px; line-height: 1.6; color: #3a3d42; }
+    .how { font-size: 12.5px; line-height: 1.65; color: #3a3d42; }
+    .disc { font-size: 12px; color: #6b6f76; }
   </style>
 </helmet>
-<div style="width: 1440px; height: 940px; background: #fbfaf8; box-sizing: border-box; padding: 26px 30px; display: flex; flex-direction: column; gap: 14px;">
+<div style="width: 1440px; height: 1560px; background: #fbfaf8; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px;">
 
   <!-- Header -->
-  <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #1c1e21; padding-bottom: 11px;">
-    <div style="display: flex; align-items: baseline; gap: 14px;">
-      <div style="font-size: 21px; font-weight: 700; letter-spacing: -0.01em;">Review queue</div>
-      <div class="mono" style="font-size: 11px; color: #6b6f76;">RM6116 · source: fixtures/</div>
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 2px solid #1c1e21; padding-bottom: 13px;">
+    <div style="display: flex; flex-direction: column; gap: 3px;">
+      <div style="font-size: 24px; font-weight: 700; letter-spacing: -0.015em;">Review queue</div>
+      <div style="font-size: 13.5px; color: #3a3d42;">Questions the system could not answer on its own. Your answers become the standard it is measured against.</div>
     </div>
-    <div style="display: flex; gap: 13px; align-items: center;">
-      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #3f6396; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">deterministic</span></div>
-      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #2e7373; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">rule derived</span></div>
-      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #a16b16; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">model derived</span></div>
-      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #75589b; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">human</span></div>
-      <div style="width: 1px; height: 15px; background: #d8d5cf;"></div>
-      <div class="mono" style="font-size: 11px; color: #3a3d42;">reviewer: dan</div>
+    <div style="display: flex; gap: 22px; align-items: flex-end;">
+      <div style="text-align: right;">
+        <div style="font-size: 11px; color: #6b6f76;">Answered today</div>
+        <div style="font-size: 20px; font-weight: 700; color: #75589b;">3 <span style="font-size: 13px; font-weight: 400; color: #6b6f76;">of 7</span></div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 11px; color: #6b6f76;">Reviewer</div>
+        <div style="font-size: 13.5px; font-weight: 600;">Dan Porder</div>
+      </div>
     </div>
   </div>
 
-  <!-- Filters -->
-  <div style="display: flex; align-items: center; gap: 7px;">
-    <span class="chip" style="border-color: #1c1e21; color: #ffffff; background: #1c1e21;">All 4</span>
-    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">Refs 2</span>
-    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">Terms 1</span>
-    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">Anomalies 1</span>
-    <div style="width: 1px; height: 15px; background: #d8d5cf; margin: 0 3px;"></div>
-    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">core-terms</span>
-    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">joint-schedule-1</span>
-    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">award-form</span>
-    <span style="flex-grow: 1;"></span>
-    <span class="kbd">J</span><span class="kbd">K</span><span style="font-size: 10.5px; color: #6b6f76;">move</span>
-    <span class="kbd">A</span><span style="font-size: 10.5px; color: #6b6f76;">affirm</span>
-    <span class="kbd">U</span><span style="font-size: 10.5px; color: #6b6f76;">unresolvable</span>
-    <span class="kbd">N</span><span style="font-size: 10.5px; color: #6b6f76;">negative</span>
-    <span class="kbd">1-9</span><span style="font-size: 10.5px; color: #6b6f76;">pick candidate</span>
+  <!-- ============ SECTION 1: cross-references ============ -->
+  <div style="display: flex; gap: 18px; align-items: flex-start;">
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <span style="width: 4px; height: 17px; background: #3f6396; border-radius: 2px; display: inline-block;"></span>
+        <span class="sectitle">Cross-references</span>
+        <span class="chip" style="border-color: #d8d5cf; color: #6b6f76;">3 to review</span>
+      </div>
+      <div class="secsum" style="margin-left: 16px; max-width: 760px;">Places where one part of the agreement points at another part, and the system could not be certain which part is meant.</div>
+
+      <div class="card" style="margin-left: 16px; background: #f7f9fc; border-color: #c6d2e3; padding: 12px 15px;">
+        <div style="font-size: 12px; font-weight: 700; color: #3f6396; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px;">How to decide</div>
+        <div class="how">
+          1. Read the sentence. The words that do the pointing are highlighted.<br>
+          2. Check the page image beside it: that is the actual page, with the pointing words boxed.<br>
+          3. Choose the part the writer meant. If the target is not in this document set at all, say so — that is a useful answer, not a failure.<br>
+          4. If the highlighted words are not a cross-reference at all, say that instead.
+        </div>
+        <div class="how" style="margin-top: 7px; color: #6b6f76; font-style: italic;">Your answer becomes the standard the system is measured against, so an honest “I cannot tell from this” is worth more than a guess.</div>
+      </div>
+
+      <!-- ROW: the ambiguous Schedule 2 -->
+      <div class="card" style="border-left: 3px solid #3f6396; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span class="cite">Core Terms, Clause 9.2</span>
+          <span class="where">page 2</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
+        </div>
+
+        <div style="display: flex; gap: 18px; align-items: flex-start;">
+          <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; background: #ffffff;">
+              <svg width="298" height="116" viewBox="0 0 298 116" fill="none" style="display: block;">
+                <rect width="298" height="116" fill="#ffffff"/>
+                <rect x="18" y="18" width="214" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="18" y="33" width="250" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="18" y="48" width="166" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="12" y="62" width="126" height="20" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.6"/>
+                <rect x="19" y="70" width="112" height="5" rx="2.5" fill="#8ea6c8"/>
+                <rect x="148" y="70" width="120" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="18" y="94" width="198" height="5" rx="2.5" fill="#d5d2cc"/>
+              </svg>
+            </div>
+            <div class="where" style="font-size: 11px;">The page itself, with the pointing words boxed</div>
+          </div>
+
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px;">
+            <div class="situation">This sentence points at <strong>“Schedule 2”</strong>.</div>
+            <div class="quote">“Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, <span style="background: #eef3fa; border-bottom: 2px solid #3f6396; padding: 1px 2px; font-weight: 600; color: #1c1e21;">Schedule 2</span> and the Bribery Act 2010.”</div>
+            <div class="explain">This document set contains more than one thing called “Schedule 2”.</div>
+            <div class="question">Which one does the writer mean?</div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 250px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff; display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #4a3866;">Framework Schedule 2</div>
+            <div class="anssub">part of the framework agreement itself</div>
+          </div>
+          <div style="flex: 1; min-width: 250px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff; display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #4a3866;">Call-Off Schedule 2</div>
+            <div class="anssub">part of an individual contract called off under the framework</div>
+          </div>
+          <div style="flex: 1; min-width: 210px; border: 1px dashed #a16b16; border-radius: 4px; padding: 11px 13px; background: #fbf7ef; display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #a16b16;">None of these</div>
+            <div class="anssub">it points at something this document set does not contain</div>
+          </div>
+          <div style="flex: 1; min-width: 210px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; background: #ffffff; display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #3a3d42;">It is not a cross-reference</div>
+            <div class="anssub">“Schedule 2” is ordinary wording here</div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #ece9e4; padding-top: 11px;">
+          <span class="explain" style="color: #6b6f76;">The system found nothing to prefer one over the other.</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="disc">▸ Technical details</span>
+        </div>
+      </div>
+
+      <!-- ROW: unresolved, collapsed to show rhythm -->
+      <div class="card" style="border-left: 3px solid #3f6396; padding: 15px 18px; display: flex; flex-direction: column; gap: 11px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span class="cite">Core Terms, Clause 9.1</span>
+          <span class="where">page 2</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
+        </div>
+        <div class="situation">This sentence points at <strong>“Framework Schedule 4 (Framework Management)”</strong>.</div>
+        <div class="explain">It looks like Framework Schedule 4, but that part has not been loaded into the system yet, so the pointer could not be followed.</div>
+        <div class="question">Is Framework Schedule 4 what the writer meant?</div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 240px; border: 1px solid #75589b; border-radius: 4px; padding: 10px 13px; background: #ffffff;">
+            <div class="ansname" style="color: #4a3866;">Framework Schedule 4</div>
+            <div class="anssub">part of the framework agreement itself</div>
+          </div>
+          <div style="flex: 1; min-width: 210px; border: 1px dashed #a16b16; border-radius: 4px; padding: 10px 13px; background: #fbf7ef;">
+            <div class="ansname" style="color: #a16b16;">None of these</div>
+            <div class="anssub">it points at something this document set does not contain</div>
+          </div>
+          <div style="flex: 1; min-width: 210px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 10px 13px; background: #ffffff;">
+            <div class="ansname" style="color: #3a3d42;">It is not a cross-reference</div>
+            <div class="anssub">ordinary wording here</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right rail -->
+    <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;">
+      <div class="card" style="border-top: 3px solid #75589b; padding: 14px 15px;">
+        <div style="font-size: 14px; font-weight: 700; margin-bottom: 7px;">What happens to your answers</div>
+        <div class="explain">Each answer is kept as a labelled example. The system is scored against them, so the parts it gets wrong are the parts that get fixed. Nothing you answer changes the document itself.</div>
+      </div>
+      <div class="card" style="padding: 14px 15px;">
+        <div style="font-size: 12px; font-weight: 700; color: #6b6f76; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 9px;">Left to review</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #3f6396; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Cross-references</span><span style="font-size: 15px; font-weight: 700;">3</span></div>
+          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #2e7373; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Defined terms</span><span style="font-size: 15px; font-weight: 700;">1</span></div>
+          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #1c1e21; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Flagged oddities</span><span style="font-size: 15px; font-weight: 700;">3</span></div>
+        </div>
+      </div>
+      <div class="card" style="background: #f5f4f1; padding: 14px 15px;">
+        <div style="font-size: 12px; font-weight: 700; color: #6b6f76; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px;">The page images are real</div>
+        <div class="explain">Each image is cut from the actual PDF when the row loads, at the coordinates the system recorded. If the image does not match the words, that itself is worth flagging.</div>
+      </div>
+    </div>
   </div>
 
-  <!-- Body -->
-  <div style="display: flex; gap: 18px; flex-grow: 1; min-height: 0;">
-
-    <!-- Queue -->
-    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 11px;">
-
-      <!-- Row 1, focused: ambiguous ref -->
-      <div class="card" style="border-left: 3px solid #3f6396; box-shadow: 0 0 0 2px #efeaf6; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="kick" style="background: #3f6396;">Ref</span>
-          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">core-terms/9/9.2/ref@111-121</span>
-          <span style="font-size: 11px; color: #6b6f76;">Clause 9.2 · page 2</span>
-          <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">ambiguous</span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16;">resolver llm · 0.45</span>
-        </div>
-
-        <div style="display: flex; gap: 14px; align-items: flex-start;">
-          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
-              <svg width="266" height="112" viewBox="0 0 266 112" fill="none" style="display: block;">
-                <rect width="266" height="112" fill="#ffffff"/>
-                <rect x="16" y="16" width="196" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="16" y="30" width="228" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="16" y="44" width="150" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="10" y="58" width="120" height="19" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.5"/>
-                <rect x="17" y="65" width="106" height="5" rx="2.5" fill="#8ea6c8"/>
-                <rect x="140" y="65" width="104" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="16" y="88" width="180" height="5" rx="2.5" fill="#d5d2cc"/>
-              </svg>
-            </div>
-            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">/api/crop?page=2&amp;bbox=380,220,435,233&amp;colour=deterministic</div>
-          </div>
-
-          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Source sentence</div>
-              <div class="sentence">Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, <span style="background: #eef3fa; border-bottom: 2px solid #3f6396; padding: 1px 2px;">Schedule 2</span> and the Bribery Act 2010.</div>
-            </div>
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Candidates</div>
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <div class="cand" style="border-color: #75589b; background: #faf7fd;">
-                  <span class="kbd" style="border-color: #75589b; color: #75589b;">1</span>
-                  <span class="radio" style="border-color: #75589b; background: #75589b; box-shadow: inset 0 0 0 2px #faf7fd;"></span>
-                  <span class="mono" style="font-size: 11px; color: #1c1e21;">framework-schedule-2</span>
-                  <span class="li" style="color: #6b6f76;">bare number, no title parenthetical</span>
-                  <span style="flex-grow: 1;"></span>
-                  <span class="mono" style="font-size: 11px; color: #3a3d42;">0.50</span>
-                </div>
-                <div class="cand">
-                  <span class="kbd">2</span>
-                  <span class="radio"></span>
-                  <span class="mono" style="font-size: 11px; color: #1c1e21;">call-off-schedule-2</span>
-                  <span class="li" style="color: #6b6f76;">bare number, no title parenthetical</span>
-                  <span style="flex-grow: 1;"></span>
-                  <span class="mono" style="font-size: 11px; color: #3a3d42;">0.50</span>
-                </div>
-              </div>
-            </div>
-            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-              <span class="btn" style="background: #f5f4f1; color: #9a948f; border: 1px solid #e6e3de;">Confirm target</span>
-              <span class="btn" style="background: #75589b; color: #ffffff;">Pick candidate</span>
-              <span class="btn" style="background: #fbf7ef; color: #a16b16; border: 1px dashed #a16b16;">Unresolvable</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Not a reference</span>
-              <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">verdict target, chosen_candidate framework-schedule-2</span>
-            </div>
-          </div>
-        </div>
+  <!-- ============ SECTION 2: defined terms ============ -->
+  <div style="display: flex; gap: 18px; align-items: flex-start;">
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+      <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 4px;">
+        <span style="width: 4px; height: 17px; background: #2e7373; border-radius: 2px; display: inline-block;"></span>
+        <span class="sectitle">Defined terms</span>
+        <span class="chip" style="border-color: #d8d5cf; color: #6b6f76;">1 to review</span>
+        <span class="secsum" style="color: #6b6f76;">The agreement gives certain capitalised words a special meaning.</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="disc">▸ How to decide</span>
       </div>
 
-      <!-- Row 2: unresolved ref -->
-      <div class="card" style="border-left: 3px solid #3f6396; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="kick" style="background: #3f6396;">Ref</span>
-          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">core-terms/9/9.1/intro/ref@28-71</span>
-          <span style="font-size: 11px; color: #6b6f76;">Clause 9.1 lead-in · page 2</span>
+      <div class="card" style="border-left: 3px solid #2e7373; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span class="cite">Core Terms, Clause 3.1.1, paragraph (b)</span>
+          <span class="where">page 1</span>
           <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #6b6f76; color: #6b6f76; background: #f5f4f1;">unresolved</span>
-          <span class="chip" style="border-color: #3f6396; color: #3f6396;">resolver scope</span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
         </div>
-        <div style="display: flex; gap: 14px; align-items: flex-start;">
-          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
-              <svg width="266" height="76" viewBox="0 0 266 76" fill="none" style="display: block;">
-                <rect width="266" height="76" fill="#ffffff"/>
-                <rect x="16" y="14" width="176" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="10" y="28" width="214" height="19" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.5"/>
-                <rect x="17" y="35" width="200" height="5" rx="2.5" fill="#8ea6c8"/>
-                <rect x="16" y="58" width="140" height="5" rx="2.5" fill="#d5d2cc"/>
+        <div style="display: flex; gap: 18px; align-items: flex-start;">
+          <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; background: #ffffff;">
+              <svg width="298" height="72" viewBox="0 0 298 72" fill="none" style="display: block;">
+                <rect width="298" height="72" fill="#ffffff"/>
+                <rect x="12" y="20" width="168" height="21" rx="2" fill="#f2f8f8" stroke="#2e7373" stroke-width="1.6"/>
+                <rect x="19" y="28" width="154" height="5" rx="2.5" fill="#7fb0b0"/>
+                <rect x="190" y="28" width="82" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="18" y="52" width="132" height="5" rx="2.5" fill="#d5d2cc"/>
               </svg>
             </div>
-            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">/api/crop?page=2&amp;bbox=230,120,460,133&amp;colour=deterministic</div>
+            <div class="where" style="font-size: 11px;">The page itself, with the words boxed</div>
           </div>
-          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Source sentence</div>
-              <div class="sentence">Subject to Clause 3.1.2 and <span style="background: #eef3fa; border-bottom: 2px solid #3f6396; padding: 1px 2px;">Framework Schedule 4 (Framework Management)</span>, each Party keeps ownership of its own Existing IPRs to enable it to both:</div>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 11px;">
+            <div class="situation"><strong>“Good Working Practice”</strong> is a term this agreement defines.</div>
+            <div class="quote"><span style="background: #f2f8f8; border-bottom: 2px solid #2e7373; padding: 1px 2px; font-weight: 600; color: #1c1e21;">Good Working Practice</span> applies to everything supplied.”</div>
+            <div class="explain">Here it sits at the start of a sentence, so the capital letter may just be normal punctuation rather than the defined term.</div>
+            <div style="border: 1px solid #c3d9d9; background: #f2f8f8; border-radius: 4px; padding: 10px 12px;">
+              <div style="font-size: 11.5px; font-weight: 700; color: #2e7373; margin-bottom: 4px;">The definition that would apply here</div>
+              <div class="explain" style="color: #1c1e21;">“standards which a skilled person would reasonably be expected to meet”</div>
+              <div class="anssub" style="margin-top: 4px;">from Joint Schedule 1 (Definitions) — applies across the whole agreement</div>
             </div>
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Candidates</div>
-              <div class="cand">
-                <span class="kbd">1</span>
-                <span class="radio"></span>
-                <span class="mono" style="font-size: 11px; color: #1c1e21;">framework-schedule-4</span>
-                <span class="li" style="color: #6b6f76;">title parenthetical names the family; part not ingested</span>
-                <span style="flex-grow: 1;"></span>
-                <span class="mono" style="font-size: 11px; color: #3a3d42;">0.95</span>
-              </div>
-            </div>
-            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-              <span class="btn" style="background: #f5f4f1; color: #9a948f; border: 1px solid #e6e3de;">Confirm target</span>
-              <span class="btn" style="background: #f5f4f1; color: #9a948f; border: 1px solid #e6e3de;">Pick candidate</span>
-              <span class="btn" style="background: #fbf7ef; color: #a16b16; border: 1px dashed #a16b16;">Unresolvable</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Not a reference</span>
-              <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">target part not ingested: greyed until a candidate is picked</span>
-            </div>
+            <div class="question">Is this the defined term, or ordinary words?</div>
           </div>
         </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch;">
+          <div style="flex: 1; min-width: 260px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
+            <div class="ansname" style="color: #4a3866;">Yes, it means “Good Working Practice”</div>
+            <div class="anssub">the defined term applies here</div>
+          </div>
+          <div style="flex: 1; min-width: 240px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
+            <div class="ansname" style="color: #3a3d42;">No, these are ordinary words</div>
+            <div class="anssub">the capitals do not signal the defined term</div>
+          </div>
+        </div>
+        <div class="disc" style="border-top: 1px solid #ece9e4; padding-top: 10px;">If it is a use but of a different defined term, name that one first · ▸ Technical details</div>
+      </div>
+    </div>
+    <div style="width: 300px; flex-shrink: 0;"></div>
+  </div>
+
+  <!-- ============ SECTION 3: oddities ============ -->
+  <div style="display: flex; gap: 18px; align-items: flex-start;">
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+      <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 4px;">
+        <span style="width: 4px; height: 17px; background: #1c1e21; border-radius: 2px; display: inline-block;"></span>
+        <span class="sectitle">Flagged oddities</span>
+        <span class="chip" style="border-color: #d8d5cf; color: #6b6f76;">3 to review</span>
+        <span class="secsum" style="color: #6b6f76;">The wording is always kept exactly as printed; nothing is corrected.</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="disc">▸ How to decide</span>
       </div>
 
-      <!-- Row 3: ambiguous term use -->
-      <div class="card" style="border-left: 3px solid #2e7373; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="kick" style="background: #2e7373;">Term</span>
-          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">core-terms/3/3.1/3.1.1/b · chars 0-21</span>
-          <span style="font-size: 11px; color: #6b6f76;">page 1</span>
+      <div class="card" style="border-left: 3px solid #1c1e21; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span class="cite">Framework Award Form, row 3, the label</span>
+          <span class="where">page 1</span>
           <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">sentence_initial</span>
-          <span class="chip" style="border-color: #2e7373; color: #2e7373;">exact_longest</span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
         </div>
-        <div style="display: flex; gap: 14px; align-items: flex-start;">
-          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
-              <svg width="266" height="64" viewBox="0 0 266 64" fill="none" style="display: block;">
-                <rect width="266" height="64" fill="#ffffff"/>
-                <rect x="10" y="16" width="150" height="19" rx="2" fill="#f2f8f8" stroke="#2e7373" stroke-width="1.5"/>
-                <rect x="17" y="23" width="136" height="5" rx="2.5" fill="#7fb0b0"/>
-                <rect x="170" y="23" width="74" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="16" y="46" width="118" height="5" rx="2.5" fill="#d5d2cc"/>
+        <div style="display: flex; gap: 18px; align-items: flex-start;">
+          <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; background: #ffffff;">
+              <svg width="298" height="72" viewBox="0 0 298 72" fill="none" style="display: block;">
+                <rect width="298" height="72" fill="#ffffff"/>
+                <rect x="12" y="22" width="132" height="21" rx="2" fill="#f5f4f1" stroke="#1c1e21" stroke-width="1.6"/>
+                <rect x="19" y="30" width="118" height="5" rx="2.5" fill="#8f8b86"/>
+                <rect x="156" y="30" width="122" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="156" y="52" width="90" height="5" rx="2.5" fill="#d5d2cc"/>
               </svg>
             </div>
-            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">/api/crop?page=1&amp;bbox=114,190,480,205&amp;colour=rule</div>
+            <div class="where" style="font-size: 11px;">The page itself, with the label boxed</div>
           </div>
-          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Source sentence</div>
-              <div class="sentence"><span style="background: #f2f8f8; border-bottom: 2px solid #2e7373; padding: 1px 2px;">Good Working Practice</span> applies to everything supplied.</div>
-            </div>
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Governing definition · scope document</div>
-              <div style="border: 1px solid #c3d9d9; background: #f2f8f8; border-radius: 3px; padding: 6px 9px;">
-                <span class="li" style="color: #1c1e21;">standards which a skilled person would reasonably be expected to meet;</span>
-                <span class="mono" style="font-size: 10px; color: #2e7373;"> — joint-schedule-1/2/table/3/1</span>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 11px;">
+            <div class="situation">The text here reads <strong>“rFramework Contract”</strong>.</div>
+            <div class="explain">That looks like a stray character. The wording is kept exactly as printed; nothing has been changed.</div>
+            <div class="question">Should this be read as “Framework Contract”?</div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 250px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
+                <div class="ansname" style="color: #4a3866;">Yes, it means “Framework Contract”</div>
+                <div class="anssub">record the reading beside the original wording</div>
               </div>
-            </div>
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Governing term recorded with the verdict</div>
-              <div style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid #c3d9d9; background: #f2f8f8; border-radius: 3px; padding: 4px 9px;">
-                <span class="mono" style="font-size: 11.5px;">Good Working Practice</span>
-                <span class="li" style="color: #6b6f76;">(matched)</span>
-                <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="#2e7373" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <div style="flex: 1; min-width: 230px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
+                <div class="ansname" style="color: #3a3d42;">No, that reading is wrong</div>
+                <div class="anssub">leave it flagged with no accepted reading</div>
               </div>
-            </div>
-            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-              <span class="btn" style="background: #75589b; color: #ffffff;">Real use</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Not a use</span>
-              <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">an alias collision can name a different governing term</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Row 4: anomaly with proposed reading -->
-      <div class="card" style="border-left: 3px solid #1c1e21; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="kick" style="background: #1c1e21;">Anomaly</span>
-          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">award-form/3/label</span>
-          <span style="font-size: 11px; color: #6b6f76;">form row 3 · page 1</span>
-          <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #6b6f76; color: #6b6f76; background: #f5f4f1;">stray_character_in_label</span>
-        </div>
-        <div style="display: flex; gap: 14px; align-items: flex-start;">
-          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
-              <svg width="266" height="64" viewBox="0 0 266 64" fill="none" style="display: block;">
-                <rect width="266" height="64" fill="#ffffff"/>
-                <rect x="10" y="18" width="118" height="19" rx="2" fill="#f5f4f1" stroke="#1c1e21" stroke-width="1.5"/>
-                <rect x="17" y="25" width="104" height="5" rx="2.5" fill="#8f8b86"/>
-                <rect x="140" y="25" width="106" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="140" y="44" width="80" height="5" rx="2.5" fill="#d5d2cc"/>
-              </svg>
-            </div>
-            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">/api/crop?page=1&amp;bbox=72,160,180,190&amp;colour=ink</div>
-          </div>
-          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Text as printed, kept verbatim</div>
-              <div class="sentence mono">rFramework Contract</div>
-            </div>
-            <div>
-              <div class="colhead" style="margin-bottom: 4px;">Proposed reading · interpretation, stored beside the raw text</div>
-              <div style="border: 1px solid #e0d0b2; background: #fbf7ef; border-radius: 3px; padding: 6px 9px; display: flex; align-items: center; gap: 8px;">
-                <span class="mono" style="font-size: 11.5px; color: #1c1e21;">Framework Contract</span>
-                <span class="li" style="color: #6b6f76;">stray leading character, recorded not repaired</span>
-              </div>
-            </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <span class="btn" style="background: #75589b; color: #ffffff;">Confirm</span>
-              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
-              <span style="flex-grow: 1;"></span>
-              <span class="li" style="color: #6b6f76;">the source text is never edited either way</span>
             </div>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Right rail: the golden set as a by-product -->
-    <div style="width: 292px; flex-shrink: 0; display: flex; flex-direction: column; gap: 11px;">
-      <div class="card" style="border-top: 3px solid #75589b; padding: 11px 12px;">
-        <span class="kick" style="background: #75589b;">Human loop</span>
-        <div style="font-size: 13px; font-weight: 600; margin: 7px 0 4px 0;">Every decision is a label</div>
-        <div class="li">Each verdict appends one line to <span class="mono">golden/decisions.jsonl</span>, which stage 8 reads as ground truth. The eval set grows by operating the system, not by a separate annotation project.</div>
-      </div>
-
-      <div class="card" style="padding: 11px 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 7px;">
-        <div class="colhead">Appended this session</div>
-        <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
-          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"core-terms/9/9.2/ref@94-99","verdict":"target","chosen_candidate":"core-terms/3/3.1/3.1.1","reviewer":"dan","ts":"2026-09-04T21:41:07Z"}</div>
-        </div>
-        <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
-          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"term","node_id":"af9d5756…","char_span":[53,74],"verdict":"use","chosen_candidate":"Central Buying Office","reviewer":"dan","ts":"2026-09-04T21:40:52Z"}</div>
-        </div>
-        <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
-          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"joint-schedule-1/2/table/1/1/ref@54-76","verdict":"unresolvable","reviewer":"dan","ts":"2026-09-04T21:39:18Z"}</div>
-        </div>
-        <div style="margin-top: auto; border-top: 1px solid #ece9e4; padding-top: 8px; display: flex; justify-content: space-between; align-items: baseline;">
-          <span class="li">Decisions today</span>
-          <span class="mono" style="font-size: 15px; font-weight: 600; color: #75589b;">3</span>
-        </div>
-      </div>
-
-      <div class="card" style="background: #f5f4f1; padding: 11px 12px;">
-        <div class="colhead" style="margin-bottom: 5px;">Crops are live</div>
-        <div class="li">Every crop is rendered server-side from the stored bbox by PyMuPDF at request time. Nothing is pre-baked, so a crop is always the page as it is now. Click one to open it full size.</div>
-      </div>
-    </div>
+    <div style="width: 300px; flex-shrink: 0;"></div>
   </div>
 </div>
 </x-dc>
