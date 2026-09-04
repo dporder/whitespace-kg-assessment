@@ -101,11 +101,31 @@ def test_a_golden_unresolvable_that_got_resolved_fails_the_zero_tolerance_gate(w
     assert gate["threshold"] == 0
     assert gate["observed_value"] == 1
     abstention = run.section("golden_refs")["abstention"]
-    assert abstention["wrongly_resolved"] == 1
+    assert abstention["wrongly_resolved"] == {"count": 1, "of": 1, "rate": 1.0}
+    assert abstention["wrongly_resolved_count"] == 1
     assert abstention["wrongly_resolved_detail"][0]["got"] == "core-terms/3/3.1/3.1.2"
     # Detection was fine; the two numbers stay separate.
     assert run.section("golden_refs")["detection"]["recall"] == {"count": 1, "of": 1,
                                                                  "rate": 1.0}
+
+
+def test_the_zero_tolerance_gate_skips_when_no_unresolvable_was_labelled(workspace):
+    """A golden set with labels but no unresolvables measures nothing about
+    abstention. A bare count of zero passed the max-0 gate green, which is the
+    exact failure mode this harness exists to prevent."""
+    workspace.label(kind="ref", path=RESOLVED_REF, verdict="target",
+                    chosen_candidate="core-terms/3/3.1/3.1.2")
+    run = workspace.run()
+
+    gate = run.gate("wrongly_resolved_unresolvables_max")
+    assert gate["status"] == "skipped_no_data", gate
+    assert gate["counts"] == {"count": 0, "of": 0, "rate": None}
+    assert "empty denominator" in gate["reason"]
+    # The section body must say the same thing as the gates table.
+    abstention = run.section("golden_refs")["abstention"]
+    assert abstention["golden_unresolvables"] == 0
+    assert abstention["wrongly_resolved"] == {"count": 0, "of": 0, "rate": None}
+    assert "0/0 (no data)" in run.markdown
 
 
 def test_a_correctly_abstained_unresolvable_passes(workspace):
@@ -115,7 +135,7 @@ def test_a_correctly_abstained_unresolvable_passes(workspace):
     run = workspace.run()
     assert run.code == 0, run.failed_gates()
     abstention = run.section("golden_refs")["abstention"]
-    assert abstention["wrongly_resolved"] == 0
+    assert abstention["wrongly_resolved"] == {"count": 0, "of": 1, "rate": 0.0}
     assert abstention["correctly_abstained"] == {"count": 1, "of": 1, "rate": 1.0}
 
 

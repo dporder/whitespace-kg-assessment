@@ -77,12 +77,103 @@ def test_every_documented_verdict_is_accepted(tmp_path):
     lines = []
     for kind, verdicts in golden_mod.VERDICTS.items():
         for i, verdict in enumerate(sorted(verdicts)):
-            lines.append(json.dumps({"kind": kind, "path": f"{kind}/{i}/ref@0-1",
-                                     "verdict": verdict, "reviewer": "d", "ts": "t"}))
+            record = {"kind": kind, "path": f"{kind}/{i}/ref@0-1",
+                      "verdict": verdict, "reviewer": "d", "ts": "t"}
+            if verdict in golden_mod.REQUIRES_CHOSEN_CANDIDATE.get(kind, ()):
+                record["chosen_candidate"] = "somewhere"
+            if verdict in golden_mod.REQUIRES_ANOMALY_INDEX.get(kind, ()):
+                record["anomaly_index"] = 0
+            lines.append(json.dumps(record))
     (tmp_path / "decisions.jsonl").write_text("\n".join(lines) + "\n")
     result = golden_mod.load(tmp_path)
     assert result.unknown_verdicts == []
+    assert result.malformed == []
     assert len(result.records) == sum(len(v) for v in golden_mod.VERDICTS.values())
+
+
+# ------------------------------------- required fields, reviewer blocker 3
+
+def test_a_ref_target_without_chosen_candidate_is_malformed_not_scored(tmp_path):
+    """Scoring it would count a label defect as a parser failure."""
+    (tmp_path / "decisions.jsonl").write_text(json.dumps({
+        "kind": "ref", "path": "core-terms/9/9.1/intro/ref@11-23", "verdict": "target",
+        "reviewer": "dan", "ts": "t"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert result.records == []
+    assert len(result.malformed) == 1
+    assert "requires chosen_candidate" in result.malformed[0]["error"]
+    assert result.malformed[0]["line"] == 1
+
+
+def test_a_term_use_without_chosen_candidate_is_malformed_not_self_graded(tmp_path):
+    """Scoring it would adopt the pipeline's own answer as ground truth."""
+    (tmp_path / "decisions.jsonl").write_text(json.dumps({
+        "kind": "term", "node_id": "abc", "char_span": [0, 3], "verdict": "use",
+        "reviewer": "dan", "ts": "t"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert result.records == []
+    assert "requires chosen_candidate" in result.malformed[0]["error"]
+
+
+def test_verdicts_that_assert_no_answer_need_no_chosen_candidate(tmp_path):
+    (tmp_path / "decisions.jsonl").write_text(
+        json.dumps({"kind": "ref", "path": "a/ref@0-1", "verdict": "unresolvable",
+                    "reviewer": "d", "ts": "t"}) + "\n"
+        + json.dumps({"kind": "ref", "path": "b/ref@0-1", "verdict": "not_a_reference",
+                      "reviewer": "d", "ts": "t"}) + "\n"
+        + json.dumps({"kind": "term", "node_id": "n", "char_span": [0, 1],
+                      "verdict": "not_a_use", "reviewer": "d", "ts": "t"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert len(result.records) == 3
+    assert result.malformed == []
+
+
+# ------------------------------- anomaly_index, the UI seam's subject key
+
+def test_two_anomalies_on_one_node_hold_two_verdicts(tmp_path):
+    """Without the index in the subject, the second record silently replaced
+    the first and one reviewer decision was lost."""
+    (tmp_path / "decisions.jsonl").write_text(
+        json.dumps({"kind": "anomaly", "path": "core-terms/9/9.2", "anomaly_index": 0,
+                    "verdict": "confirmed", "reviewer": "dan", "ts": "t"}) + "\n"
+        + json.dumps({"kind": "anomaly", "path": "core-terms/9/9.2", "anomaly_index": 1,
+                      "verdict": "rejected", "reviewer": "dan", "ts": "t"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert len(result.records) == 2, "both decisions must survive"
+    assert result.superseded == 0
+    assert {r.anomaly_index for r in result.records} == {0, 1}
+    assert {r.verdict for r in result.records} == {"confirmed", "rejected"}
+    assert len({r.subject for r in result.records}) == 2
+
+
+def test_a_second_verdict_on_the_same_anomaly_still_supersedes(tmp_path):
+    same = {"kind": "anomaly", "path": "core-terms/9/9.2", "anomaly_index": 0,
+            "reviewer": "dan", "ts": "t"}
+    (tmp_path / "decisions.jsonl").write_text(
+        json.dumps({**same, "verdict": "confirmed"}) + "\n"
+        + json.dumps({**same, "verdict": "rejected"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert len(result.records) == 1 and result.records[0].verdict == "rejected"
+    assert result.superseded == 1
+
+
+def test_a_node_anomaly_verdict_without_an_index_is_malformed(tmp_path):
+    (tmp_path / "decisions.jsonl").write_text(json.dumps({
+        "kind": "anomaly", "path": "core-terms/9/9.2", "verdict": "confirmed",
+        "reviewer": "dan", "ts": "t"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert result.records == []
+    assert "requires anomaly_index" in result.malformed[0]["error"]
+
+
+def test_outline_triage_verdicts_need_no_anomaly_index(tmp_path):
+    """Their subject is the queue id this harness prints, not a node anomaly."""
+    (tmp_path / "decisions.jsonl").write_text(json.dumps({
+        "kind": "anomaly", "path": "outline:core-terms#12", "verdict": "outline_wrong",
+        "reviewer": "dan", "ts": "t"}) + "\n")
+    result = golden_mod.load(tmp_path)
+    assert len(result.records) == 1
+    assert result.malformed == []
 
 
 def test_sibling_label_files_are_read_with_decisions_first(tmp_path):
@@ -91,7 +182,7 @@ def test_sibling_label_files_are_read_with_decisions_first(tmp_path):
          "chosen_candidate": "x", "reviewer": "dan", "ts": "t"}) + "\n")
     (tmp_path / "starter.jsonl").write_text(json.dumps(
         {"kind": "term", "node_id": "n", "char_span": [0, 4], "verdict": "use",
-         "reviewer": "dan", "ts": "t"}) + "\n")
+         "chosen_candidate": "Provider", "reviewer": "dan", "ts": "t"}) + "\n")
     result = golden_mod.load(tmp_path)
     assert [p.rsplit("/", 1)[-1] for p in result.files] == ["decisions.jsonl",
                                                             "starter.jsonl"]

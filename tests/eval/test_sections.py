@@ -215,6 +215,30 @@ def test_concept_coverage_and_duplicates(workspace):
     assert section["spot_check"]["items"], "a spot check sample is for human eyes"
 
 
+def test_four_mutually_similar_concepts_cost_three_not_six(workspace):
+    """Pair counting gave 6/4 (1.500). Duplicates are cluster membership."""
+    labels = ["payment terms", "payment term", "payments terms", "payment  terms"]
+    concepts = [{"id": f"c{i}", "label": lbl, "scope_path": "core-terms/9",
+                 "member_node_ids": [], "confidence": 0.5}
+                for i, lbl in enumerate(labels)]
+    (workspace.fixtures / "concepts.json").write_text(json.dumps(concepts, indent=2))
+
+    section = workspace.run().section("concepts")
+    assert section["concepts_total"] == 4
+    assert section["duplicate_rate_after_resolution"] == {"count": 3, "of": 4,
+                                                          "rate": 0.75}
+    assert section["duplicate_clusters"] == 1
+    rate = section["duplicate_rate_after_resolution"]["rate"]
+    assert rate <= 1.0, "a duplicate rate above 1.0 is arithmetically impossible"
+
+
+def test_two_unrelated_concepts_are_not_duplicates(workspace):
+    section = workspace.run().section("concepts")
+    assert section["duplicate_rate_after_resolution"] == {"count": 0, "of": 2,
+                                                          "rate": 0.0}
+    assert section["duplicate_clusters"] == 0
+
+
 def test_a_concept_label_colliding_with_a_declared_term_is_reported(workspace):
     concepts = json.loads((workspace.fixtures / "concepts.json").read_text())
     concepts[0]["label"] = "Good Working Practice"

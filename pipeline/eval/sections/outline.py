@@ -82,9 +82,28 @@ def triage(ctx: Context, part: str) -> dict[str, Any]:
         node = None
         how = None
         key = _label_key(e.label)
+        claimed_already = None
         if key and len(by_label.get(key, [])) == 1:
-            node, how = by_label[key][0], "label"
-        elif e.stripped_title:
+            candidate = by_label[key][0]
+            # Symmetric with the title branch: a derived node satisfies at most
+            # one outline entry. Two entries claiming one node is a duplicate in
+            # one of the two descriptions, which is a disagreement to triage,
+            # not two agreements.
+            if candidate.path in matched_nodes:
+                claimed_already = candidate
+            else:
+                node, how = candidate, "label"
+        if node is None and claimed_already is not None:
+            disagreements.append({
+                "queue_id": f"outline:{part}#{e.index}",
+                "difference": "second_outline_entry_claiming_one_derived_node",
+                "outline": e.as_dict(),
+                "derived": {"path": claimed_already.path, "label": claimed_already.label,
+                            "title": claimed_already.title,
+                            "pages": [claimed_already.page_start, claimed_already.page_end]},
+            })
+            continue
+        if node is None and e.stripped_title:
             best, best_score = None, 0.0
             for n in nodes:
                 if n.path in matched_nodes or not n.title:

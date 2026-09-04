@@ -138,7 +138,10 @@ def build(ctx: Context) -> Section:
             continue
         use, how = find_use(subject, index)
         node = by_id.get(subject[0])
-        expected_term = rec.chosen_candidate or (use.term if use else None)
+        # Never `or use.term`: falling back to the pipeline's own answer grades
+        # it against itself and is silently wrong exactly where it matters most,
+        # on alias collisions. golden.py rejects a `use` record without one.
+        expected_term = rec.chosen_candidate
         rows.append({
             "subject": f"{(node.path if node else subject[0])}[{subject[1]}:{subject[2]}]",
             "verdict": rec.verdict,
@@ -156,10 +159,8 @@ def build(ctx: Context) -> Section:
     gold_not_uses = [r for r in rows if r["verdict"] == "not_a_use"]
 
     true_positives = [r for r in gold_uses if r["detected"]
-                      and (r["expected_term"] is None
-                           or r["pipeline_term"] == r["expected_term"])]
+                      and r["pipeline_term"] == r["expected_term"]]
     wrong_term = [r for r in gold_uses if r["detected"]
-                  and r["expected_term"] is not None
                   and r["pipeline_term"] != r["expected_term"]]
     missed = [r for r in gold_uses if not r["detected"]]
     false_positives = [r for r in gold_not_uses if r["detected"]]

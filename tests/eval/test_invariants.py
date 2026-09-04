@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from pipeline.eval.sections.invariants import (CHECKS, anomaly_key, check_tree,
-                                               explanation_for, label_sequence_value,
+from pipeline.eval.sections.invariants import (CHECKS, AnomalyLedger, anomaly_key,
+                                               check_tree, label_sequence_value,
                                                numbering_mode)
 from pipeline.schemas import BBox, Node, content_hash, lineage_key, node_id
 
@@ -193,8 +193,96 @@ def test_anomaly_key_convention():
     assert anomaly_key("numbering_gap_after_9.2: 9.4 follows") == "numbering_gap_after_9.2"
     node = Node(id="x", lineage_key="y", path="p", kind="part", page_start=1,
                 page_end=1, order=0, anomalies=["numbering_gap_after_9.2: prose"])
-    assert explanation_for("numbering_gap", [node])
-    assert explanation_for("child_left_edge", [node]) is None
+    assert AnomalyLedger().claim("numbering_gap", (node,))
+    assert AnomalyLedger().claim("child_left_edge", (node,)) is None
+
+
+# ------------------------------------------------- anomaly amnesty, blocker 1
+
+def gapped_group(anomalies_92=(), parent_anomalies=(), labels=("9.1", "9.2", "9.5", "9.7")):
+    """A sibling group whose numbering jumps, for the amnesty probes."""
+    kids = []
+    for i, label in enumerate(labels):
+        y = 130 + i * 40
+        kids.append(mk(f"p/9/{label}", "clause", 2 + i, (110, y, 400, y + 20),
+                       label=label, text=f"clause {label}",
+                       anomalies=list(anomalies_92) if label == "9.2" else []))
+    parent = mk("p/9", "heading", 1, (100, 100, 400, 115), label="9", title="Nine",
+                children=kids, anomalies=list(parent_anomalies))
+    root = mk("p", "part", 0, None, title="P", children=[parent])
+    extents(root)
+    return root
+
+
+def gap_violations(root):
+    violations, _, _ = check_tree("p", root)
+    return [v for v in violations if v.check == "numbering_gap"]
+
+
+def test_the_reviewers_probe_two_gaps_need_two_anomalies():
+    """9.1, 9.2, 9.5, 9.7 with one recorded anomaly about a *different* gap.
+
+    Before the fix, "numbering_gap_after_9.2: 9.4 follows" explained the 9.2-to-9.5
+    jump it contradicts, and the parent's excerpt anomaly explained 9.5-to-9.7.
+    Both gaps came out explained and the gate passed on a tree with two
+    unrecorded numbering gaps.
+    """
+    root = gapped_group(
+        anomalies_92=["numbering_gap_after_9.2: 9.4 follows in source order"],
+        parent_anomalies=["numbering_gap: fixture excerpt jumps from 3 to 9, "
+                          "clauses 4 to 8 deliberately not included"])
+    gaps = gap_violations(root)
+    assert [v.detail for v in gaps] == ["9.2 is followed by 9.5", "9.5 is followed by 9.7"]
+    assert len([v for v in gaps if not v.explained_by]) == 2, \
+        [(v.detail, v.explained_by) for v in gaps]
+
+
+def test_a_parents_anomaly_never_explains_what_happened_between_its_children():
+    root = gapped_group(parent_anomalies=["numbering_gap: something about the group"],
+                        labels=("9.1", "9.2", "9.5"))
+    assert [v.explained_by for v in gap_violations(root)] == [None]
+
+
+def test_an_anomaly_naming_a_different_follower_does_not_explain_the_gap():
+    root = gapped_group(anomalies_92=["numbering_gap_after_9.2: 9.4 follows in source order"],
+                        labels=("9.1", "9.2", "9.5"))
+    assert [v.explained_by for v in gap_violations(root)] == [None]
+
+
+def test_an_anomaly_naming_the_observed_follower_does_explain_the_gap():
+    """The consistency rule must not swing the other way and reject good ones."""
+    root = gapped_group(anomalies_92=["numbering_gap_after_9.2: 9.5 follows, 9.3 and 9.4 "
+                                      "are not in the source"],
+                        labels=("9.1", "9.2", "9.5"))
+    assert [v.explained_by for v in gap_violations(root)] == [
+        "numbering_gap_after_9.2: 9.5 follows, 9.3 and 9.4 are not in the source"]
+
+
+def test_an_anomaly_naming_no_labels_is_a_generic_explanation():
+    root = gapped_group(anomalies_92=["numbering_gap: the source skips ahead here"],
+                        labels=("9.1", "9.2", "9.5"))
+    assert gap_violations(root)[0].explained_by is not None
+
+
+def test_one_anomaly_explains_one_violation_not_a_whole_group():
+    """Two gaps, one generic anomaly on the node between them: one stays bare."""
+    root = gapped_group(anomalies_92=["numbering_gap: the source skips ahead here"],
+                        labels=("9.1", "9.2", "9.5", "9.7"))
+    gaps = gap_violations(root)
+    assert len(gaps) == 2
+    assert len([v for v in gaps if v.explained_by]) == 1
+    assert len([v for v in gaps if not v.explained_by]) == 1
+
+
+def test_the_shipped_fixture_anomaly_still_explains_the_three_to_nine_gap(workspace):
+    """The location rule must not break the real fixture: master's anomaly sits
+    on core-terms/9, which is the violating node itself."""
+    run = workspace.run()
+    invariants = run.section("invariants")
+    assert invariants["totals"]["unexplained"] == 0
+    assert invariants["violations"][0]["check"] == "numbering_gap"
+    assert invariants["violations"][0]["explained_by"].startswith("numbering_gap:")
+    assert run.code == 0
 
 
 def test_every_check_id_is_described():

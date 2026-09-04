@@ -30,6 +30,13 @@ class GateSpec:
     op: str                      # ">=" or "<="
     section: str
     question: str
+    basis: str = "rate"          # "rate" compares the ratio, "count" the numerator
+
+# A "count" basis exists so a zero-tolerance threshold can still be a Rate. The
+# denominator is what makes "no labels yet" distinguishable from "nothing went
+# wrong": a bare zero passes a max-0 gate whether or not anything was measured,
+# which is the failure mode this whole harness is built to prevent. Carrying the
+# denominator routes the empty case to skipped_no_data and compares the count.
 
 
 # config.GATES key -> what it reads and how it compares.
@@ -39,10 +46,12 @@ GATE_SPECS: dict[str, GateSpec] = {
         "of the golden references we resolved, how many point at the right target"),
     "wrongly_resolved_unresolvables_max": GateSpec(
         "wrongly_resolved_unresolvables", "<=", "golden_refs",
-        "golden references with no correct target that we resolved anyway; zero tolerance"),
+        "golden references with no correct target that we resolved anyway; zero tolerance",
+        basis="count"),
     "structural_violations_unexplained_max": GateSpec(
         "structural_violations_unexplained", "<=", "invariants",
-        "structural or geometric violations with no recorded anomaly explaining them"),
+        "structural or geometric violations with no recorded anomaly explaining them",
+        basis="count"),
     "detection_recall_min": GateSpec(
         "reference_detection_recall", ">=", "golden_refs",
         "golden references whose pointing words we found at all"),
@@ -106,13 +115,14 @@ def evaluate(gates: dict[str, Any], metrics: dict[str, Any],
         if isinstance(value, Rate):
             result.observed = str(value)
             result.counts = value.as_dict()
-            if value.rate is None:
+            if not value.has_data:
                 result.reason = (f"{spec.metric} has an empty denominator: "
                                  f"{value}. A rate over nothing is unknown, not zero "
-                                 f"and not one.")
+                                 f"and not one, and a max-0 gate must not pass on it.")
                 results.append(result)
                 continue
-            result.observed_value = value.rate
+            result.observed_value = float(value.count) if spec.basis == "count" \
+                else value.rate
         else:
             result.observed_value = float(value)
             result.observed = str(value)

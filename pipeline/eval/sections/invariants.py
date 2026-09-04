@@ -9,10 +9,11 @@ counted **unexplained**, which is the zero-tolerance gate
 
 The anomaly convention. Stage 2 records anomalies as `"<code>[_detail]: prose"`,
 as in `numbering_gap_after_9.2: 9.4 follows in source order`. A violation is
-explained when an anomaly on the violating node, or on the parent for the
-parent-child checks, has a key starting with the violation's check id. That
-keeps "recorded and understood" and "silently swallowed" apart without a second
-side file to keep in sync.
+explained when an anomaly whose key starts with the check id sits on one of the
+two nodes the check actually compared, has not already explained another
+violation, and does not contradict what was observed. `AnomalyLedger` holds
+those three rules. They matter: without them one recorded gap amnesties every
+later gap in the same sibling group, which turns the gate into decoration.
 
 Boxes are compared with GEOMETRY_EPS points of slack, because PDF coordinates
 carry rounding noise and a half-point is far below the smallest real indent in
@@ -71,13 +72,71 @@ def anomaly_key(anomaly: str) -> str:
     return anomaly.split(":", 1)[0].strip()
 
 
-def explanation_for(check: str, nodes: Iterable[Node]) -> Optional[str]:
-    """An anomaly on any of `nodes` whose key starts with the check id."""
-    for node in nodes:
-        for a in node.anomalies:
-            if anomaly_key(a).startswith(check):
-                return a
-    return None
+_LABEL_TOKEN = re.compile(r"\b\d+(?:\.\d+)*\b|\(([a-z]{1,2}|[ivx]{1,4})\)")
+
+
+def labels_named_in(anomaly: str) -> set[str]:
+    """Numbering labels an anomaly's prose mentions, e.g. {"9.2", "9.4"}."""
+    return {m.group(0).strip("()") for m in _LABEL_TOKEN.finditer(anomaly)}
+
+
+def anomaly_contradicts(check: str, anomaly: str, follower: Optional[str]) -> bool:
+    """True when the anomaly's own prose rules out the violation being explained.
+
+    A numbering-gap anomaly that names the labels involved is making a claim
+    about *which* gap it describes. "9.4 follows in source order" does not
+    explain an observed 9.2 to 9.5 jump; it contradicts it. Without this,
+    recording one gap amnesties every later gap in the same sibling group,
+    which is precisely the confident wrongness the gate exists to catch.
+
+    An anomaly naming no labels at all is a generic explanation and is allowed.
+    """
+    if check != "numbering_gap" or follower is None:
+        return False
+    named = labels_named_in(anomaly)
+    if not named:
+        return False
+    return follower.strip("()") not in named
+
+
+class AnomalyLedger:
+    """Matches violations to the anomalies that explain them, at most one each.
+
+    Three rules, all of them the difference between "recorded and understood"
+    and "silently amnestied":
+
+    1. **Location.** Only the two nodes forming the violating pair can explain
+       it: the violating node and the node it was compared against. A parent's
+       anomaly never explains what happened between its children.
+    2. **Consumption.** One anomaly instance explains at most one violation,
+       claimed greedily in document order. A second gap in the same group needs
+       its own recorded anomaly.
+    3. **Consistency.** An anomaly whose prose contradicts the observation does
+       not explain it (see `anomaly_contradicts`).
+    """
+
+    def __init__(self) -> None:
+        self._claimed: set[tuple[str, int]] = set()
+
+    def claim(self, check: str, pair: Iterable[Optional[Node]],
+              follower: Optional[str] = None) -> Optional[str]:
+        for node in pair:
+            if node is None:
+                continue
+            for i, anomaly in enumerate(node.anomalies):
+                if (node.path, i) in self._claimed:
+                    continue
+                if not anomaly_key(anomaly).startswith(check):
+                    continue
+                if anomaly_contradicts(check, anomaly, follower):
+                    continue
+                self._claimed.add((node.path, i))
+                return anomaly
+        return None
+
+    @property
+    def claimed(self) -> set[tuple[str, int]]:
+        return set(self._claimed)
 
 
 def boxes_by_page(node: Node, prefer_own: bool = True) -> dict[int, tuple]:
@@ -153,17 +212,27 @@ def _inside(inner: tuple, outer: tuple, eps: float = GEOMETRY_EPS) -> bool:
             and inner[2] <= outer[2] + eps and inner[3] <= outer[3] + eps)
 
 
-def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], dict[str, int]]:
+def check_tree(part: str, root: Node,
+               ledger: Optional[AnomalyLedger] = None
+               ) -> tuple[list[Violation], dict[str, int], dict[str, int]]:
     """Every check over one part tree. Returns violations, per-check counts of
-    what was actually examined, and per-check counts of what could not be."""
+    what was actually examined, and per-check counts of what could not be.
+
+    `add`'s second argument is the violating node and `against` is the only
+    other node that may explain it: the node it was compared with. Passing a
+    parent here for a sibling comparison would let one anomaly amnesty a whole
+    sibling group, so the pairs are exactly the two nodes the check looked at.
+    """
     violations: list[Violation] = []
     checked: dict[str, int] = {k: 0 for k in CHECKS}
     skipped: dict[str, int] = {k: 0 for k in CHECKS}
+    ledger = ledger if ledger is not None else AnomalyLedger()
 
-    def add(check: str, node: Node, detail: str, context: Iterable[Node] = ()) -> None:
-        nodes = [node, *context]
-        violations.append(Violation(check, part, node.path, detail,
-                                    explanation_for(check, nodes)))
+    def add(check: str, node: Node, detail: str, against: Optional[Node] = None,
+            follower: Optional[str] = None) -> None:
+        violations.append(Violation(
+            check, part, node.path, detail,
+            ledger.claim(check, (node, against), follower)))
 
     seen_order: list[int] = []
     for node in walk(root):
@@ -224,7 +293,7 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
             checked["path_parent"] += 1
             if not child.path.startswith(node.path + "/"):
                 add("path_parent", child, f"path does not extend parent {node.path}",
-                    [node])
+                    node)
 
             # -- label nesting ------------------------------------------------
             if child.label and node.label and _DOTTED.match(child.label) \
@@ -233,14 +302,14 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
                 if not child.label.startswith(node.label + "."):
                     add("label_nesting", child,
                         f"label {child.label} does not extend parent label {node.label}",
-                        [node])
+                        node)
 
             # -- page range nesting -------------------------------------------
             checked["page_range"] += 1
             if child.page_start < node.page_start or child.page_end > node.page_end:
                 add("page_range", child,
                     f"pages {child.page_start}-{child.page_end} escape parent "
-                    f"{node.page_start}-{node.page_end}", [node])
+                    f"{node.page_start}-{node.page_end}", node)
 
             # -- child left edge ----------------------------------------------
             shared = sorted(set(own) & set(child_box))
@@ -250,7 +319,7 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
                 if child_box[page][0] < own[page][0] - GEOMETRY_EPS:
                     add("child_left_edge", child,
                         f"left edge {child_box[page][0]:.1f} is left of parent's "
-                        f"{own[page][0]:.1f} on page {page}", [node])
+                        f"{own[page][0]:.1f} on page {page}", node)
             else:
                 skipped["child_left_edge"] += 1
 
@@ -260,11 +329,11 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
                 for page, box in child_extent.items():
                     if page not in node_extent:
                         add("extent_nests", child,
-                            f"extent touches page {page}, outside the parent's extent", [node])
+                            f"extent touches page {page}, outside the parent's extent", node)
                     elif not _inside(box, node_extent[page]):
                         add("extent_nests", child,
                             f"extent {box} on page {page} escapes parent extent "
-                            f"{node_extent[page]}", [node])
+                            f"{node_extent[page]}", node)
             else:
                 skipped["extent_nests"] += 1
 
@@ -279,12 +348,12 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
                 if child_first_page < own_first_page:
                     add("own_box_above_first_child", node,
                         f"first child starts on page {child_first_page}, before the "
-                        f"node's own page {own_first_page}", [first])
+                        f"node's own page {own_first_page}", first)
                 elif child_first_page == own_first_page and \
                         first_box[child_first_page][1] < own[own_first_page][1] - GEOMETRY_EPS:
                     add("own_box_above_first_child", node,
                         f"own box top {own[own_first_page][1]:.1f} is below first child's "
-                        f"{first_box[child_first_page][1]:.1f}", [first])
+                        f"{first_box[child_first_page][1]:.1f}", first)
             else:
                 skipped["own_box_above_first_child"] += 1
 
@@ -299,7 +368,7 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
             if n_page < p_page:
                 add("siblings_ascend", nxt,
                     f"starts on page {n_page}, before sibling {prev.label or prev.path} "
-                    f"ends on page {p_page}", [prev, node])
+                    f"ends on page {p_page}", prev)
                 continue
             if n_page > p_page:
                 continue                                   # different pages, order is by page
@@ -307,7 +376,7 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
             if n[3] <= p[1] + GEOMETRY_EPS:
                 add("siblings_ascend", nxt,
                     f"sits entirely above sibling {prev.label or prev.path} on page {p_page}",
-                    [prev, node])
+                    prev)
             elif n[1] >= p[3] - GEOMETRY_EPS:
                 pass                                       # ascending, no overlap
             elif n[0] >= p[2] - GEOMETRY_EPS:
@@ -315,7 +384,7 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
             else:
                 add("siblings_ascend", nxt,
                     f"overlaps sibling {prev.label or prev.path} vertically on page "
-                    f"{p_page}: {p} then {n}", [prev, node])
+                    f"{p_page}: {p} then {n}", prev)
 
         # -- numbering gaps -------------------------------------------------------
         labelled = [c for c in anatomy if c.label]
@@ -333,14 +402,15 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
                     checked["numbering_gap"] += 1
                     if b != a + 1:
                         add("numbering_gap", nxt,
-                            f"{prev.label} is followed by {nxt.label}", [prev, node])
+                            f"{prev.label} is followed by {nxt.label}", prev,
+                            follower=nxt.label)
 
     # -- order is a unique ascending preorder sequence ---------------------------
     checked["order_preorder"] = len(seen_order)
     if len(set(seen_order)) != len(seen_order):
         violations.append(Violation("order_preorder", part, root.path,
                                     "order values are not unique within the part",
-                                    explanation_for("order_preorder", [root])))
+                                    ledger.claim("order_preorder", (root,))))
     elif seen_order != sorted(seen_order):
         first_bad = next(i for i in range(1, len(seen_order))
                          if seen_order[i] < seen_order[i - 1])
@@ -348,15 +418,18 @@ def check_tree(part: str, root: Node) -> tuple[list[Violation], dict[str, int], 
             "order_preorder", part, root.path,
             f"order descends in preorder at position {first_bad} "
             f"({seen_order[first_bad - 1]} then {seen_order[first_bad]})",
-            explanation_for("order_preorder", [root])))
+            ledger.claim("order_preorder", (root,))))
     return violations, checked, skipped
 
 
-def check_ref_spans(ctx: Context) -> tuple[list[Violation], int, int]:
+def check_ref_spans(ctx: Context,
+                    ledger: Optional[AnomalyLedger] = None
+                    ) -> tuple[list[Violation], int, int]:
     """A ref's char_span must reproduce its pointing words from its parent."""
     violations: list[Violation] = []
     by_path = ctx.inputs.nodes_by_path()
     checked = skipped = 0
+    ledger = ledger if ledger is not None else AnomalyLedger()
     for part in sorted(ctx.inputs.refs):
         for ref in ctx.inputs.refs[part]:
             parent_path = ref.path.rsplit("/ref@", 1)[0]
@@ -371,7 +444,7 @@ def check_ref_spans(ctx: Context) -> tuple[list[Violation], int, int]:
                     "ref_span_integrity", part, ref.path,
                     f"chars [{s}:{e}] of {parent_path} read "
                     f"{parent.text[s:e]!r}, ref text is {ref.text!r}",
-                    explanation_for("ref_span_integrity", [ref, parent])))
+                    ledger.claim("ref_span_integrity", (ref, parent))))
     return violations, checked, skipped
 
 
@@ -501,17 +574,20 @@ def build(ctx: Context) -> Section:
         s.line(f"_{s.reason}_")
         return s
 
+    # One ledger across the whole run: an anomaly explains one violation, and
+    # which one is decided in document order, parts in sorted order.
+    ledger = AnomalyLedger()
     all_violations: list[Violation] = []
     checked: dict[str, int] = {k: 0 for k in CHECKS}
     skipped: dict[str, int] = {k: 0 for k in CHECKS}
     for part in sorted(ctx.inputs.trees):
-        v, c, sk = check_tree(part, ctx.inputs.trees[part])
+        v, c, sk = check_tree(part, ctx.inputs.trees[part], ledger)
         all_violations.extend(v)
         for k in CHECKS:
             checked[k] += c.get(k, 0)
             skipped[k] += sk.get(k, 0)
 
-    ref_v, ref_checked, ref_skipped = check_ref_spans(ctx)
+    ref_v, ref_checked, ref_skipped = check_ref_spans(ctx, ledger)
     all_violations.extend(ref_v)
     checked["ref_span_integrity"] += ref_checked
     skipped["ref_span_integrity"] += ref_skipped
@@ -519,17 +595,17 @@ def build(ctx: Context) -> Section:
     unexplained = [v for v in all_violations if not v.explained_by]
     explained = [v for v in all_violations if v.explained_by]
 
-    # Anomalies the parser recorded that no check fired on. Not an error: the
-    # tree may be an excerpt, or the anomaly may describe something this
-    # harness does not check. Printed so the two lists can be reconciled.
-    violated_keys = {(v.part, v.path, v.check) for v in all_violations}
+    # Anomalies the parser recorded that explained no violation. Not an error:
+    # the tree may be an excerpt, or the anomaly may describe something this
+    # harness does not check. Taken from the ledger's own claim record rather
+    # than re-derived, so the two lists cannot drift apart.
+    claimed = ledger.claimed
     unmatched_anomalies = []
     anomaly_count = 0
     for part, node in ctx.inputs.nodes():
-        for a in node.anomalies:
+        for i, a in enumerate(node.anomalies):
             anomaly_count += 1
-            key = anomaly_key(a)
-            if not any(key.startswith(v[2]) for v in violated_keys if v[1] == node.path):
+            if (node.path, i) not in claimed:
                 unmatched_anomalies.append({"part": part, "path": node.path, "anomaly": a})
 
     check_rows = []

@@ -23,7 +23,8 @@ from collections import Counter
 from typing import Any
 
 import config
-from pipeline.eval.context import CONCEPT_DUPLICATE_RATIO, Context, LIST_CAP
+from pipeline.eval.context import (CONCEPT_DUPLICATE_RATIO, CONCEPT_PAIR_SCAN_CAP,
+                                   CONCEPT_TERM_SCAN_CAP, Context, LIST_CAP)
 from pipeline.eval.rates import MEASURED, NO_DATA, PARTIAL, Rate, Section, cap
 from pipeline.eval.sampling import stratified_sample
 from pipeline.eval.text import normalise, similarity
@@ -57,19 +58,45 @@ def build(ctx: Context) -> Section:
         return s
 
     # -- duplicates, lexical proxy for the cosine check --------------------------
+    # Duplicates are counted by cluster membership, not by pair. Four mutually
+    # similar labels are six pairs but three redundant concepts, and counting
+    # pairs into a member total produced rates above 1.0 (6/4). Union-find over
+    # the similarity relation gives the number that can be deduplicated away.
     labels = [c.label for c in concepts]
     normalised = [normalise(c) for c in labels]
     exact = [{"label": lbl, "count": n}
              for lbl, n in Counter(normalised).items() if n > 1]
+
+    parent = list(range(len(concepts)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        ri, rj = root(i), root(j)
+        if ri != rj:
+            parent[max(ri, rj)] = min(ri, rj)
+
     near: list[dict[str, Any]] = []
-    for i in range(len(concepts)):
-        for j in range(i + 1, len(concepts)):
+    pairs_examined = 0
+    capped = len(concepts) > CONCEPT_PAIR_SCAN_CAP
+    scanned = concepts[:CONCEPT_PAIR_SCAN_CAP] if capped else concepts
+    for i in range(len(scanned)):
+        for j in range(i + 1, len(scanned)):
+            pairs_examined += 1
             if normalised[i] == normalised[j]:
+                union(i, j)
                 continue
             score = similarity(labels[i], labels[j])
             if score >= CONCEPT_DUPLICATE_RATIO:
+                union(i, j)
                 near.append({"a": labels[i], "b": labels[j], "similarity": score})
-    duplicate_members = sum(d["count"] - 1 for d in exact) + len(near)
+
+    clusters: Counter[int] = Counter(root(i) for i in range(len(concepts)))
+    duplicate_members = sum(size - 1 for size in clusters.values())
     duplicate_rate = Rate(duplicate_members, len(concepts))
 
     # -- coverage ----------------------------------------------------------------
@@ -94,11 +121,15 @@ def build(ctx: Context) -> Section:
 
     # -- concept labels colliding with declared terms ---------------------------
     collisions: list[dict[str, Any]] = []
+    collision_capped = False
     if ctx.inputs.definition_sites is not None:
         terms = {d.term for d in ctx.inputs.definition_sites}
         aliases = {a for d in ctx.inputs.definition_sites for a in d.aliases}
-        for c in concepts:
-            for t in sorted(terms | aliases):
+        vocabulary = sorted(terms | aliases)
+        collision_capped = (len(concepts) > CONCEPT_TERM_SCAN_CAP
+                            or len(vocabulary) > CONCEPT_TERM_SCAN_CAP)
+        for c in concepts[:CONCEPT_TERM_SCAN_CAP]:
+            for t in vocabulary[:CONCEPT_TERM_SCAN_CAP]:
                 if normalise(c.label) == normalise(t):
                     collisions.append({"concept": c.label, "term": t, "match": "exact"})
                 elif similarity(c.label, t) >= CONCEPT_DUPLICATE_RATIO:
@@ -134,6 +165,16 @@ def build(ctx: Context) -> Section:
                              f"(config.CONCEPT_MERGE_COSINE), which needs stage 6 vectors."),
         "exact_label_collisions": exact,
         "near_duplicate_pairs": cap(near, LIST_CAP)[0],
+        "duplicate_clusters": len([n for n in clusters.values() if n > 1]),
+        "pair_scan": {
+            "pairs_examined": pairs_examined,
+            "capped": capped,
+            "cap": CONCEPT_PAIR_SCAN_CAP,
+            "note": (f"only the first {CONCEPT_PAIR_SCAN_CAP} concepts were compared "
+                     f"all-pairs; duplicates beyond that are not counted"
+                     if capped else None),
+        },
+        "collision_scan_capped": collision_capped,
         "coverage": coverage.as_dict(),
         "coverage_note": coverage_note,
         "scan_units_with_no_concept": cap(uncovered, LIST_CAP)[0],
@@ -151,6 +192,14 @@ def build(ctx: Context) -> Section:
              ["concept labels colliding with a declared term", len(collisions)],
              ["member node ids not in any loaded tree", len(orphan_members)]])
     s.bullet(s.data["duplicate_method"])
+    s.bullet("duplicates are counted as cluster membership (a cluster of n costs "
+             "n-1), not as similar pairs, so the rate cannot exceed 1")
+    if s.data["pair_scan"]["note"]:
+        s.bullet(s.data["pair_scan"]["note"])
+    if collision_capped:
+        s.bullet(f"the concept-to-term collision scan was capped at "
+                 f"{CONCEPT_TERM_SCAN_CAP} on each side; collisions beyond that are "
+                 f"not counted")
     if coverage_note:
         s.bullet(coverage_note)
     if uncovered:

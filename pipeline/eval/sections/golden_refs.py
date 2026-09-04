@@ -223,7 +223,8 @@ def build(ctx: Context) -> Section:
         "abstention": {
             "golden_unresolvables": len(unresolvables),
             "correctly_abstained": Rate(len(correctly_abstained), len(unresolvables)).as_dict(),
-            "wrongly_resolved": len(wrongly_resolved),
+            "wrongly_resolved": Rate(len(wrongly_resolved), len(unresolvables)).as_dict(),
+            "wrongly_resolved_count": len(wrongly_resolved),
             "wrongly_resolved_detail": [
                 {"subject": r["subject"], "got": r["pipeline_target"],
                  "status": r["pipeline_status"], "resolver": r["pipeline_resolver"]}
@@ -236,7 +237,10 @@ def build(ctx: Context) -> Section:
     s.metrics.update({
         "reference_detection_recall": detection_recall,
         "reference_resolution_precision": resolution_precision,
-        "wrongly_resolved_unresolvables": len(wrongly_resolved),
+        # Carried with its denominator, the number of golden unresolvables, so
+        # "none went wrong" and "none were labelled" cannot look the same to the
+        # zero-tolerance gate. See gates.GateSpec.basis.
+        "wrongly_resolved_unresolvables": Rate(len(wrongly_resolved), len(unresolvables)),
     })
 
     s.line(f"Scored **{len(rows)}** golden ref label(s) from "
@@ -251,8 +255,9 @@ def build(ctx: Context) -> Section:
               "of the ones we resolved, how many point at the right target"],
              ["abstention correctness", str(Rate(len(correctly_abstained), len(unresolvables))),
               "golden unresolvables we correctly refused to resolve"],
-             ["golden unresolvables wrongly resolved", len(wrongly_resolved),
-              "zero tolerance"]])
+             ["golden unresolvables wrongly resolved",
+              str(Rate(len(wrongly_resolved), len(unresolvables))),
+              "zero tolerance; no unresolvable labels means no verdict, not a pass"]])
     s.line()
     s.bullet(f"detection false positives on labelled spans: {len(false_positives)}")
     s.bullet(f"detected with different span boundaries: {len(boundary_mismatches)}")

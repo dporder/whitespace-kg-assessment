@@ -20,6 +20,9 @@ from pipeline.eval.provided import ProvidedOutline, ProvidedPageMap
 OUTLINE_TRIAGE_SAMPLE = 20          # disagreements queued for human triage per run
 OUTLINE_TITLE_AGREE = 85.0          # rapidfuzz ratio at or above which titles agree
 CONCEPT_DUPLICATE_RATIO = 90.0      # lexical proxy for the cosine duplicate check
+CONCEPT_PAIR_SCAN_CAP = 400         # concepts compared all-pairs; beyond this the
+CONCEPT_TERM_SCAN_CAP = 400         # scans are capped and the report says so
+CYCLE_SCC_CAP = 12                  # largest SCC whose cycles are enumerated
 GEOMETRY_EPS = 0.5                  # points of slack on every box comparison
 BOX_ROUNDTRIP_AGREE = 0.90          # text similarity for the box round-trip check
 LIST_CAP = 25                       # rows of any example listing in the report
