@@ -1,0 +1,305 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
+    a { color: #3f6396; } a:hover { color: #2d4a73; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
+    .kick { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; color: #ffffff; }
+    .chip { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 3px; border: 1px solid; }
+    .colhead { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6f76; }
+    .li { font-size: 11.5px; line-height: 1.5; color: #3a3d42; }
+    .card { background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; }
+    .sentence { font-size: 13px; line-height: 1.6; color: #1c1e21; }
+    .cand { display: flex; align-items: center; gap: 8px; border: 1px solid #d8d5cf; border-radius: 3px; padding: 5px 9px; background: #ffffff; }
+    .radio { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #9a948f; display: inline-block; flex-shrink: 0; }
+    .btn { font-size: 11px; font-weight: 600; border-radius: 3px; padding: 5px 13px; }
+    .kbd { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; font-size: 9px; color: #6b6f76; border: 1px solid #d8d5cf; border-radius: 2px; padding: 1px 4px; background: #ffffff; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 940px; background: #fbfaf8; box-sizing: border-box; padding: 26px 30px; display: flex; flex-direction: column; gap: 14px;">
+
+  <!-- Header -->
+  <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #1c1e21; padding-bottom: 11px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <div style="font-size: 21px; font-weight: 700; letter-spacing: -0.01em;">Review queue</div>
+      <div class="mono" style="font-size: 11px; color: #6b6f76;">RM6116 · source: fixtures/</div>
+    </div>
+    <div style="display: flex; gap: 13px; align-items: center;">
+      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #3f6396; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">deterministic</span></div>
+      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #2e7373; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">rule derived</span></div>
+      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #a16b16; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">model derived</span></div>
+      <div style="display: flex; gap: 5px; align-items: center;"><span style="width: 9px; height: 9px; background: #75589b; border-radius: 2px; display: inline-block;"></span><span style="font-size: 10.5px; color: #3a3d42;">human</span></div>
+      <div style="width: 1px; height: 15px; background: #d8d5cf;"></div>
+      <div class="mono" style="font-size: 11px; color: #3a3d42;">reviewer: dan</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display: flex; align-items: center; gap: 7px;">
+    <span class="chip" style="border-color: #1c1e21; color: #ffffff; background: #1c1e21;">All 4</span>
+    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">Refs 2</span>
+    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">Terms 1</span>
+    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">Anomalies 1</span>
+    <div style="width: 1px; height: 15px; background: #d8d5cf; margin: 0 3px;"></div>
+    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">core-terms</span>
+    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">joint-schedule-1</span>
+    <span class="chip" style="border-color: #d8d5cf; color: #3a3d42;">award-form</span>
+    <span style="flex-grow: 1;"></span>
+    <span class="kbd">J</span><span class="kbd">K</span><span style="font-size: 10.5px; color: #6b6f76;">move</span>
+    <span class="kbd">A</span><span style="font-size: 10.5px; color: #6b6f76;">approve</span>
+    <span class="kbd">X</span><span style="font-size: 10.5px; color: #6b6f76;">reject</span>
+    <span class="kbd">1-9</span><span style="font-size: 10.5px; color: #6b6f76;">pick candidate</span>
+  </div>
+
+  <!-- Body -->
+  <div style="display: flex; gap: 18px; flex-grow: 1; min-height: 0;">
+
+    <!-- Queue -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 11px;">
+
+      <!-- Row 1, focused: ambiguous ref -->
+      <div class="card" style="border-left: 3px solid #3f6396; box-shadow: 0 0 0 2px #efeaf6; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="kick" style="background: #3f6396;">Ref</span>
+          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">core-terms/9/9.2/ref@111-121</span>
+          <span style="font-size: 11px; color: #6b6f76;">Clause 9.2 · page 2</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">ambiguous</span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16;">resolver llm · 0.45</span>
+        </div>
+
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
+              <svg width="266" height="112" viewBox="0 0 266 112" fill="none" style="display: block;">
+                <rect width="266" height="112" fill="#ffffff"/>
+                <rect x="16" y="16" width="196" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="16" y="30" width="228" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="16" y="44" width="150" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="10" y="58" width="120" height="19" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.5"/>
+                <rect x="17" y="65" width="106" height="5" rx="2.5" fill="#8ea6c8"/>
+                <rect x="140" y="65" width="104" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="16" y="88" width="180" height="5" rx="2.5" fill="#d5d2cc"/>
+              </svg>
+            </div>
+            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">GET /crop?page=2&amp;bbox=380,220,435,233</div>
+          </div>
+
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Source sentence</div>
+              <div class="sentence">Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, <span style="background: #eef3fa; border-bottom: 2px solid #3f6396; padding: 1px 2px;">Schedule 2</span> and the Bribery Act 2010.</div>
+            </div>
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Candidates</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div class="cand" style="border-color: #75589b; background: #faf7fd;">
+                  <span class="kbd" style="border-color: #75589b; color: #75589b;">1</span>
+                  <span class="radio" style="border-color: #75589b; background: #75589b; box-shadow: inset 0 0 0 2px #faf7fd;"></span>
+                  <span class="mono" style="font-size: 11px; color: #1c1e21;">framework-schedule-2</span>
+                  <span class="li" style="color: #6b6f76;">bare number, no title parenthetical</span>
+                  <span style="flex-grow: 1;"></span>
+                  <span class="mono" style="font-size: 11px; color: #3a3d42;">0.50</span>
+                </div>
+                <div class="cand">
+                  <span class="kbd">2</span>
+                  <span class="radio"></span>
+                  <span class="mono" style="font-size: 11px; color: #1c1e21;">call-off-schedule-2</span>
+                  <span class="li" style="color: #6b6f76;">bare number, no title parenthetical</span>
+                  <span style="flex-grow: 1;"></span>
+                  <span class="mono" style="font-size: 11px; color: #3a3d42;">0.50</span>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span class="btn" style="background: #75589b; color: #ffffff;">Approve pick</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
+              <span style="flex-grow: 1;"></span>
+              <span class="li" style="color: #6b6f76;">writes one line to golden/decisions.jsonl</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: unresolved ref -->
+      <div class="card" style="border-left: 3px solid #3f6396; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="kick" style="background: #3f6396;">Ref</span>
+          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">core-terms/9/9.1/intro/ref@28-71</span>
+          <span style="font-size: 11px; color: #6b6f76;">Clause 9.1 lead-in · page 2</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="chip" style="border-color: #6b6f76; color: #6b6f76; background: #f5f4f1;">unresolved</span>
+          <span class="chip" style="border-color: #3f6396; color: #3f6396;">resolver scope</span>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
+              <svg width="266" height="76" viewBox="0 0 266 76" fill="none" style="display: block;">
+                <rect width="266" height="76" fill="#ffffff"/>
+                <rect x="16" y="14" width="176" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="10" y="28" width="214" height="19" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.5"/>
+                <rect x="17" y="35" width="200" height="5" rx="2.5" fill="#8ea6c8"/>
+                <rect x="16" y="58" width="140" height="5" rx="2.5" fill="#d5d2cc"/>
+              </svg>
+            </div>
+            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">GET /crop?page=2&amp;bbox=230,120,460,133</div>
+          </div>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Source sentence</div>
+              <div class="sentence">Subject to Clause 3.1.2 and <span style="background: #eef3fa; border-bottom: 2px solid #3f6396; padding: 1px 2px;">Framework Schedule 4 (Framework Management)</span>, each Party keeps ownership of its own Existing IPRs to enable it to both:</div>
+            </div>
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Candidates</div>
+              <div class="cand">
+                <span class="kbd">1</span>
+                <span class="radio"></span>
+                <span class="mono" style="font-size: 11px; color: #1c1e21;">framework-schedule-4</span>
+                <span class="li" style="color: #6b6f76;">title parenthetical names the family; part not ingested</span>
+                <span style="flex-grow: 1;"></span>
+                <span class="mono" style="font-size: 11px; color: #3a3d42;">0.95</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span class="btn" style="background: #75589b; color: #ffffff;">Approve pick</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
+              <span style="flex-grow: 1;"></span>
+              <span class="li" style="color: #6b6f76;">target part not yet ingested — rejecting keeps it unresolved</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: ambiguous term use -->
+      <div class="card" style="border-left: 3px solid #2e7373; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="kick" style="background: #2e7373;">Term</span>
+          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">core-terms/3/3.1/3.1.1/b · chars 0-21</span>
+          <span style="font-size: 11px; color: #6b6f76;">page 1</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">sentence_initial</span>
+          <span class="chip" style="border-color: #2e7373; color: #2e7373;">exact_longest</span>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
+              <svg width="266" height="64" viewBox="0 0 266 64" fill="none" style="display: block;">
+                <rect width="266" height="64" fill="#ffffff"/>
+                <rect x="10" y="16" width="150" height="19" rx="2" fill="#f2f8f8" stroke="#2e7373" stroke-width="1.5"/>
+                <rect x="17" y="23" width="136" height="5" rx="2.5" fill="#7fb0b0"/>
+                <rect x="170" y="23" width="74" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="16" y="46" width="118" height="5" rx="2.5" fill="#d5d2cc"/>
+              </svg>
+            </div>
+            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">GET /crop?page=1&amp;bbox=114,190,480,205</div>
+          </div>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Source sentence</div>
+              <div class="sentence"><span style="background: #f2f8f8; border-bottom: 2px solid #2e7373; padding: 1px 2px;">Good Working Practice</span> applies to everything supplied.</div>
+            </div>
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Governing definition · scope document</div>
+              <div style="border: 1px solid #c3d9d9; background: #f2f8f8; border-radius: 3px; padding: 6px 9px;">
+                <span class="li" style="color: #1c1e21;">standards which a skilled person would reasonably be expected to meet;</span>
+                <span class="mono" style="font-size: 10px; color: #2e7373;"> — joint-schedule-1/2/table/3/1</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span class="btn" style="background: #75589b; color: #ffffff;">Approve, is the defined term</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject, ordinary words</span>
+              <span style="flex-grow: 1;"></span>
+              <span class="li" style="color: #6b6f76;">capitalised because the sentence starts here</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: anomaly with proposed reading -->
+      <div class="card" style="border-left: 3px solid #1c1e21; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="kick" style="background: #1c1e21;">Anomaly</span>
+          <span class="mono" style="font-size: 11.5px; font-weight: 500; color: #1c1e21;">award-form/3/label</span>
+          <span style="font-size: 11px; color: #6b6f76;">form row 3 · page 1</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="chip" style="border-color: #6b6f76; color: #6b6f76; background: #f5f4f1;">stray_character_in_label</span>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 268px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;">
+            <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; background: #ffffff;">
+              <svg width="266" height="64" viewBox="0 0 266 64" fill="none" style="display: block;">
+                <rect width="266" height="64" fill="#ffffff"/>
+                <rect x="10" y="18" width="118" height="19" rx="2" fill="#f5f4f1" stroke="#1c1e21" stroke-width="1.5"/>
+                <rect x="17" y="25" width="104" height="5" rx="2.5" fill="#8f8b86"/>
+                <rect x="140" y="25" width="106" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="140" y="44" width="80" height="5" rx="2.5" fill="#d5d2cc"/>
+              </svg>
+            </div>
+            <div class="mono" style="font-size: 9.5px; color: #6b6f76;">GET /crop?page=1&amp;bbox=72,160,180,190</div>
+          </div>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Text as printed, kept verbatim</div>
+              <div class="sentence mono">rFramework Contract</div>
+            </div>
+            <div>
+              <div class="colhead" style="margin-bottom: 4px;">Proposed reading · interpretation, stored beside the raw text</div>
+              <div style="border: 1px solid #e0d0b2; background: #fbf7ef; border-radius: 3px; padding: 6px 9px; display: flex; align-items: center; gap: 8px;">
+                <span class="mono" style="font-size: 11.5px; color: #1c1e21;">Framework Contract</span>
+                <span class="li" style="color: #6b6f76;">stray leading character, recorded not repaired</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span class="btn" style="background: #75589b; color: #ffffff;">Accept reading</span>
+              <span class="btn" style="border: 1px solid #75589b; color: #75589b;">Reject</span>
+              <span style="flex-grow: 1;"></span>
+              <span class="li" style="color: #6b6f76;">the source text is never edited either way</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right rail: the golden set as a by-product -->
+    <div style="width: 292px; flex-shrink: 0; display: flex; flex-direction: column; gap: 11px;">
+      <div class="card" style="border-top: 3px solid #75589b; padding: 11px 12px;">
+        <span class="kick" style="background: #75589b;">Human loop</span>
+        <div style="font-size: 13px; font-weight: 600; margin: 7px 0 4px 0;">Every decision is a label</div>
+        <div class="li">Each verdict appends one line to <span class="mono">golden/decisions.jsonl</span>, which stage 8 reads as ground truth. The eval set grows by operating the system, not by a separate annotation project.</div>
+      </div>
+
+      <div class="card" style="padding: 11px 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 7px;">
+        <div class="colhead">Appended this session</div>
+        <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
+          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"core-terms/9/9.2/ref@94-99","verdict":"approve","reviewer":"dan","ts":"2026-09-04T21:41:07Z"}</div>
+        </div>
+        <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
+          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"term","node_id":"af9d5756…","char_span":[53,74],"verdict":"approve","reviewer":"dan","ts":"2026-09-04T21:40:52Z"}</div>
+        </div>
+        <div style="background: #f5f4f1; border: 1px solid #ece9e4; border-radius: 3px; padding: 7px 8px;">
+          <div class="mono" style="font-size: 9px; line-height: 1.6; color: #3a3d42; word-break: break-all;">{"kind":"ref","path":"joint-schedule-1/2/table/1/1/ref@54-76","verdict":"reject","reviewer":"dan","ts":"2026-09-04T21:39:18Z"}</div>
+        </div>
+        <div style="margin-top: auto; border-top: 1px solid #ece9e4; padding-top: 8px; display: flex; justify-content: space-between; align-items: baseline;">
+          <span class="li">Decisions today</span>
+          <span class="mono" style="font-size: 15px; font-weight: 600; color: #75589b;">3</span>
+        </div>
+      </div>
+
+      <div class="card" style="background: #f5f4f1; padding: 11px 12px;">
+        <div class="colhead" style="margin-bottom: 5px;">Crops are live</div>
+        <div class="li">Every crop is rendered server-side from the stored bbox by PyMuPDF at request time. Nothing is pre-baked, so a crop is always the page as it is now.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

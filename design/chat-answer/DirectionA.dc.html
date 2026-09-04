@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
+    a { color: #3f6396; } a:hover { color: #2d4a73; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
+    .colhead { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6f76; }
+    .li { font-size: 11px; line-height: 1.45; color: #3a3d42; }
+    .cite { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; font-size: 9px; color: #3f6396; background: #eef3fa; border: 1px solid #c6d2e3; border-radius: 3px; padding: 1px 4px; white-space: nowrap; }
+  </style>
+</helmet>
+<div style="width: 520px; height: 420px; background: #fbfaf8; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+
+  <div style="display: flex; flex-direction: column; gap: 3px;">
+    <div class="colhead">Direction A</div>
+    <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.01em;">Inline chips, crop rail</div>
+    <div class="li">The citation sits in the sentence it supports. Clicking one opens the page crop in a persistent rail.</div>
+  </div>
+
+  <div style="display: flex; gap: 9px; flex-grow: 1; min-height: 0;">
+    <div style="flex-grow: 1; background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px; display: flex; flex-direction: column; gap: 7px;">
+      <div style="font-size: 11.5px; line-height: 1.65; color: #1c1e21;">
+        New IPR created under a Contract is owned by the Central Buying Office <span class="cite">core-terms/9/9.2 · p2</span>, subject to the supply obligations in Clause 3.1 <span class="cite" style="color: #75589b; background: #faf7fd; border-color: #d9cbe8;">core-terms/3/3.1/3.1.1/a · p1</span>.
+      </div>
+      <div class="li" style="border-top: 1px solid #ece9e4; padding-top: 6px;">Two chips, two colours: blue is the citation you are reading, purple the one selected in the rail.</div>
+    </div>
+
+    <div style="width: 170px; flex-shrink: 0; background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; padding: 9px; display: flex; flex-direction: column; gap: 5px;">
+      <div class="colhead">Citation</div>
+      <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden;">
+        <svg width="150" height="88" viewBox="0 0 150 88" fill="none" style="display: block;">
+          <rect width="150" height="88" fill="#ffffff"/>
+          <rect x="10" y="12" width="106" height="4" rx="2" fill="#d5d2cc"/>
+          <rect x="10" y="24" width="126" height="4" rx="2" fill="#d5d2cc"/>
+          <rect x="6" y="36" width="112" height="17" rx="2" fill="#faf7fd" stroke="#75589b" stroke-width="1.5"/>
+          <rect x="12" y="43" width="100" height="4" rx="2" fill="#a892c4"/>
+          <rect x="10" y="62" width="88" height="4" rx="2" fill="#d5d2cc"/>
+          <rect x="10" y="74" width="118" height="4" rx="2" fill="#d5d2cc"/>
+        </svg>
+      </div>
+      <div class="mono" style="font-size: 8.5px; color: #6b6f76;">page 1 · from cite()</div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <div style="display: flex; gap: 6px; align-items: baseline;">
+      <span style="font-size: 10px; font-weight: 700; color: #2e7373;">For</span>
+      <span class="li">Claim and proof never separate, however long the answer. Survives many citations on one claim.</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: baseline;">
+      <span style="font-size: 10px; font-weight: 700; color: #a16b16;">Against</span>
+      <span class="li">Chips interrupt the prose, and the rail costs a fifth of the width.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

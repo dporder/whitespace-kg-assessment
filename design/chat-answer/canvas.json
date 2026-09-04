@@ -1,0 +1,32 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 940, "title": "Chat answer — approved build" },
+    { "file": "DirectionA.dc.html", "x": 1560, "y": 0, "w": 520, "h": 420, "title": "A · Inline chips, crop rail (chosen)" },
+    { "file": "DirectionB.dc.html", "x": 2160, "y": 0, "w": 520, "h": 420, "title": "B · Margin citations" },
+    { "file": "DirectionC.dc.html", "x": 2760, "y": 0, "w": 520, "h": 420, "title": "C · Footnotes and filmstrip" }
+  ],
+  "annotations": [
+    {
+      "id": "decision-chat-citation",
+      "x": 1560,
+      "y": 560,
+      "w": 520,
+      "text": "CHOSE A — Inline chips, crop rail.\n\nA citation is only worth anything if you can tell which claim it holds up, and A is the only direction where that binding cannot be misread — the path sits inside the sentence, and the rail gives the crop enough room to actually be read.\n\nB is prettier until a claim carries three citations. C decouples claim from proof, which is the one failure this screen exists to prevent."
+    },
+    {
+      "id": "note-honesty",
+      "x": 2160,
+      "y": 560,
+      "w": 520,
+      "text": "The amber block in the answer is deliberate, not filler. An unresolved or ambiguous ref is a fact about the corpus, so the answer states what it could not close and hands it to the review queue, rather than quietly picking a candidate. Same amber the queue uses for model-derived and ambiguous."
+    },
+    {
+      "id": "note-plan",
+      "x": 2760,
+      "y": 560,
+      "w": 520,
+      "text": "The plan panel is the SPEC 6 planning step made visible: the question restated as sub-queries with an explicit parallel batch structure, batch 2 showing its dependency on batch 1. This is what streams to the user as \"working on\" before any tool runs."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

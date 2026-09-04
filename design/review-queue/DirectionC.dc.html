@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
+    a { color: #3f6396; } a:hover { color: #2d4a73; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
+    .kick { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; color: #ffffff; }
+    .chip { display: inline-block; font-size: 9.5px; font-weight: 500; padding: 2px 7px; border-radius: 3px; border: 1px solid; }
+    .colhead { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6f76; }
+    .li { font-size: 11px; line-height: 1.45; color: #3a3d42; }
+  </style>
+</helmet>
+<div style="width: 520px; height: 420px; background: #fbfaf8; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+
+  <div style="display: flex; flex-direction: column; gap: 3px;">
+    <div class="colhead">Direction C</div>
+    <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.01em;">Dossier, crop as banner</div>
+    <div class="li">One item at a time, the page across the top at full width. Reads like case notes.</div>
+  </div>
+
+  <div style="background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column;">
+    <div style="border-bottom: 1px solid #d8d5cf; background: #ffffff;">
+      <svg width="478" height="88" viewBox="0 0 478 88" fill="none" style="display: block;">
+        <rect width="478" height="88" fill="#ffffff"/>
+        <rect x="26" y="14" width="300" height="5" rx="2.5" fill="#d5d2cc"/>
+        <rect x="26" y="28" width="404" height="5" rx="2.5" fill="#d5d2cc"/>
+        <rect x="20" y="42" width="196" height="18" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.5"/>
+        <rect x="27" y="49" width="182" height="5" rx="2.5" fill="#8ea6c8"/>
+        <rect x="226" y="49" width="204" height="5" rx="2.5" fill="#d5d2cc"/>
+        <rect x="26" y="70" width="342" height="5" rx="2.5" fill="#d5d2cc"/>
+      </svg>
+    </div>
+
+    <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="kick" style="background: #3f6396;">Ref</span>
+        <span class="mono" style="font-size: 10px; color: #3a3d42;">core-terms/9/9.2</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="chip" style="border-color: #a16b16; color: #a16b16;">ambiguous</span>
+      </div>
+      <div class="li" style="color: #1c1e21;">…subject to Clauses 3.1.1 and 3.1.2, <span style="background: #eef3fa; border-bottom: 1.5px solid #3f6396; padding: 0 1px;">Schedule 2</span> and the Bribery Act 2010.</div>
+      <div style="display: flex; gap: 6px;">
+        <div style="flex-grow: 1; display: flex; align-items: center; gap: 5px; border: 1px solid #d8d5cf; border-radius: 3px; padding: 3px 6px;">
+          <span class="mono" style="font-size: 9px;">framework-schedule-2</span>
+          <span style="flex-grow: 1;"></span><span class="mono" style="font-size: 9px; color: #6b6f76;">0.50</span>
+        </div>
+        <div style="flex-grow: 1; display: flex; align-items: center; gap: 5px; border: 1px solid #d8d5cf; border-radius: 3px; padding: 3px 6px;">
+          <span class="mono" style="font-size: 9px;">call-off-schedule-2</span>
+          <span style="flex-grow: 1;"></span><span class="mono" style="font-size: 9px; color: #6b6f76;">0.50</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 5px; align-items: center;">
+        <span style="font-size: 10px; font-weight: 600; color: #ffffff; background: #75589b; border-radius: 3px; padding: 3px 9px;">Approve</span>
+        <span style="font-size: 10px; font-weight: 600; color: #75589b; border: 1px solid #75589b; border-radius: 3px; padding: 2px 9px;">Reject</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="mono" style="font-size: 9px; color: #6b6f76;">3 of 41</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
+    <div style="display: flex; gap: 6px; align-items: baseline;">
+      <span style="font-size: 10px; font-weight: 700; color: #2e7373;">For</span>
+      <span class="li">The most legible crop by far. Right shape for a hard case a second reviewer has to arbitrate.</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: baseline;">
+      <span style="font-size: 10px; font-weight: 700; color: #a16b16;">Against</span>
+      <span class="li">One item per screen hides the queue. No sense of how much is left, or of a pattern across items.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

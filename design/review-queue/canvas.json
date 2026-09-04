@@ -1,0 +1,32 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 940, "title": "Review queue — approved build" },
+    { "file": "DirectionA.dc.html", "x": 1560, "y": 0, "w": 520, "h": 420, "title": "A · Evidence beside decision (chosen)" },
+    { "file": "DirectionB.dc.html", "x": 2160, "y": 0, "w": 520, "h": 420, "title": "B · Dense triage" },
+    { "file": "DirectionC.dc.html", "x": 2760, "y": 0, "w": 520, "h": 420, "title": "C · Dossier" }
+  ],
+  "annotations": [
+    {
+      "id": "decision-review-row",
+      "x": 1560,
+      "y": 560,
+      "w": 520,
+      "text": "CHOSE A — Evidence beside decision.\n\nThe queue exists to turn a reviewer's judgement into ground truth, so a verdict reached without looking at the page is worse than no verdict at all: A is the only direction that makes the crop impossible to skip, and keyboard triage buys back the density it costs.\n\nB stays the right answer once the resolver has earned trust and volume dominates. C is the arbitration view for a contested item."
+    },
+    {
+      "id": "note-crop-placeholder",
+      "x": 2160,
+      "y": 560,
+      "w": 520,
+      "text": "The crop panels here are drawn placeholders, not page images. SPEC ground rule 0 forbids copying document content into the repo outside output/, and a committed artboard is inside the repo. The running app renders the real crop server-side from the bbox via PyMuPDF at request time."
+    },
+    {
+      "id": "note-palette",
+      "x": 2760,
+      "y": 560,
+      "w": 520,
+      "text": "Palette and type are lifted from diagram/Main.dc.html, so the trust gradient means the same thing here as on the architecture canvas: blue deterministic, teal rule derived, amber model derived, purple human. A row's left edge tells you which tier proposed it; every control that records a human verdict is purple."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
