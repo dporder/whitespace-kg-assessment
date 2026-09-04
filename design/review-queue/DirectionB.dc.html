@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
+    a { color: #3f6396; } a:hover { color: #2d4a73; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
+    .kick { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; color: #ffffff; }
+    .chip { display: inline-block; font-size: 9.5px; font-weight: 500; padding: 2px 7px; border-radius: 3px; border: 1px solid; }
+    .colhead { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6f76; }
+    .li { font-size: 11px; line-height: 1.45; color: #3a3d42; }
+    .trow { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-bottom: 1px solid #ece9e4; }
+  </style>
+</helmet>
+<div style="width: 520px; height: 420px; background: #fbfaf8; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+
+  <div style="display: flex; flex-direction: column; gap: 3px;">
+    <div class="colhead">Direction B</div>
+    <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.01em;">Dense triage, crop on demand</div>
+    <div class="li">One line per item, twelve on screen. The crop opens in a drawer when the reviewer asks for it.</div>
+  </div>
+
+  <div style="background: #ffffff; border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden;">
+    <div class="trow" style="background: #f5f4f1; border-bottom: 1px solid #d8d5cf;">
+      <span class="colhead" style="width: 34px;">Kind</span>
+      <span class="colhead" style="flex-grow: 1;">Source</span>
+      <span class="colhead" style="width: 58px;">Status</span>
+      <span class="colhead" style="width: 40px;">Act</span>
+    </div>
+    <div class="trow">
+      <span class="kick" style="background: #3f6396;">Ref</span>
+      <span class="li" style="flex-grow: 1; color: #1c1e21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">…3.1.2, <span style="background: #eef3fa; border-bottom: 1.5px solid #3f6396;">Schedule 2</span> and the Bribery…</span>
+      <span class="chip" style="border-color: #a16b16; color: #a16b16; width: 46px; text-align: center;">ambig</span>
+      <span style="width: 40px; display: flex; gap: 3px;"><span style="width: 15px; height: 15px; border: 1px solid #75589b; border-radius: 3px;"></span><span style="width: 15px; height: 15px; border: 1px solid #d8d5cf; border-radius: 3px;"></span></span>
+    </div>
+    <div class="trow" style="background: #faf7fd;">
+      <span class="kick" style="background: #3f6396;">Ref</span>
+      <span class="li" style="flex-grow: 1; color: #1c1e21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Subject to Clause 3.1.2 and <span style="background: #eef3fa; border-bottom: 1.5px solid #3f6396;">Framework Schedule 4…</span></span>
+      <span class="chip" style="border-color: #6b6f76; color: #6b6f76; width: 46px; text-align: center;">unres</span>
+      <span style="width: 40px; display: flex; gap: 3px;"><span style="width: 15px; height: 15px; border: 1px solid #75589b; border-radius: 3px;"></span><span style="width: 15px; height: 15px; border: 1px solid #d8d5cf; border-radius: 3px;"></span></span>
+    </div>
+
+    <div style="border-bottom: 1px solid #ece9e4; background: #faf7fd; padding: 8px 10px; display: flex; gap: 10px;">
+      <div style="border: 1px solid #d8d5cf; border-radius: 3px; overflow: hidden; flex-shrink: 0;">
+        <svg width="132" height="62" viewBox="0 0 132 62" fill="none">
+          <rect width="132" height="62" fill="#ffffff"/>
+          <rect x="9" y="10" width="94" height="4" rx="2" fill="#d5d2cc"/>
+          <rect x="6" y="22" width="72" height="15" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.5"/>
+          <rect x="11" y="28" width="60" height="4" rx="2" fill="#8ea6c8"/>
+          <rect x="84" y="28" width="38" height="4" rx="2" fill="#d5d2cc"/>
+          <rect x="9" y="46" width="106" height="4" rx="2" fill="#d5d2cc"/>
+        </svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+        <div class="mono" style="font-size: 9px; color: #6b6f76;">drawer · p2</div>
+        <div style="display: flex; align-items: center; gap: 5px; border: 1px solid #d8d5cf; border-radius: 3px; padding: 2px 6px; background: #ffffff;">
+          <span class="mono" style="font-size: 9px;">framework-schedule-2</span>
+          <span style="flex-grow: 1;"></span><span class="mono" style="font-size: 9px; color: #6b6f76;">0.50</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 5px; border: 1px solid #d8d5cf; border-radius: 3px; padding: 2px 6px; background: #ffffff;">
+          <span class="mono" style="font-size: 9px;">call-off-schedule-2</span>
+          <span style="flex-grow: 1;"></span><span class="mono" style="font-size: 9px; color: #6b6f76;">0.50</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="trow">
+      <span class="kick" style="background: #2e7373;">Term</span>
+      <span class="li" style="flex-grow: 1; color: #1c1e21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="background: #f2f8f8; border-bottom: 1.5px solid #2e7373;">Good Working Practice</span> applies to everything…</span>
+      <span class="chip" style="border-color: #a16b16; color: #a16b16; width: 46px; text-align: center;">ambig</span>
+      <span style="width: 40px; display: flex; gap: 3px;"><span style="width: 15px; height: 15px; border: 1px solid #75589b; border-radius: 3px;"></span><span style="width: 15px; height: 15px; border: 1px solid #d8d5cf; border-radius: 3px;"></span></span>
+    </div>
+    <div class="trow" style="border-bottom: none;">
+      <span class="kick" style="background: #1c1e21;">Anom</span>
+      <span class="li" style="flex-grow: 1; color: #1c1e21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">stray_character_in_label: 'rFramework'…</span>
+      <span class="chip" style="border-color: #6b6f76; color: #6b6f76; width: 46px; text-align: center;">open</span>
+      <span style="width: 40px; display: flex; gap: 3px;"><span style="width: 15px; height: 15px; border: 1px solid #75589b; border-radius: 3px;"></span><span style="width: 15px; height: 15px; border: 1px solid #d8d5cf; border-radius: 3px;"></span></span>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 4px; margin-top: auto;">
+    <div style="display: flex; gap: 6px; align-items: baseline;">
+      <span style="font-size: 10px; font-weight: 700; color: #2e7373;">For</span>
+      <span class="li">Highest throughput. Best shape for the hundredth document, once the reviewer trusts the resolver.</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: baseline;">
+      <span style="font-size: 10px; font-weight: 700; color: #a16b16;">Against</span>
+      <span class="li">Makes looking at the page optional, and a label written without looking is not ground truth.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

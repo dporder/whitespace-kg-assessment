@@ -142,7 +142,9 @@ clause_92 = mk("core-terms/9/9.2", "clause", 2, 13, (86, 205, 490, 250),
                anomalies=["numbering_gap_after_9.2: 9.4 follows in source order"], **B1)
 head_9 = mk("core-terms/9", "heading", 2, 8, (72, 90, 360, 106),
             label="9", title="Intellectual Property Rights", children=[clause_91, clause_92],
-            printed_page="2", **B1)
+            printed_page="2",
+            anomalies=["numbering_gap: fixture excerpt jumps from 3 to 9, "
+                       "clauses 4 to 8 deliberately not included"], **B1)
 
 core_part = mk("core-terms", "part", 1, 0, None, page_end=2,
                title="Core Terms", part_family="core", template_version="v3.0.11",
@@ -224,8 +226,13 @@ c30 = mk("joint-schedule-1/2/table/3/0", "cell", 1, 9, (72, 230, 200, 260),
 c31 = mk("joint-schedule-1/2/table/3/1", "cell", 1, 10, (210, 230, 500, 245),
          text="standards which a skilled person would reasonably be expected to meet;",
          row=3, col=1, cell_role="value", role_confidence=0.99, **JS1)
-js1_table = mk("joint-schedule-1/2/table", "table", 1, 2, None, n_rows=4, n_cols=2,
-               children=[c00, c01, c10, c11, c20, c21, c30, c31], **JS1)
+c40 = mk("joint-schedule-1/2/table/4/0", "cell", 1, 11, (72, 265, 200, 280),
+         text='"Outputs"', row=4, col=0, cell_role="label", role_confidence=0.99, **JS1)
+c41 = mk("joint-schedule-1/2/table/4/1", "cell", 1, 12, (210, 265, 500, 280),
+         text="the goods and services supplied under a Contract;", row=4, col=1,
+         cell_role="value", role_confidence=0.99, **JS1)
+js1_table = mk("joint-schedule-1/2/table", "table", 1, 2, None, n_rows=5, n_cols=2,
+               children=[c00, c01, c10, c11, c20, c21, c30, c31, c40, c41], **JS1)
 js1_head = mk("joint-schedule-1/2", "heading", 1, 1, (72, 110, 260, 126),
               label="2", title="Defined Terms", children=[js1_table],
               batch_id="B2", printed_page="1",
@@ -251,6 +258,8 @@ definition_sites = [
     DefinitionSite(term="Central Buying Office", definition_node_id=c21.id,
                    source="both", scope="document", aliases=["CBO"]),
     DefinitionSite(term="Good Working Practice", definition_node_id=c31.id,
+                   source="declared", scope="document"),
+    DefinitionSite(term="Outputs", definition_node_id=c41.id,
                    source="declared", scope="document"),
 ]
 

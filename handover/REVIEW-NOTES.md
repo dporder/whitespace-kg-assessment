@@ -63,3 +63,146 @@ plus one validator enforcing the per-kind table, not a pydantic union of twelve 
 schema, one walker, one id scheme is the stated point of the design; the discrimination lives in
 the rules.
 
+## 3. Research memo on NER model selection (build session)
+
+**Agent.** Researcher, primary sources only, no code, told to end with a shortlist and a deciding
+experiment built on the labels this repo actually accumulates.
+
+**What it did well.** It reframed the problem before comparing models: with a closed authoritative
+vocabulary this is disambiguation plus recovery, not open-vocabulary NER, and it grounded that in
+the shipped GLiNER checkpoint config rather than the paper. Two findings materially change the
+plan. First, `golden/decisions.jsonl` structurally cannot measure recall, every row descends from
+matcher output, so the deciding experiment now starts with roughly ten blind-annotated pages to
+mint the missing denominator. Second, GLiNER's flat decoder is greedy-by-confidence, not
+longest-match, so the spec's determinism guarantee would have to be re-imposed in post-processing
+whatever model wins. It also caught its own near-miss: a search snippet implied gazetteer features
+give +28.8 F1, the fetched paper says +0.52, and the memo carries the verified number.
+
+**What I verified before accepting.** The two load-bearing claims, checked against the primary
+sources directly, not the agent's word: the `gliner_medium-v2.1` config does carry
+`max_types: 25`, `max_len: 384`, `max_width: 12` and backbone `microsoft/deberta-v3-base` (which
+is what makes the DeBERTa control arm clean), and the Legal-BERT card does state cc-by-sa-4.0,
+uncased, US contracts from SEC EDGAR with UK material being legislation. Both hold exactly. Repo
+hygiene also checked: only the memo file created, no em dashes, unverified claims flagged in
+their own section rather than smoothed over.
+
+**Accepted.** Recommendation adopted for the design surface: no replacement plan, a zero-shot
+recall net beside the deterministic matcher, single entity type with string linking, longest-match
+kept as arbitration, licence confirmed per checkpoint. Its note that the 40-sample audit cannot
+certify a model switch (Wilson interval wider than the gate) is worth carrying into any future
+tuning of `AUDIT.confident_term_sample_size`.
+
+## 4. Stage 8 eval harness (eval-builder, three rounds, merged)
+
+**Round 1.** Harness landed complete: ten SPEC 2.6 sections over fixtures, gates with exit codes,
+no clock anywhere (an inputs fingerprint instead). Its first run caught two defects in my own
+fixtures, an unexplained excerpt numbering gap and a term used but never defined. Both fixed on
+master. It also settled the 46-versus-48 question two ways: the notes' own table and the PDF's
+embedded outline both say 48, the prose's 46 is the odd one out.
+
+**Tester gate, failed correctly.** Two branch tests encoded the pre-fix fixture state; the tester
+proved causation by bisecting fixtures rather than inferring. Sent back; the builder re-baselined,
+made the dangling-use check seed its own condition rather than depend on a broken fixture, and
+replaced a determinism test that described byte-identity without checking it with a real cold-run
+byte comparison.
+
+**Adversarial review, three blockers, all proven with executed probes.** A recorded anomaly
+granted blanket amnesty (prefix match on node, sibling, or parent) so a parser silently dropping a
+clause passed the zero-tolerance structural gate; the abstention gate published a bare int and
+passed green when zero unresolvables were labelled; an omitted chosen_candidate scored refs as
+parser failures and graded terms against the pipeline's own answer. Plus a duplicate rate that
+could exceed 1.0 (pairs summed into a member count), outline agreement double-counting, a
+fingerprint that omitted the artifacts two sections diff against, and an unbounded
+simple_cycles enumeration that would hang on the real JS1 vocabulary.
+
+**My rulings.** Anomaly explanation semantics: only on the two nodes a check compared, one anomaly
+explains one violation, and an anomaly naming a different follower than observed does not match.
+Abstention as a Rate over golden unresolvables so no-data flows to skipped, never pass.
+chosen_candidate required exactly where the format says, malformed otherwise, never defaulted to
+pipeline output. Union-find for duplicate clusters. Cycle enumeration capped per SCC with honest
+disclosure. Accepted two builder judgement calls: anomaly_index required for node-anomaly verdicts
+only (triage rows key on their queue id), and default scope inferred from the output's own batch
+ids when unambiguous.
+
+**Merged after my own gate run**, not the builder's word: 127 tests green and the CLI at exit 0 on
+the integrated state in a scratch worktree, and the amnesty regression test read line by line to
+confirm it encodes the reviewer's probe rather than a tautology.
+
+## 5. The two UIs (ui-builder, two rounds, merged)
+
+**Round 1.** Design-first held: two canvases, three directions each, one chosen with recorded
+reasoning, then both apps built against fixtures with real page crops, a working decisions write
+path, and 134 tests. The tester verified the mechanical stack end to end and called it safe.
+
+**The reviewer proved otherwise, and this is the entry worth reading twice.** The UI's verdict
+vocabulary was invented independently of the eval harness's golden format: zero overlap, proven by
+running the UI's own decisions file through the real loader, four records in, zero usable. The
+`unresolvable` verdict, the one the zero-tolerance abstention gate feeds on, was unreachable from
+the two-button UI. Two anomalies on one node silently superseded each other. A citation with an
+empty or non-numeric page rendered as verified. All four invisible to both sides' tests, because
+each side tested only itself: 134 green tests pinning the wrong contract is why the tester gate
+stayed green, and why the adversarial reviewer role exists.
+
+**My ruling, spec-first.** The golden vocabulary is now pinned in SPEC 6 (ref
+target/unresolvable/not_a_reference with chosen_candidate required on target; term use/not_a_use
+with the governing term in chosen_candidate; anomaly confirmed/rejected keyed by anomaly_index,
+triage rows keyed by queue id). The eval loader's GOLDEN_FORMAT.md elaborates it; the UI adopts
+it verbatim.
+
+**Round 2, accepted.** The builder owned the miss plainly, adopted the vocabulary, made every
+verdict reachable with per-kind controls (four for refs, a governing-term picker for alias
+collisions), required anomaly_index, closed the verifier hole (page_unparseable is a failure,
+never ok), made zero-citation answers warn instead of claiming verification, and added anti-drift
+tests that assert its verdict tables EQUAL the harness's at test time, so the seam cannot reopen
+silently. Cross-validation now runs the UI's output through the real loader: seven verdicts, six
+loaded plus one legitimately superseded, zero unrecognised. A runtime CHAT_SCRIPTED mode was
+added after the tester found scripting existed only inside pytest; I verified a full scripted
+exchange over real HTTP myself before merging, four citations, all ok, crops resolving. Merged
+after my own gate run on the integrated state: 285 tests green, decisions defaulting to
+golden/decisions.jsonl per spec.
+
+## 6. Parser stages 0 to 2 (parser-builder, round 1 back, config corrected, fix round running)
+
+**What it delivered.** Stages 0 to 2 complete: Core Terms parses to 444 nodes with zero
+unexplained geometric violations, and the full 475 page structural run derives 48 parts covering
+every page with no gaps, the third independent witness for 48 against the notes' prose claim of
+46 (after the notes' own table and the embedded outline). 27 parts assembled, 21 refused by the
+fit checks, every refusal named with evidence.
+
+**Two real bugs it found in my config, fixed in config with the evidence recorded.** The item
+pattern required leading whitespace a PDF text layer never emits (indentation is geometry, not
+characters) and matched zero of Core Terms' 169 lettered items; it also demanded an opening
+bracket most schedules do not print ("a)" not "(a)"). Dotted numbers needed an optional trailing
+period for Framework Schedule 1's "1.1." style. The builder measured each variant across the pack
+before proposing, did not touch config itself, and reported instead, exactly per contract.
+
+**One spec claim of ours did not survive the parser.** The "34 of 35 headings" quirk does not
+reproduce in Core Terms, whose headings are typographically identical; the real detached number
+case is Framework Schedule 5's "2   Reporting period". Also 146 two level provisions in Core
+Terms is actually 144, the other two being cross references at the start of wrapped lines. SPEC
+corrected both ways; the quirk list is now something the parser proved rather than something it
+inherited.
+
+**Ruling: per part fit checks, spec-first.** The pack is a binding of ~48 separately versioned
+templates without one shared numbering house style, so the five fit checks now also run per part,
+parts failing quarantine individually with no override flag, the document verdict still computed.
+B4 (Call-Off Schedule 9) was refused at 19.1% unmatched under the broken item pattern; the config
+fix is expected to clear it, being re-measured now.
+
+**Findings worth keeping.** The definitions schedule is missing ink in the source itself: 224
+term cells carry a closing quote with no opening one, and in wrapped cases the first letter is
+genuinely absent from the page (verified by rendering at 4x). Recorded verbatim, never repaired.
+And two of the geometric violations the parser refused to explain away are the document's own
+typesetting, Call-Off Schedule 9 really prints 5.2.1 left of its parent 5.2, true ink, correctly
+reported.
+
+**Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
+sweep of the legal encoder family still running when it reported; it landed afterwards with two
+exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
+against the HF API myself before accepting; `pile-of-law/*` is NC-encumbered), confirmation that
+no English-contract encoder exists anywhere, and a review showing the domain-pretraining gain for
+contract token classification is 1 to 2 F1, mostly self-reported by one group, dominated by
+architecture and annotation quality. Shortlist unchanged; the memo's Legal-BERT exclusion now
+stands on stronger ground. Integrated by the orchestrator, marked as an addendum, resolved items
+annotated in the memo's unverified list.
+

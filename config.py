@@ -43,10 +43,16 @@ HIERARCHY_PROFILES = {
     "uk-ccs-framework": {
         "levels": ["part", "heading", "clause", "subclause", "item"],
         "numbering": {
+            # Dotted numbers may carry a trailing period (Framework Schedule 1
+            # prints "1.1."). Items: PDF text layers emit no leading whitespace
+            # (indentation is geometry), and most schedules print "a)" without
+            # the opening bracket, so both are optional. Measured across all
+            # 475 pages: the original item pattern matched 0 of Core Terms'
+            # 169 lettered items; this one matches all 169.
             "heading":  r"^\s{0,4}(\d{1,2})\.\s+(?=[A-Z])",
-            "clause":   r"^\s{0,10}(\d{1,2}\.\d{1,2})\s+",
-            "subclause": r"^\s{0,12}(\d{1,2}\.\d{1,2}\.\d{1,2})\s+",
-            "item":     r"^\s+\(([a-z]{1,2}|(?:x{0,3})(?:ix|iv|v?i{0,3}))\)\s",
+            "clause":   r"^\s{0,10}(\d{1,2}\.\d{1,2})\.?\s+",
+            "subclause": r"^\s{0,12}(\d{1,2}\.\d{1,2}\.\d{1,2})\.?\s+",
+            "item":     r"^\s*\(?([a-z]{1,2}|(?:x{0,3})(?:ix|iv|v?i{0,3}))\)\s",
         },
         "max_dotted_depth": 3,          # verified across all 475 pages, zero four-level numbers
         "unit_labels": {"core-terms": "Clause", "_schedule_default": "Paragraph"},
@@ -58,10 +64,24 @@ HIERARCHY_PROFILES = {
             r"references to\b",
         ],
         "supports_wrapup": True,        # capability, unused by this document
-        "citable_kinds": ["part", "heading", "clause", "subclause", "item", "form_row", "table"],
+        # Cells are citable: a definition lives in its cell and the define()
+        # tool cites it. Stage 2 applies this list (kinds absent here load
+        # with citable=False, except intro/ref which the schema already fixes).
+        "citable_kinds": ["part", "heading", "clause", "subclause", "item",
+                          "form_row", "table", "cell"],
     },
 }
 DEFAULT_PROFILE = "uk-ccs-framework"
+
+# Stage 1/2 geometry constants, measured against the document rather than
+# guessed (see pipeline/parse/geometry.py for the per-constant evidence).
+PARSE_GEOMETRY = {
+    "indent_tolerance": 2.0,       # glyph jitter: 3.1 at x=27.0, its child 3.1.1 at 26.4
+    "min_indent_step": 6.0,
+    "sibling_overlap_share": 0.2,  # line boxes span ascent+descent, so lines overlap 0.8-2.9pt
+    "header_band": 0.09,           # share of page height treated as header furniture
+    "footer_band": 0.89,           # start of the footer band
+}
 
 # Any one of these firing quarantines the document rather than ingesting a guessed tree.
 QUARANTINE_THRESHOLDS = {

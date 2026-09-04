@@ -524,6 +524,9 @@
           "batch_id": "B1"
         }
       ],
+      "anomalies": [
+        "numbering_gap: fixture excerpt jumps from 3 to 9, clauses 4 to 8 deliberately not included"
+      ],
       "batch_id": "B1"
     }
   ],
