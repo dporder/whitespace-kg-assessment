@@ -120,6 +120,26 @@ def test_an_ordinary_two_column_table_is_not_a_definitions_table():
     assert declared.ingest_part(part, {}) == []
 
 
+def test_a_table_whose_columns_are_reversed_is_reported_not_silently_empty(
+        document_definitions_part):
+    """The hardest failure to notice would be stage 1 labelling the definition
+    column as the term column: every table would quietly fail the shape test and
+    the vocabulary would come out empty with no error anywhere."""
+    from pipeline.vocabulary import treeio
+    for node in treeio.walk(document_definitions_part):
+        if node.kind == "cell":
+            node.cell_role = "value" if node.cell_role == "label" else "label"
+    trees = treeio.Trees(source="test", root=None, run="t",
+                         parts={"defs-schedule": document_definitions_part},
+                         files={})
+    assert declared.ingest(trees, BATCHES) == []
+    diagnostics = declared.table_diagnostics(trees)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["read_as_definitions_table"] is False
+    assert diagnostics[0]["columns_may_be_reversed"] is True
+    assert diagnostics[0]["rows_if_columns_were_reversed"] >= 2
+
+
 def test_prose_definitions_inside_a_declared_block_are_declared(prose_part):
     sites = {s.term: s for s in declared.ingest_part(prose_part, {})}
     assert sites["Reference Body"].shape == "prose"

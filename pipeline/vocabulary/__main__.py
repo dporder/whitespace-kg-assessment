@@ -227,10 +227,23 @@ def run(args: argparse.Namespace) -> int:
     anomalies = [
         {"term": s.term, "path": s.raw.term_node_path, "anomalies": s.raw.anomalies}
         for s in merged if s.raw.anomalies]
+    tables = declared_mod.table_diagnostics(trees)
     dump(vocab_dir / "anomalies.json", {
         "note": ("defects in the source ink, recorded beside the term and never "
                  "repaired. A term key is normalised for keying only."),
-        "count": len(anomalies), "sites": anomalies})
+        "count": len(anomalies), "sites": anomalies,
+        "tables": {
+            "note": ("why each table was or was not read as a definitions table. "
+                     "An empty vocabulary with no error anywhere is the failure "
+                     "that would be hardest to notice, so the shape test shows "
+                     "its working."),
+            "seen": len(tables),
+            "read_as_definitions": sum(1 for t in tables
+                                       if t["read_as_definitions_table"]),
+            "columns_may_be_reversed": [t["path"] for t in tables
+                                        if t["columns_may_be_reversed"]],
+            "detail": tables,
+        }})
 
     violations = check_invariants(kept, merged, trees)
     summary = {
@@ -249,6 +262,11 @@ def run(args: argparse.Namespace) -> int:
             "aliases": sorted({a for s in merged for a in s.raw.aliases}),
             "duplicate_definitions": sum(1 for s in merged if s.duplicate_of),
             "source_ink_anomalies": len(anomalies),
+            "tables_seen": len(tables),
+            "tables_read_as_definitions": sum(
+                1 for t in tables if t["read_as_definitions_table"]),
+            "tables_whose_columns_may_be_reversed": sum(
+                1 for t in tables if t["columns_may_be_reversed"]),
         },
         "declared_vs_discovered": {
             "declared_terms": len(declared_terms),

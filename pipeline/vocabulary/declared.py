@@ -40,7 +40,8 @@ from typing import Optional
 from pipeline.schemas import Node
 from pipeline.vocabulary import treeio
 from pipeline.vocabulary.text import (
-    collapse_ws, is_initialism_of, looks_like_term, quote_shape, strip_quotes, term_key,
+    collapse_ws, is_capitalised_phrase, is_initialism_of, looks_like_term,
+    quote_shape, term_key,
 )
 
 DOCUMENT_SCOPE = "document"
@@ -268,6 +269,39 @@ def _label_and_value(cells: list[Node]) -> tuple[Optional[Node], Optional[Node]]
     return None, None
 
 
+# A cell that opens with a definitional verb is a definition, not a headword.
+_OPENS_WITH_VERB = re.compile(
+    r"^\s*(?:means\b|shall mean\b|has the meaning\b|shall have the meaning\b|"
+    r"the meaning given\b)", re.I)
+
+
+def looks_like_term_cell(raw: str) -> bool:
+    """Does this printed cell read as a definition's headword?
+
+    Stricter than `looks_like_term`, because the cost of being wrong here is a
+    whole definitions table read backwards, minting sentences as terms and
+    silently poisoning the vocabulary. Three tests, all cheap:
+
+    * it does not open with a definitional verb, which only a definition does;
+    * it is short enough to be a name rather than a sentence; and
+    * it carries a quote mark, or reads as a capitalised phrase.
+
+    The quote is the drafters' own marker and covers the pack's defective cells,
+    where the opening quote or even the first letter is missing (`nsurances"`).
+    The capitalised-phrase alternative covers the minority printed without
+    quotes at all. A lowercase, unquoted sentence fragment satisfies neither,
+    which is what keeps `means an item supplied under a Contract;` out of the
+    vocabulary if the two columns ever arrive the wrong way round.
+    """
+    raw = raw or ""
+    if _OPENS_WITH_VERB.match(raw):
+        return False
+    key = term_key(raw)
+    if not key or not looks_like_term(key):
+        return False
+    return quote_shape(raw) != "none" or is_capitalised_phrase(key)
+
+
 def definition_rows(table: Node) -> list[tuple[Node, Node]]:
     """(label cell, value cell) for rows whose label reads as a term."""
     out = []
@@ -276,8 +310,7 @@ def definition_rows(table: Node) -> list[tuple[Node, Node]]:
         if label is None or value is None:
             continue
         head, _aliases = split_trailing_alias(label.text or "")
-        key = term_key(head)
-        if key and looks_like_term(key) and (value.text or "").strip():
+        if looks_like_term_cell(head) and (value.text or "").strip():
             out.append((label, value))
     return out
 
@@ -403,4 +436,55 @@ def ingest(trees: treeio.Trees, batches: dict) -> list[RawSite]:
     out: list[RawSite] = []
     for _pid, part in trees.ordered():
         out.extend(ingest_part(part, batches))
+    return out
+
+
+def _reversed_rows(table: Node) -> int:
+    """Definition rows if the two cell roles were the other way round.
+
+    Reads the value cell as the headword and the label cell as the definition.
+    A table that scores zero the right way round and several this way round is
+    a stage 1 role assignment to look at, not an empty vocabulary to shrug at.
+    """
+    count = 0
+    for _row, cells in sorted(_rows(table).items()):
+        label, value = _label_and_value(cells)
+        if label is None or value is None:
+            continue
+        head, _aliases = split_trailing_alias(value.text or "")
+        if looks_like_term_cell(head) and (label.text or "").strip():
+            count += 1
+    return count
+
+
+def table_diagnostics(trees: treeio.Trees) -> list[dict]:
+    """Why each table was or was not read as a definitions table.
+
+    A silent zero here is the failure that would be hardest to notice on the
+    real Joint Schedule 1: if stage 1 ever labelled the definition column as the
+    term column, every table would quietly fail the shape test and the
+    vocabulary would come out empty with no error anywhere. This makes that
+    visible as its own row rather than as an absence.
+    """
+    out: list[dict] = []
+    for pid, part in trees.ordered():
+        index = cue_index(part)
+        for node in treeio.walk(part):
+            if node.kind != "table":
+                continue
+            rows = _rows(node)
+            defn = definition_rows(node)
+            cue = index.governing(node)
+            quoted = sum(1 for label, _v in defn
+                         if quote_shape(label.text or "") != "none")
+            reversed_rows = _reversed_rows(node)
+            out.append({
+                "part": pid, "path": node.path, "rows": len(rows),
+                "definition_rows": len(defn), "quoted_term_cells": quoted,
+                "under_a_definitions_lead_in": cue is not None,
+                "read_as_definitions_table": is_definitions_table(
+                    node, under_cue=cue is not None),
+                "rows_if_columns_were_reversed": reversed_rows,
+                "columns_may_be_reversed": len(defn) == 0 and reversed_rows >= 2,
+            })
     return out
