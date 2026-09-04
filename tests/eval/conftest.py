@@ -103,13 +103,15 @@ class Workspace:
         (self.golden / name).write_text(text)
 
     # -- running the CLI ------------------------------------------------------
-    def run(self, *extra: str, use_pdf: bool = False) -> "Run":
+    def run(self, *extra: str, use_pdf: bool = False, use_llm: bool = False) -> "Run":
         from pipeline.eval.__main__ import main
         args = ["--input", "fixtures",
                 "--fixtures-dir", str(self.fixtures),
                 "--output-dir", str(self.output),
                 "--golden-dir", str(self.golden),
-                "--no-llm", "--quiet", *extra]
+                "--quiet", *extra]
+        if not use_llm:
+            args.append("--no-llm")
         if not use_pdf:
             args.append("--no-pdf")
         code = main(args)

@@ -23,11 +23,15 @@ cannot. `--no-llm` skips the call entirely.
 """
 from __future__ import annotations
 
+import inspect
 import json
+import re
+from pathlib import Path
 from typing import Any, Optional
 
 import config
-from pipeline.eval.context import Context, LIST_CAP
+from pipeline.eval.context import (AUDIT_BATCH_SIZE, AUDIT_TOKEN_OVERHEAD,
+                                   AUDIT_TOKENS_PER_ITEM, Context, LIST_CAP)
 from pipeline.eval.rates import MEASURED, NO_DATA, PARTIAL, Rate, Section
 from pipeline.eval.sampling import position_bucket, stratified_sample, word_count_bucket
 
@@ -117,32 +121,177 @@ def _clip(text: Optional[str], limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + " […truncated]"
 
 
-def _run_checker(items: list[dict[str, Any]]) -> tuple[Optional[list[dict]], str]:
-    """Ask the independent checker. Returns (verdicts, note)."""
+_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.S)
+
+
+def tolerant_json(raw: str) -> Any:
+    """JSON out of a model's text: fences stripped, then the outermost value.
+
+    Only used when `pipeline.llm` exposes no parser of its own. A model told to
+    answer in JSON still wraps it in a fence or opens with a sentence often
+    enough that `json.loads` on the raw text is not a reasonable contract, and
+    treating that as a failed audit throws away a perfectly good answer.
+    """
+    text = (raw or "").strip()
+    m = _FENCE.search(text)
+    if m:
+        text = m.group(1).strip()
+    try:
+        return json.loads(text)
+    except Exception:                                     # noqa: BLE001
+        pass
+    for opener, closer in (("[", "]"), ("{", "}")):
+        start, end = text.find(opener), text.rfind(closer)
+        if 0 <= start < end:
+            try:
+                return json.loads(text[start:end + 1])
+            except Exception:                             # noqa: BLE001
+                continue
+    raise ValueError(f"no JSON value in a {len(raw or '')}-character response")
+
+
+def _prompt_for(batch: list[dict[str, Any]], first: int) -> str:
+    return ("You are auditing a legal-document pipeline's confident decisions. "
+            "For each item say whether the decision is correct. Reply with a JSON "
+            "array of objects {\"i\": <index>, \"agree\": true|false, "
+            "\"why\": \"<short reason>\"} and nothing else: no prose before or "
+            "after, no markdown fences. Use the \"i\" value given with each "
+            "item.\n\n"
+            + json.dumps([{"i": first + n,
+                           **{k: v for k, v in item.items() if k != "sentence"},
+                           "sentence": _clip(item.get("sentence"), 400)}
+                          for n, item in enumerate(batch)], indent=1))
+
+
+def _call_llm(llm: Any, prompt: str, max_tokens: int) -> str:
+    """`complete(task, prompt)` is the pinned contract; the keyword extras are
+    used only when this build of llm.py actually takes them."""
+    kwargs: dict[str, Any] = {}
+    try:
+        params = inspect.signature(llm.complete).parameters
+    except (TypeError, ValueError):                       # pragma: no cover
+        params = {}
+    # A **kwargs signature accepts everything; filtering against one would strip
+    # the whole payload.
+    takes_anything = any(p.kind is inspect.Parameter.VAR_KEYWORD
+                         for p in params.values())
+    if (takes_anything or "system" in params) and getattr(llm, "JSON_SYSTEM", None):
+        kwargs["system"] = llm.JSON_SYSTEM
+    if takes_anything or "max_tokens" in params:
+        kwargs["max_tokens"] = max_tokens
+    try:
+        return llm.complete(LLM_TASK, prompt, **kwargs)
+    except TypeError:
+        # An llm.py that takes only the pinned (task, prompt) after all.
+        return llm.complete(LLM_TASK, prompt)
+
+
+def _save_raw(eval_dir: Optional[Path], index: int, raw: str) -> Optional[str]:
+    """An unparseable reply is evidence. Put it where someone can read it."""
+    if eval_dir is None:
+        return None
+    try:
+        d = eval_dir / "audit_raw"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / f"batch-{index}.txt"
+        path.write_text(raw or "")
+        return str(path)
+    except Exception:                                     # noqa: BLE001
+        return None
+
+
+def _run_checker(items: list[dict[str, Any]],
+                 eval_dir: Optional[Path] = None) -> tuple[Optional[list[dict]], str, dict]:
+    """Ask the independent checker, in batches. Returns (verdicts, note, diagnostics).
+
+    Batched on purpose. One unparseable reply used to abandon the whole audit;
+    now it costs its own batch and the rest still scores. `verdicts` carries the
+    absolute item index in "i", so a failed batch leaves a hole rather than
+    shifting everything after it.
+    """
+    diagnostics: dict[str, Any] = {"batches": [], "batch_size": AUDIT_BATCH_SIZE}
     try:
         from pipeline import llm                          # noqa: PLC0415
     except Exception:                                     # noqa: BLE001
         return None, ("audit runner pending llm.py: pipeline/llm.py is not present, so the "
-                      "sample was drawn but not checked")
-    fn = getattr(llm, LLM_ENTRY_POINT, None)
-    if not callable(fn):
+                      "sample was drawn but not checked"), diagnostics
+    if not callable(getattr(llm, LLM_ENTRY_POINT, None)):
         return None, (f"pipeline.llm exists but exposes no callable "
-                      f"{LLM_ENTRY_POINT}(task, prompt); audit not run")
-    prompt = ("You are auditing a legal-document pipeline's confident decisions. "
-              "For each item say whether the decision is correct. Reply with a JSON "
-              "array of objects {\"i\": <index>, \"agree\": true|false, "
-              "\"why\": \"<short reason>\"} and nothing else.\n\n"
-              + json.dumps([{"i": i, **{k: v for k, v in item.items() if k != "sentence"},
-                             "sentence": _clip(item.get("sentence"), 400)}
-                            for i, item in enumerate(items)], indent=1))
-    try:
-        raw = fn(LLM_TASK, prompt)
-        verdicts = json.loads(raw)
-        if not isinstance(verdicts, list):
-            raise ValueError("checker did not return a JSON array")
-    except Exception as exc:                              # noqa: BLE001
-        return None, f"checker call failed, audit not scored: {type(exc).__name__}: {exc}"
-    return verdicts, "checked by pipeline.llm"
+                      f"{LLM_ENTRY_POINT}(task, prompt); audit not run"), diagnostics
+
+    # llm.py's own parser when it has one: fences and leading prose are its
+    # problem to know about, not this section's guess at its behaviour.
+    parser = getattr(llm, "parse_json", None)
+    diagnostics["parser"] = ("pipeline.llm.parse_json" if callable(parser)
+                             else "pipeline/eval tolerant_json fallback")
+    parse = parser if callable(parser) else tolerant_json
+    unavailable = getattr(llm, "LLMUnavailable", None)
+
+    # Put the judge's calls in this run's log. Without this llm.py logs to its
+    # own default run, so a judge that ran leaves nothing under the run being
+    # reported on and nobody can tell whether the call was made at all. That is
+    # what an empty output/<run>/llm_log looked like from the outside.
+    if eval_dir is not None and callable(getattr(llm, "set_run_dir", None)):
+        try:
+            diagnostics["llm_log_dir"] = str(llm.set_run_dir(eval_dir.parent))
+        except Exception as exc:                          # noqa: BLE001
+            diagnostics["llm_log_dir"] = f"could not be set: {type(exc).__name__}: {exc}"
+
+    verdicts: list[dict] = []
+    scored_any = False
+    for start in range(0, len(items), AUDIT_BATCH_SIZE):
+        batch = items[start:start + AUDIT_BATCH_SIZE]
+        index = start // AUDIT_BATCH_SIZE
+        budget = AUDIT_TOKEN_OVERHEAD + AUDIT_TOKENS_PER_ITEM * len(batch)
+        record: dict[str, Any] = {"batch": index, "items": len(batch),
+                                  "first_item": start}
+        raw = None
+        try:
+            raw = _call_llm(llm, _prompt_for(batch, start), budget)
+            parsed = parse(raw)
+            # A lone verdict object is a one-item list. Worth accepting on its
+            # own merits, and it also absorbs a parser that looks for an object
+            # before an array: llm.py's parse_json returns the inner dict for a
+            # single-element array wrapped in prose, which would otherwise lose
+            # the last batch of every sample whose size is not a round multiple.
+            if isinstance(parsed, dict) and "agree" in parsed:
+                parsed = [parsed]
+            if not isinstance(parsed, list):
+                raise ValueError(f"checker returned {type(parsed).__name__}, not a list")
+            verdicts.extend(v for v in parsed if isinstance(v, dict))
+            record["state"] = "scored"
+            record["verdicts"] = len(parsed)
+            scored_any = True
+        except Exception as exc:                          # noqa: BLE001
+            # The breaker case is different in kind: no key, or the workspace id
+            # is missing, so every later call would fail the same way. Stop
+            # calling, keep whatever scored, and say why.
+            broken = unavailable is not None and isinstance(exc, unavailable)
+            record["state"] = "unavailable" if broken else "unparseable"
+            record["error"] = f"{type(exc).__name__}: {exc}"
+            record["raw_response_chars"] = len(raw) if raw is not None else None
+            record["raw_response_saved_to"] = _save_raw(eval_dir, index, raw or "")
+            diagnostics["batches"].append(record)
+            if broken:
+                diagnostics["stopped_early"] = record["error"]
+                break
+            continue
+        diagnostics["batches"].append(record)
+
+    failed = [b for b in diagnostics["batches"] if b["state"] != "scored"]
+    diagnostics["batches_failed"] = len(failed)
+    diagnostics["items_in_failed_batches"] = sum(b["items"] for b in failed)
+    if not scored_any:
+        first = failed[0]["error"] if failed else "no batch was attempted"
+        return None, (f"checker returned nothing scorable: {first}"
+                      + (f" (raw reply saved to {failed[0]['raw_response_saved_to']})"
+                         if failed and failed[0].get("raw_response_saved_to") else "")
+                      ), diagnostics
+    note = "checked by pipeline.llm"
+    if failed:
+        note += (f"; {len(failed)} of {len(diagnostics['batches'])} batch(es) returned "
+                 f"nothing scorable and are counted, not dropped")
+    return verdicts, note, diagnostics
 
 
 def build(ctx: Context) -> Section:
@@ -173,14 +322,16 @@ def build(ctx: Context) -> Section:
         samples[name] = result.as_dict()
         drawn.extend(population[i] for i in result.indices)
 
-    verdicts, note = (None, "--no-llm: checker not called") if ctx.options.get("no_llm") \
-        else _run_checker(drawn)
+    if ctx.options.get("no_llm"):
+        verdicts, note, diagnostics = None, "--no-llm: checker not called", {}
+    else:
+        verdicts, note, diagnostics = _run_checker(drawn, ctx.eval_dir)
 
     s.data["samples"] = samples
     s.data["sample_items"] = drawn[:LIST_CAP]
     s.data["sample_items_not_listed"] = max(0, len(drawn) - LIST_CAP)
     s.data["checker"] = {"note": note, "entry_point": f"pipeline.llm.{LLM_ENTRY_POINT}",
-                         "task": LLM_TASK}
+                         "task": LLM_TASK, **diagnostics}
 
     if verdicts is None:
         s.status = NO_DATA
@@ -201,34 +352,68 @@ def build(ctx: Context) -> Section:
                      for c in result["cells"]])
         return s
 
-    agreed = [v for v in verdicts if v.get("agree") is True]
-    disagreed = [v for v in verdicts if v.get("agree") is False]
-    # A verdict that is neither true nor false is a checker failure, not an
-    # agreement and not a disagreement. Counted explicitly: 38 unusable verdicts
-    # out of 40 must not read as a green 2/2, which is what dropping them did.
-    unusable = [v for v in verdicts
-                if not isinstance(v, dict) or v.get("agree") not in (True, False)
-                or not isinstance(v.get("i"), int) or not 0 <= v["i"] < len(drawn)]
+    # One verdict per item. A checker that answers the same index twice, which
+    # a re-sent batch or an over-eager reply will do, must not get two votes:
+    # the first stands and the rest are counted as duplicates. Without this the
+    # scored count can exceed the sample and "never scored" goes negative.
+    usable: dict[int, dict] = {}
+    unusable: list[dict] = []
+    duplicates = 0
+    for v in verdicts:
+        ok = (isinstance(v, dict) and v.get("agree") in (True, False)
+              and isinstance(v.get("i"), int) and 0 <= v["i"] < len(drawn))
+        if not ok:
+            unusable.append(v)
+        elif v["i"] in usable:
+            duplicates += 1
+        else:
+            usable[v["i"]] = v
+    agreed = [v for v in usable.values() if v["agree"] is True]
+    disagreed = [v for v in usable.values() if v["agree"] is False]
     agreement = Rate(len(agreed), len(agreed) + len(disagreed))
-    s.status = MEASURED if (agreement.has_data and not unusable) else PARTIAL
+    unscored = len(drawn) - (len(agreed) + len(disagreed))
+    s.status = (MEASURED if (agreement.has_data and not unusable and not unscored)
+                else PARTIAL)
+    reasons = []
     if unusable:
-        s.reason = (f"{len(unusable)} of {len(verdicts)} checker verdict(s) were "
-                    f"unusable (missing or non-boolean 'agree', or an out-of-range "
-                    f"item index) and are counted in neither side of the rate")
+        reasons.append(f"{len(unusable)} of {len(verdicts)} checker verdict(s) were "
+                       f"unusable (missing or non-boolean 'agree', or an out-of-range "
+                       f"item index) and are counted in neither side of the rate")
+    if diagnostics.get("batches_failed"):
+        reasons.append(f"{diagnostics['batches_failed']} batch(es) covering "
+                       f"{diagnostics['items_in_failed_batches']} item(s) returned "
+                       f"nothing scorable; the raw replies are saved beside this report")
+    if diagnostics.get("stopped_early"):
+        reasons.append(f"stopped early: {diagnostics['stopped_early']}")
+    s.reason = "; ".join(reasons) or None
     s.metrics["stratified_audit_agreement"] = agreement
     s.data["agreement"] = agreement.as_dict()
     s.data["checker_verdicts"] = {
-        "returned": len(verdicts), "agreed": len(agreed),
+        "drawn": len(drawn), "returned": len(verdicts), "agreed": len(agreed),
         "disagreed": len(disagreed), "unusable": len(unusable),
+        "duplicate_verdicts_ignored": duplicates, "never_scored": unscored,
         "scored": Rate(len(agreed) + len(disagreed), len(drawn)).as_dict(),
     }
     s.data["disagreements"] = [
         {**{k: v for k, v in drawn[d["i"]].items() if k != "sentence"},
          "why": d.get("why")}
         for d in disagreed if isinstance(d.get("i"), int) and d["i"] < len(drawn)][:LIST_CAP]
-    s.line(f"Drew **{len(drawn)}** item(s), the checker returned "
-           f"**{len(verdicts)}** verdict(s), of which **{len(unusable)}** were "
-           f"unusable. Agreement over the usable ones: **{agreement}**.")
+    s.line(f"Drew **{len(drawn)}** item(s) and scored "
+           f"**{Rate(len(agreed) + len(disagreed), len(drawn))}** of them. "
+           f"Agreement over the scored ones: **{agreement}**.")
+    s.bullet(f"checker: {note}")
+    s.bullet(f"JSON parser: {diagnostics.get('parser', 'unknown')}")
+    if unusable or unscored:
+        s.bullet(f"{len(unusable)} unusable verdict(s), {unscored} item(s) never "
+                 f"scored. Neither is counted as agreement.")
+    failed_batches = [b for b in diagnostics.get("batches", []) if b["state"] != "scored"]
+    if failed_batches:
+        s.line()
+        s.line("**Batches that returned nothing scorable**")
+        s.table(["batch", "items", "state", "error", "raw reply"],
+                [[b["batch"], b["items"], b["state"], b.get("error"),
+                  b.get("raw_response_saved_to") or "not saved"]
+                 for b in failed_batches[:LIST_CAP]])
     s.line()
     s.table(["item", "why the checker disagreed"],
             [[d.get("path") or d.get("term"), d.get("why")] for d in s.data["disagreements"]])

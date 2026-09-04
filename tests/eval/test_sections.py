@@ -358,7 +358,7 @@ def test_the_audit_reports_pending_llm_rather_than_an_agreement_it_did_not_measu
 
     if importlib.util.find_spec("pipeline.llm") is not None:
         pytest.skip("pipeline/llm.py now exists; this path no longer applies")
-    verdicts, note = _run_checker([{"kind": "term_use", "term": "Provider"}])
+    verdicts, note, _diagnostics = _run_checker([{"kind": "term_use", "term": "Provider"}])
     assert verdicts is None
     assert note.startswith("audit runner pending llm.py")
 
