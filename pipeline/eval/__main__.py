@@ -105,7 +105,7 @@ def build_context(args: argparse.Namespace) -> Context:
                   else inputs_mod.FIXTURES_SOURCE)
     source_root = run_dir if source == inputs_mod.OUTPUT_SOURCE else args.fixtures_dir
 
-    present = inputs_mod.discover_parts(source_root, source)
+    present = inputs_mod.discover_parts(source_root)
     scope_mode, scope_parts, cross = resolve_scope(args, present)
 
     loaded = inputs_mod.load(source, source_root, run, scope_parts, run_dir=run_dir)

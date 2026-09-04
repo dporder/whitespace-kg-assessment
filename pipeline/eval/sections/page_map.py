@@ -61,7 +61,7 @@ def derive(ctx: Context) -> tuple[dict[str, tuple[int, int]], str, list[str]]:
     notes: list[str] = []
     layout_dir = ctx.inputs.root / "layout"
     derived: dict[str, tuple[int, int]] = {}
-    used_layout = False
+    from_layout: set[str] = set()
     if layout_dir.is_dir():
         for part in ctx.inputs.scope_parts:
             path = layout_dir / f"{part}.json"
@@ -76,17 +76,19 @@ def derive(ctx: Context) -> tuple[dict[str, tuple[int, int]], str, list[str]]:
                 notes.append(f"{part}: stage 1 layout present but no recognisable page field")
                 continue
             derived[part] = rng
-            used_layout = True
+            from_layout.add(part)
 
     for part, tree in sorted(ctx.inputs.trees.items()):
         if part in derived:
             continue
         derived[part] = (tree.page_start, tree.page_end)
 
-    if used_layout and len(derived) > len([p for p in derived if p]):
+    fell_back = sorted(set(derived) - from_layout)
+    if from_layout and not fell_back:
         source = "stage 1 layout"
-    elif used_layout:
-        source = "stage 1 layout, falling back to stage 2 part page ranges"
+    elif from_layout:
+        source = (f"stage 1 layout for {len(from_layout)} part(s), stage 2 part page "
+                  f"ranges for {', '.join(fell_back)}")
     else:
         source = "stage 2 part page ranges (stage 1 layout absent or unreadable)"
     return derived, source, notes

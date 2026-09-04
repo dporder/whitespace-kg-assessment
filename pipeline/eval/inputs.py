@@ -131,7 +131,7 @@ def newest_run(output_root: Path) -> Optional[str]:
     return sorted(runs, key=lambda d: (d.stat().st_mtime, d.name))[-1].name
 
 
-def discover_parts(source_root: Path, source: str) -> list[str]:
+def discover_parts(source_root: Path) -> list[str]:
     """Part ids present in the input source, from the stage 2 tree files."""
     tree_dir = source_root / "tree"
     if not tree_dir.is_dir():
