@@ -59,6 +59,8 @@ UNIT_WORDS = (
     "Regulation", "Regulations", "Rule", "Rules", "Item", "Items",
 )
 _QUOTED_UNIT = re.compile(r"[\"“]([A-Z][a-z]+)[\"”]")
+# A dotted number at the start of a line, however deep.
+_DOTTED_NUMBER = re.compile(r"^\s{0,12}(\d{1,3}(?:\.\d{1,3})+)\.?\s")
 
 
 def _singular(word: str) -> str:
@@ -293,16 +295,31 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
                 {"part": part.slug, "pages": [part.page_start, part.page_end], "chars": missing}
             )
 
-        for block in blocks:
-            if block.block_kind == "numbered" and block.number:
-                dots = block.number.count(".") + 1 if block.number[0].isdigit() else 0
+        # Depth is measured on the numbering the page prints, not on the
+        # numbering the rulebook happened to match. Measuring the matches only
+        # makes this check structurally unable to fail: a number too deep for
+        # the rulebook does not match it, so it would never be counted, and
+        # check 4 would report the rulebook's own ceiling back to itself. The
+        # pack really does carry 46 four-level numbers (2.1.1.1, 9.1.3.2,
+        # 4.1.2.1.), which is what this catches.
+        for page_no in range(part.page_start, part.page_end + 1):
+            for line in document.pages[page_no].furniture.body:
+                m = _DOTTED_NUMBER.match(line.text)
+                if not m:
+                    continue
+                dots = m.group(1).count(".") + 1
                 if dots > max_dotted:
                     max_dotted = dots
-                    deep_examples = [{"part": part.slug, "page": block.page_start, "number": block.number}]
+                    deep_examples = [
+                        {"part": part.slug, "page": page_no, "number": m.group(1),
+                         "text": line.text.strip()[:90]}
+                    ]
                 elif dots == max_dotted and len(deep_examples) < 6:
                     deep_examples.append(
-                        {"part": part.slug, "page": block.page_start, "number": block.number}
+                        {"part": part.slug, "page": page_no, "number": m.group(1),
+                         "text": line.text.strip()[:90]}
                     )
+        for block in blocks:
             max_tree_depth = max(max_tree_depth, block.depth or 0)
 
         _measure_geometry(part.slug, blocks, geometry, disagreement_examples)
@@ -421,6 +438,11 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
     geometry_by_part: dict[str, int] = {}
     for example in probe["geometry"].get("examples", []):
         geometry_by_part[example["part"]] = geometry_by_part.get(example["part"], 0) + 1
+    depth_limit = probe["depth"]["rulebook_max_dotted_depth"]
+    deep_by_part: dict[str, list] = {}
+    for example in probe["depth"].get("examples", []):
+        if example["number"].count(".") + 1 > depth_limit:
+            deep_by_part.setdefault(example["part"], []).append(example)
 
     out: dict[str, dict] = {}
     limit = thresholds["max_unmatched_numbering_rate"]
@@ -439,11 +461,24 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
                     "unmatched_styles": numbering.get("styles_by_part", {}).get(part.slug, {}),
                 }
             )
+        if part.slug in deep_by_part:
+            alarms.append(
+                {
+                    "check": "depth_out_of_range",
+                    "detail": f"this part numbers deeper than the rulebook's "
+                    f"{depth_limit} dotted levels",
+                    "examples": deep_by_part[part.slug][:5],
+                }
+            )
         out[part.slug] = {
             "pages": [part.page_start, part.page_end],
             "numbered_lines": counts,
             "unmatched_lines": bad,
             "unmatched_rate": rate,
+            # The residue, named as styles rather than as a list of lines, so a
+            # further rulebook entry can be written against evidence.
+            "unmatched_styles": numbering.get("styles_by_part", {}).get(part.slug, {}),
+            "unmatched_examples": numbering.get("examples_by_part", {}).get(part.slug, [])[:6],
             "orphan_chars": orphan_by_part.get(part.slug, 0),
             "geometry_disagreements": geometry_by_part.get(part.slug, 0),
             "alarms": alarms,
