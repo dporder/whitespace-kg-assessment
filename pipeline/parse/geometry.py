@@ -29,6 +29,21 @@ MIN_INDENT_STEP = 6.0
 # Vertical tolerance when asserting "at or above" and "siblings ascend".
 VERTICAL_TOLERANCE = 1.0
 
+# A line's box spans the font's full ascent and descent, which exceeds the
+# leading between lines, so consecutive lines overlap vertically by a point or
+# two purely from font metrics: measured at 0.8pt for 12pt body text and 2.9pt
+# for 16pt. Sibling overlap is therefore measured as a share of line height. A
+# genuinely out-of-order sibling overlaps by most of a line or starts above the
+# previous one entirely, which the reading-order check catches separately.
+SIBLING_OVERLAP_SHARE = 0.2
+
+
+def sibling_overlap_tolerance(*boxes: Box) -> float:
+    heights = [b[3] - b[1] for b in boxes if b[3] > b[1]]
+    if not heights:
+        return VERTICAL_TOLERANCE
+    return max(VERTICAL_TOLERANCE, SIBLING_OVERLAP_SHARE * min(heights))
+
 # Two pieces of ink belong to the same visual line when their vertical extents
 # overlap by more than this share of the shorter one. PyMuPDF emits the number
 # "2.1" and its sentence as separate lines at y=146.9 and y=147.1 on page 2;

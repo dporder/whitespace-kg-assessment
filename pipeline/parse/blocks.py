@@ -15,8 +15,9 @@ de-hyphenating "subject-\\nmatter" into "subject-matter" and de-hyphenating
 """
 from __future__ import annotations
 
+import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import pymupdf
@@ -30,8 +31,53 @@ from .words import VisualLine, merge_visual_lines, page_words, word_box_for_toke
 # A cover title is set far larger than the body it introduces.
 COVER_TITLE_RATIO = 1.4
 
+# Left edges within this much of each other are the same indent.
+INDENT_CLUSTER = 3.0
+# An indent carries a level only if this share of that level's candidates use
+# it. Measured across the four batch parts: Core Terms sets 144 of 146 clauses
+# at x=27 and 2 elsewhere, Call-Off Schedule 9 sets its subclauses at three
+# genuine indents (58, 117, 119), and Core Terms sets headings 1 and 2 at x=27
+# and the other 33 at x=30. So a real second indent is not rare, and only the
+# true singletons need to fall out.
+INDENT_SUPPORT_SHARE = 0.05
+
 _HYPHEN_BREAK = re.compile(r"-$")
 _LOWER_START = re.compile(r"^[a-z]")
+
+
+@dataclass
+class IndentSupport:
+    """Which left edges each numbering level actually uses in this part."""
+    clusters: dict[str, list[tuple[float, int]]] = field(default_factory=dict)
+
+    def supported(self, level: str, left: float) -> bool:
+        clusters = self.clusters.get(level)
+        if not clusters:
+            return True
+        total = sum(count for _, count in clusters)
+        floor = max(1, math.ceil(INDENT_SUPPORT_SHARE * total))
+        return any(
+            abs(left - centre) <= INDENT_CLUSTER and count >= floor
+            for centre, count in clusters
+        )
+
+
+def measure_indents(candidates: list[tuple[str, float]]) -> IndentSupport:
+    grouped: dict[str, dict[float, int]] = {}
+    for level, left in candidates:
+        buckets = grouped.setdefault(level, {})
+        key = min(
+            (k for k in buckets if abs(k - left) <= INDENT_CLUSTER),
+            key=lambda k: (abs(k - left), k),
+            default=round(left, 1),
+        )
+        buckets[key] = buckets.get(key, 0) + 1
+    return IndentSupport(
+        clusters={
+            level: sorted(buckets.items())
+            for level, buckets in sorted(grouped.items())
+        }
+    )
 
 
 @dataclass
@@ -67,13 +113,76 @@ def modal_size(lines: list[SourceLine]) -> float:
     return sorted(counts, key=lambda s: (-counts[s], s))[0]
 
 
+def _candidate_indents(pages: list[PageInput], rulebook: Rulebook) -> IndentSupport:
+    """First pass: which indents each level actually uses in this part."""
+    found: list[tuple[str, float]] = []
+    for page in pages:
+        for line in merge_visual_lines(page.body, page.page):
+            text = line.text
+            if not text.strip():
+                continue
+            match = rulebook.match(text)
+            if match is not None:
+                found.append((match.level, line.left))
+    return measure_indents(found)
+
+
+def _numeric_parent_ok(match, stack: list[tuple[int, Block]]) -> Optional[str]:
+    """Whether a dotted number nests under the number currently above it.
+
+    Returns None when it does, otherwise the enclosing number it disagrees
+    with. This is the "children nest under their numeric parents" invariant
+    applied at parse time, and it is what catches a wrapped line that happens
+    to begin with a cross-reference: "... 10.4.4, 10.4.5, 20.2 or a Contract
+    expires all of the following apply:" wraps onto a line starting "20.2"
+    while clause 10.6 is open, and 20.2 does not belong under heading 10.
+    """
+    if match.dotted_depth <= 1:
+        return None
+    prefix = match.key.rsplit(".", 1)[0]
+    for depth, block in reversed(stack):
+        if depth == match.depth - 1:
+            if block.number and block.number.strip("()") == prefix:
+                return None
+            return block.number
+    return None
+
+
+def _at_wrap_indent(block: Block, line: VisualLine) -> bool:
+    """Whether the line sits exactly where the open block's wrapped lines sit.
+
+    A new provision does not begin at the indent its predecessor wraps to. Core
+    Terms clause 27.3 wraps to x=55.4 and one of its wrapped lines opens with
+    "27.1 or 27.2 or has any reason to think ..."; the number is a citation, and
+    the line is at 55.4 where every other wrapped line of that clause sits.
+    On its own this proves nothing, because Core Terms also sets its lettered
+    items at 55.4, so it only counts alongside an indent no provision of that
+    level uses.
+    """
+    tops = sorted({round(l.bbox[1], 2) for l in block.lines})
+    if len(tops) >= 2:
+        first_top = tops[0]
+        wrapped = [l.bbox[0] for l in block.lines if round(l.bbox[1], 2) > first_top]
+        if wrapped and abs(line.left - min(wrapped)) <= INDENT_TOLERANCE:
+            return True
+    # The first wrapped line has no established indent to compare against, so
+    # the sentence itself is the evidence: a provision does not begin while the
+    # one before it is still mid-sentence. Core Terms clause 27.3 ends its first
+    # line on "... if it becomes aware of" and the next line opens "27.1 or
+    # 27.2 or has any reason to think ...".
+    tail = block.text.rstrip()
+    return bool(tail) and not tail.endswith((".", ";", ":", "?", "!"))
+
+
 def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
     all_body = [l for p in pages for l in p.body]
     body_size = modal_size(all_body)
     min_left = min((l.bbox[0] for l in all_body), default=0.0)
+    indents = _candidate_indents(pages, rulebook)
 
     blocks: list[Block] = []
     open_block: Optional[Block] = None
+    stack: list[tuple[int, Block]] = []              # open numbering ancestry
     heading_styles: list[tuple[float, float]] = []   # (size, left) of depth-1 blocks
     last_heading_number: Optional[int] = None
     seen_numbered = False
@@ -128,6 +237,24 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                     style_matches=_heading_style_matches(line, heading_styles, body_size, min_left),
                 )
             if match is not None:
+                disagrees_with = _numeric_parent_ok(match, stack)
+                unsupported = not indents.supported(match.level, line.left)
+                at_wrap = open_block is not None and _at_wrap_indent(open_block, line)
+                if unsupported and open_block is not None and (
+                    match.depth == 1 or disagrees_with is not None or at_wrap
+                ):
+                    # Not a provision: a wrapped line that opens with a number.
+                    # It rejoins the block it was wrapping from, with its own
+                    # leading number intact, and the decision is recorded.
+                    _append_line(open_block, line)
+                    note = (
+                        f"numbering_read_as_wrapped_text: a line starting {match.label!r} "
+                        f"sits at x={line.left:.1f}, an indent no {match.level} in this part "
+                        f"uses, and does not nest under {disagrees_with or 'the open provision'}"
+                    )
+                    if note not in open_block.anomalies:
+                        open_block.anomalies.append(note)
+                    continue
                 close()
                 seen_numbered = True
                 if match.depth == 1:
@@ -137,6 +264,14 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
                     except ValueError:
                         pass
                 open_block = _numbered_block(len(blocks), line, match, page, body_size)
+                if disagrees_with is not None:
+                    open_block.anomalies.append(
+                        f"numbering_sequence_break: {match.label} follows {disagrees_with}, "
+                        f"which is not its numeric parent"
+                    )
+                while stack and stack[-1][0] >= match.depth:
+                    stack.pop()
+                stack.append((match.depth, open_block))
                 continue
 
             if not seen_numbered and line.size_max >= body_size * COVER_TITLE_RATIO:
