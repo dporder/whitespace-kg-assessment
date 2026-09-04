@@ -7,40 +7,40 @@
 <body>
 <x-dc>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
   <style>
-    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
-    a { color: #3f6396; } a:hover { color: #2d4a73; }
-    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
-    .prose { font-size: 13px; line-height: 1.65; color: #1c1e21; }
-    .fn { font-size: 10px; font-weight: 600; color: #75589b; vertical-align: super; margin-left: 1px; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; color: #ffffff; }
+    a { color: #1f6feb; } a:hover { color: #1f6feb; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .prose { font-size: 13px; line-height: 1.65; color: #ffffff; }
+    .fn { font-size: 10px; font-weight: 600; color: #1f6feb; vertical-align: super; margin-left: 1px; }
     .pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px 2px 5px; margin: 0 2px;
             border-radius: 6px; font-size: 11px; font-weight: 600; line-height: 1.4; vertical-align: middle;
-            border: 1px solid rgba(46,115,115,0.25); background: rgba(46,115,115,0.09); color: #2e7373; }
-    .dot { width: 5px; height: 5px; border-radius: 50%; background: #2e7373; display: inline-block; }
-    .meta { font-size: 11px; color: #9a948f; }
+            border: 1px solid rgba(48,211,177,0.35); background: rgba(48,211,177,0.10); color: #30d3b1; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: #30d3b1; display: inline-block; }
+    .meta { font-size: 11px; color: #8c8c8c; }
     .foldrow { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
-               letter-spacing: 0.07em; text-transform: uppercase; color: #6b6f76; }
+               letter-spacing: 0.07em; text-transform: uppercase; color: #adafb7; }
   </style>
 </helmet>
-<div style="width: 1440px; height: 1000px; background: #fbfaf8; display: flex; box-sizing: border-box;">
+<div style="width: 1440px; height: 1000px; background: #08090b; display: flex; box-sizing: border-box;">
 
   <!-- ============ conversation column ============ -->
   <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
 
     <!-- slim header -->
-    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid rgba(0,0,0,0.07);">
-      <div style="width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #3f6396; display: flex; align-items: center; justify-content: center;">
-        <div style="width: 8px; height: 8px; border-radius: 50%; background: #3f6396;"></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+      <div style="width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #1f6feb; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #1f6feb;"></div>
       </div>
       <div style="display: flex; flex-direction: column; gap: 1px;">
         <div style="font-size: 14px; font-weight: 600;">Network Services 3 — framework agreement</div>
-        <div style="font-size: 11px; color: #6b6f76;">Ask about anything in the agreement</div>
+        <div style="font-size: 11px; color: #adafb7;">Ask about anything in the agreement</div>
       </div>
       <div style="flex-grow: 1;"></div>
       <div style="display: flex; align-items: center; gap: 6px;">
-        <div style="width: 6px; height: 6px; border-radius: 50%; background: #2e7373;"></div>
-        <span style="font-size: 11.5px; color: #6b6f76;">Ready</span>
+        <div style="width: 6px; height: 6px; border-radius: 50%; background: #30d3b1;"></div>
+        <span style="font-size: 11.5px; color: #adafb7;">Ready</span>
       </div>
     </div>
 
@@ -49,17 +49,17 @@
       <div style="width: 768px; display: flex; flex-direction: column; gap: 22px;">
 
         <!-- user -->
-        <div style="display: flex; justify-content: flex-end;">
-          <div style="max-width: 85%; padding: 10px 15px; border-radius: 14px 4px 14px 14px; background: #ffffff; border: 1px solid rgba(0,0,0,0.09); font-size: 13px; line-height: 1.55; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">Who owns new intellectual property created under a contract, and what is that ownership subject to?</div>
+        <div style="display: flex; justify-content: flex-start;">
+          <div style="max-width: 88%; padding: 12px 15px; border-radius: 10px; background: #16202e; font-size: 13px; line-height: 1.6; color: #e8eef5;">Who owns new intellectual property created under a contract, and what is that ownership subject to?</div>
         </div>
 
         <!-- assistant: no bubble -->
         <div>
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
             <div style="width: 20px; height: 20px; border-radius: 50%; background: rgba(63,99,150,0.08); border: 1px solid rgba(63,99,150,0.20); display: flex; align-items: center; justify-content: center;">
-              <div style="width: 6px; height: 6px; border-radius: 50%; background: #3f6396;"></div>
+              <div style="width: 6px; height: 6px; border-radius: 50%; background: #1f6feb;"></div>
             </div>
-            <span style="font-size: 12px; font-weight: 600; color: #6b6f76;">Assistant</span>
+            <span style="font-size: 12px; font-weight: 600; color: #adafb7;">Assistant</span>
           </div>
 
           <div style="padding-left: 28px; display: flex; flex-direction: column; gap: 13px;">
@@ -72,13 +72,13 @@
             <!-- quiet footer strip -->
             <div style="display: flex; align-items: center; gap: 16px; margin-top: 4px;">
               <span class="meta">Traced across 4 provisions</span>
-              <span style="width: 1px; height: 11px; background: #e0ddd8;"></span>
+              <span style="width: 1px; height: 11px; background: #3e3f47;"></span>
               <span class="foldrow">
-                <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 1.5L4 4.5L7 1.5" stroke="#6b6f76" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 1.5L4 4.5L7 1.5" stroke="#adafb7" stroke-width="1.3" stroke-linecap="round"/></svg>
                 How I found this
               </span>
               <span class="foldrow">
-                <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="2" cy="2" r="1.4" fill="#6b6f76"/><circle cx="7" cy="3.4" r="1.4" fill="#6b6f76"/><circle cx="3.4" cy="7" r="1.4" fill="#6b6f76"/><path d="M2 2L7 3.4M2 2L3.4 7" stroke="#6b6f76" stroke-width="0.8"/></svg>
+                <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="2" cy="2" r="1.4" fill="#adafb7"/><circle cx="7" cy="3.4" r="1.4" fill="#adafb7"/><circle cx="3.4" cy="7" r="1.4" fill="#adafb7"/><path d="M2 2L7 3.4M2 2L3.4 7" stroke="#adafb7" stroke-width="0.8"/></svg>
                 See the connections
               </span>
             </div>
@@ -88,59 +88,59 @@
     </div>
 
     <!-- composer -->
-    <div style="padding: 16px 0 22px; display: flex; justify-content: center; border-top: 1px solid rgba(0,0,0,0.07);">
+    <div style="padding: 16px 0 22px; display: flex; justify-content: center; border-top: 1px solid rgba(255,255,255,0.05);">
       <div style="width: 768px; display: flex; flex-direction: column; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(0,0,0,0.12); border-radius: 11px; padding: 10px 12px;">
-          <span style="flex-grow: 1; font-size: 14px; color: #9a948f;">Ask a question about the agreement…</span>
-          <div style="width: 28px; height: 28px; border-radius: 7px; background: #1c1e21; display: flex; align-items: center; justify-content: center;">
+        <div style="display: flex; align-items: center; gap: 10px; background: #1a1b22; border: 1px solid #3e3f47; border-radius: 16px; padding: 10px 12px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #8c8c8c;">Ask a question about the agreement…</span>
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #1f6feb; display: flex; align-items: center; justify-content: center;">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10V2M6 2L2.5 5.5M6 2l3.5 3.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
         </div>
-        <div style="text-align: center; font-size: 11px; color: #9a948f;">Every statement carries a numbered source you can open.</div>
+        <div style="text-align: center; font-size: 11px; color: #8c8c8c;">LLMs can make mistakes. Verify important information.</div>
       </div>
     </div>
   </div>
 
   <!-- ============ evidence panel, the one destination ============ -->
-  <div style="width: 380px; flex-shrink: 0; background: #f8f7fa; border-left: 1px solid #e8e6ec; box-shadow: -8px 0 32px rgba(0,0,0,0.06); display: flex; flex-direction: column;">
-    <div style="padding: 14px 16px; border-bottom: 1px solid #e8e6ec; display: flex; align-items: flex-start; gap: 10px;">
-      <div style="width: 18px; height: 18px; border-radius: 4px; background: #75589b; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">1</div>
+  <div style="width: 380px; flex-shrink: 0; background: #121417; border-left: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: flex-start; gap: 11px;">
+      <div style="width: 18px; height: 18px; border-radius: 4px; background: #1f6feb; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">1</div>
       <div style="flex-grow: 1;">
         <div style="font-size: 13px; font-weight: 600;">Core Terms, Clause 9.2</div>
-        <div style="font-size: 11px; color: #6b6f76;">page 2 of the agreement</div>
+        <div style="font-size: 11px; color: #adafb7;">page 2 of the agreement</div>
       </div>
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1l-9 9" stroke="#9a948f" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1l-9 9" stroke="#8c8c8c" stroke-width="1.4" stroke-linecap="round"/></svg>
     </div>
 
     <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
       <div>
         <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 7px;">
-          <span style="width: 3px; height: 13px; background: #75589b; border-radius: 2px;"></span>
-          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #75589b;">The passage on the page</span>
+          <span style="width: 3px; height: 13px; background: #1f6feb; border-radius: 2px;"></span>
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #1f6feb;">The passage on the page</span>
         </div>
-        <div style="border: 1px solid #e0ddd8; border-radius: 5px; overflow: hidden; background: #ffffff;">
+        <div style="border: 1px solid #3e3f47; border-radius: 5px; overflow: hidden; background: #ffffff;">
           <svg width="346" height="128" viewBox="0 0 346 128" fill="none" style="display: block;">
             <rect width="346" height="128" fill="#ffffff"/>
-            <rect x="18" y="18" width="240" height="5" rx="2.5" fill="#d5d2cc"/>
-            <rect x="18" y="33" width="292" height="5" rx="2.5" fill="#d5d2cc"/>
-            <rect x="18" y="48" width="196" height="5" rx="2.5" fill="#d5d2cc"/>
-            <rect x="12" y="64" width="300" height="22" rx="2" fill="#faf7fd" stroke="#75589b" stroke-width="1.6"/>
-            <rect x="20" y="72" width="284" height="6" rx="3" fill="#a892c4"/>
-            <rect x="18" y="98" width="216" height="5" rx="2.5" fill="#d5d2cc"/>
-            <rect x="18" y="113" width="150" height="5" rx="2.5" fill="#d5d2cc"/>
+            <rect x="18" y="18" width="240" height="5" rx="2.5" fill="#3e3f47"/>
+            <rect x="18" y="33" width="292" height="5" rx="2.5" fill="#3e3f47"/>
+            <rect x="18" y="48" width="196" height="5" rx="2.5" fill="#3e3f47"/>
+            <rect x="12" y="64" width="300" height="22" rx="2" fill="rgba(31,111,235,0.10)" stroke="#1f6feb" stroke-width="1.6"/>
+            <rect x="20" y="72" width="284" height="6" rx="3" fill="#4d8ef5"/>
+            <rect x="18" y="98" width="216" height="5" rx="2.5" fill="#3e3f47"/>
+            <rect x="18" y="113" width="150" height="5" rx="2.5" fill="#3e3f47"/>
           </svg>
         </div>
-        <div style="font-size: 10.5px; color: #9a948f; margin-top: 5px;">Cut from the PDF just now, at the coordinates recorded for this clause.</div>
+        <div style="font-size: 10.5px; color: #8c8c8c; margin-top: 5px;">Cut from the PDF just now, at the coordinates recorded for this clause.</div>
       </div>
 
-      <div style="border: 1px solid rgba(161,107,22,0.25); background: rgba(161,107,22,0.07); border-radius: 6px; padding: 10px 12px;">
-        <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8a5c14; margin-bottom: 5px;">The words this rests on</div>
-        <div style="font-size: 12px; line-height: 1.6; color: #3a3d42;">“Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, Schedule 2 and the Bribery Act 2010.”</div>
+      <div style="border: 1px solid #3e3f47; background: #1a1b22; border-radius: 10px; padding: 10px 12px;">
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #f99c00; margin-bottom: 5px;">The words this rests on</div>
+        <div style="font-size: 12px; line-height: 1.6; color: #c8c8ca;">“Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, Schedule 2 and the Bribery Act 2010.”</div>
       </div>
 
       <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="font-size: 11.5px; color: #3f6396; font-weight: 500;">Open the full page</span>
-        <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M2 7L7 2M7 2H3.5M7 2v3.5" stroke="#3f6396" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size: 11.5px; color: #1f6feb; font-weight: 500;">Open the full page</span>
+        <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M2 7L7 2M7 2H3.5M7 2v3.5" stroke="#1f6feb" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
     </div>
   </div>

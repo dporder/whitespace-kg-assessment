@@ -97,4 +97,10 @@ def human_citation(c, node) -> str:
 def name_for_path(c, path: str) -> str:
     """Human name for a path, whether or not the node is loaded."""
     node = c.node(path)
-    return human_citation(c, node) if node is not None else title_case_part(path)
+    if node is not None:
+        return human_citation(c, node)
+    if path.startswith("legislation/"):
+        # An Act is not part of this agreement, so name it as what it is.
+        rest = path.split("/", 1)[1].split("/")[0]
+        return title_case_part(rest)
+    return title_case_part(path)

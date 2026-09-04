@@ -7,42 +7,42 @@
 <body>
 <x-dc>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
   <style>
-    body { margin: 0; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; color: #1c1e21; }
-    a { color: #3f6396; } a:hover { color: #2d4a73; }
-    .mono { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; }
-    .card { background: #ffffff; border: 1px solid #d8d5cf; border-radius: 5px; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; color: #ffffff; }
+    a { color: #1f6feb; } a:hover { color: #1f6feb; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .card { background: #1a1b22; border: 1px solid #3e3f47; border-radius: 10px; }
     .chip { display: inline-block; font-size: 10.5px; font-weight: 500; padding: 2px 9px; border-radius: 3px; border: 1px solid; }
     .cite { font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
-    .where { font-size: 12px; color: #6b6f76; }
-    .situation { font-size: 14px; line-height: 1.6; color: #1c1e21; }
-    .explain { font-size: 13px; line-height: 1.6; color: #3a3d42; }
-    .question { font-size: 16px; font-weight: 600; line-height: 1.45; color: #1c1e21; }
-    .quote { font-size: 13.5px; line-height: 1.7; color: #3a3d42; border-left: 2px solid #e6e3de; padding-left: 12px; }
+    .where { font-size: 12px; color: #adafb7; }
+    .situation { font-size: 14px; line-height: 1.6; color: #ffffff; }
+    .explain { font-size: 13px; line-height: 1.6; color: #c8c8ca; }
+    .question { font-size: 16px; font-weight: 600; line-height: 1.45; color: #ffffff; }
+    .quote { font-size: 13.5px; line-height: 1.7; color: #c8c8ca; border-left: 2px solid #3e3f47; padding-left: 12px; }
     .ansname { font-size: 13.5px; font-weight: 600; }
-    .anssub { font-size: 12px; color: #6b6f76; line-height: 1.45; }
+    .anssub { font-size: 12px; color: #adafb7; line-height: 1.45; }
     .sectitle { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
-    .secsum { font-size: 13px; line-height: 1.6; color: #3a3d42; }
-    .how { font-size: 12.5px; line-height: 1.65; color: #3a3d42; }
-    .disc { font-size: 12px; color: #6b6f76; }
+    .secsum { font-size: 13px; line-height: 1.6; color: #c8c8ca; }
+    .how { font-size: 12.5px; line-height: 1.65; color: #c8c8ca; }
+    .disc { font-size: 12px; color: #adafb7; }
   </style>
 </helmet>
-<div style="width: 1440px; height: 1560px; background: #fbfaf8; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px;">
+<div style="width: 1440px; height: 1560px; background: #08090b; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px;">
 
   <!-- Header -->
-  <div style="display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 2px solid #1c1e21; padding-bottom: 13px;">
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px;">
     <div style="display: flex; flex-direction: column; gap: 3px;">
       <div style="font-size: 24px; font-weight: 700; letter-spacing: -0.015em;">Review queue</div>
-      <div style="font-size: 13.5px; color: #3a3d42;">Questions the system could not answer on its own. Your answers become the standard it is measured against.</div>
+      <div style="font-size: 13.5px; color: #c8c8ca;">Questions the system could not answer on its own. Your answers become the standard it is measured against.</div>
     </div>
     <div style="display: flex; gap: 22px; align-items: flex-end;">
       <div style="text-align: right;">
-        <div style="font-size: 11px; color: #6b6f76;">Answered today</div>
-        <div style="font-size: 20px; font-weight: 700; color: #75589b;">3 <span style="font-size: 13px; font-weight: 400; color: #6b6f76;">of 7</span></div>
+        <div style="font-size: 11px; color: #adafb7;">Answered today</div>
+        <div style="font-size: 20px; font-weight: 700; color: #1f6feb;">3 <span style="font-size: 13px; font-weight: 400; color: #adafb7;">of 7</span></div>
       </div>
       <div style="text-align: right;">
-        <div style="font-size: 11px; color: #6b6f76;">Reviewer</div>
+        <div style="font-size: 11px; color: #adafb7;">Reviewer</div>
         <div style="font-size: 13.5px; font-weight: 600;">Dan Porder</div>
       </div>
     </div>
@@ -53,44 +53,44 @@
     <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
 
       <div style="display: flex; align-items: baseline; gap: 12px;">
-        <span style="width: 4px; height: 17px; background: #3f6396; border-radius: 2px; display: inline-block;"></span>
+        <span style="width: 4px; height: 17px; background: #1f6feb; border-radius: 2px; display: inline-block;"></span>
         <span class="sectitle">Cross-references</span>
-        <span class="chip" style="border-color: #d8d5cf; color: #6b6f76;">3 to review</span>
+        <span class="chip" style="border-color: #3e3f47; color: #adafb7;">3 to review</span>
       </div>
       <div class="secsum" style="margin-left: 16px; max-width: 760px;">Places where one part of the agreement points at another part, and the system could not be certain which part is meant.</div>
 
-      <div class="card" style="margin-left: 16px; background: #f7f9fc; border-color: #c6d2e3; padding: 12px 15px;">
-        <div style="font-size: 12px; font-weight: 700; color: #3f6396; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px;">How to decide</div>
+      <div class="card" style="margin-left: 16px; background: #12161d; border-color: #2d5791; padding: 12px 15px;">
+        <div style="font-size: 12px; font-weight: 700; color: #1f6feb; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px;">How to decide</div>
         <div class="how">
           1. Read the sentence. The words that do the pointing are highlighted.<br>
           2. Check the page image beside it: that is the actual page, with the pointing words boxed.<br>
           3. Choose the part the writer meant. If the target is not in this document set at all, say so — that is a useful answer, not a failure.<br>
           4. If the highlighted words are not a cross-reference at all, say that instead.
         </div>
-        <div class="how" style="margin-top: 7px; color: #6b6f76; font-style: italic;">Your answer becomes the standard the system is measured against, so an honest “I cannot tell from this” is worth more than a guess.</div>
+        <div class="how" style="margin-top: 7px; color: #adafb7; font-style: italic;">Your answer becomes the standard the system is measured against, so an honest “I cannot tell from this” is worth more than a guess.</div>
       </div>
 
       <!-- ROW: the ambiguous Schedule 2 -->
-      <div class="card" style="border-left: 3px solid #3f6396; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+      <div class="card" style="border-left: 3px solid #1f6feb; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
         <div style="display: flex; align-items: baseline; gap: 10px;">
           <span class="cite">Core Terms, Clause 9.2</span>
           <span class="where">page 2</span>
           <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
+          <span class="chip" style="border-color: #f99c00; color: #f99c00; background: rgba(249,156,0,0.10);">not yet answered</span>
         </div>
 
         <div style="display: flex; gap: 18px; align-items: flex-start;">
           <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; background: #ffffff;">
+            <div style="border: 1px solid #3e3f47; border-radius: 4px; overflow: hidden; background: #ffffff;">
               <svg width="298" height="116" viewBox="0 0 298 116" fill="none" style="display: block;">
                 <rect width="298" height="116" fill="#ffffff"/>
-                <rect x="18" y="18" width="214" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="18" y="33" width="250" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="18" y="48" width="166" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="12" y="62" width="126" height="20" rx="2" fill="#eef3fa" stroke="#3f6396" stroke-width="1.6"/>
-                <rect x="19" y="70" width="112" height="5" rx="2.5" fill="#8ea6c8"/>
-                <rect x="148" y="70" width="120" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="18" y="94" width="198" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="18" y="18" width="214" height="5" rx="2.5" fill="#3e3f47"/>
+                <rect x="18" y="33" width="250" height="5" rx="2.5" fill="#3e3f47"/>
+                <rect x="18" y="48" width="166" height="5" rx="2.5" fill="#3e3f47"/>
+                <rect x="12" y="62" width="126" height="20" rx="2" fill="rgba(31,111,235,0.20)" stroke="#1f6feb" stroke-width="1.6"/>
+                <rect x="19" y="70" width="112" height="5" rx="2.5" fill="#4d8ef5"/>
+                <rect x="148" y="70" width="120" height="5" rx="2.5" fill="#3e3f47"/>
+                <rect x="18" y="94" width="198" height="5" rx="2.5" fill="#3e3f47"/>
               </svg>
             </div>
             <div class="where" style="font-size: 11px;">The page itself, with the pointing words boxed</div>
@@ -98,60 +98,60 @@
 
           <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px;">
             <div class="situation">This sentence points at <strong>“Schedule 2”</strong>.</div>
-            <div class="quote">“Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, <span style="background: #eef3fa; border-bottom: 2px solid #3f6396; padding: 1px 2px; font-weight: 600; color: #1c1e21;">Schedule 2</span> and the Bribery Act 2010.”</div>
+            <div class="quote">“Any New IPR created under a Contract is owned by the Central Buying Office subject to Clauses 3.1.1 and 3.1.2, <span style="background: rgba(31,111,235,0.20); border-bottom: 2px solid #1f6feb; padding: 1px 2px; font-weight: 600; color: #ffffff;">Schedule 2</span> and the Bribery Act 2010.”</div>
             <div class="explain">This document set contains more than one thing called “Schedule 2”.</div>
             <div class="question">Which one does the writer mean?</div>
           </div>
         </div>
 
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 250px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff; display: flex; flex-direction: column; gap: 3px;">
-            <div class="ansname" style="color: #4a3866;">Framework Schedule 2</div>
+          <div style="flex: 1; min-width: 250px; border: 1px solid #2d5791; border-radius: 10px; padding: 13px 15px; background: rgba(31,111,235,0.10); display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #ffffff; font-weight: 500;">Framework Schedule 2</div>
             <div class="anssub">part of the framework agreement itself</div>
           </div>
-          <div style="flex: 1; min-width: 250px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff; display: flex; flex-direction: column; gap: 3px;">
-            <div class="ansname" style="color: #4a3866;">Call-Off Schedule 2</div>
+          <div style="flex: 1; min-width: 250px; border: 1px solid #2d5791; border-radius: 10px; padding: 13px 15px; background: rgba(31,111,235,0.10); display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #ffffff; font-weight: 500;">Call-Off Schedule 2</div>
             <div class="anssub">part of an individual contract called off under the framework</div>
           </div>
-          <div style="flex: 1; min-width: 210px; border: 1px dashed #a16b16; border-radius: 4px; padding: 11px 13px; background: #fbf7ef; display: flex; flex-direction: column; gap: 3px;">
-            <div class="ansname" style="color: #a16b16;">None of these</div>
+          <div style="flex: 1; min-width: 210px; border: 1px dashed #f99c00; border-radius: 4px; padding: 11px 13px; background: rgba(249,156,0,0.10); display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #f99c00;">None of these</div>
             <div class="anssub">it points at something this document set does not contain</div>
           </div>
-          <div style="flex: 1; min-width: 210px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; background: #ffffff; display: flex; flex-direction: column; gap: 3px;">
-            <div class="ansname" style="color: #3a3d42;">It is not a cross-reference</div>
+          <div style="flex: 1; min-width: 210px; border: 1px solid #3e3f47; border-radius: 10px; padding: 13px 15px; background: #28292f; display: flex; flex-direction: column; gap: 3px;">
+            <div class="ansname" style="color: #c8c8ca;">It is not a cross-reference</div>
             <div class="anssub">“Schedule 2” is ordinary wording here</div>
           </div>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #ece9e4; padding-top: 11px;">
-          <span class="explain" style="color: #6b6f76;">The system found nothing to prefer one over the other.</span>
+        <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 11px;">
+          <span class="explain" style="color: #adafb7;">The system found nothing to prefer one over the other.</span>
           <span style="flex-grow: 1;"></span>
           <span class="disc">▸ Technical details</span>
         </div>
       </div>
 
       <!-- ROW: unresolved, collapsed to show rhythm -->
-      <div class="card" style="border-left: 3px solid #3f6396; padding: 15px 18px; display: flex; flex-direction: column; gap: 11px;">
+      <div class="card" style="border-left: 3px solid #1f6feb; padding: 15px 18px; display: flex; flex-direction: column; gap: 11px;">
         <div style="display: flex; align-items: baseline; gap: 10px;">
           <span class="cite">Core Terms, Clause 9.1</span>
           <span class="where">page 2</span>
           <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
+          <span class="chip" style="border-color: #f99c00; color: #f99c00; background: rgba(249,156,0,0.10);">not yet answered</span>
         </div>
         <div class="situation">This sentence points at <strong>“Framework Schedule 4 (Framework Management)”</strong>.</div>
         <div class="explain">It looks like Framework Schedule 4, but that part has not been loaded into the system yet, so the pointer could not be followed.</div>
         <div class="question">Is Framework Schedule 4 what the writer meant?</div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 240px; border: 1px solid #75589b; border-radius: 4px; padding: 10px 13px; background: #ffffff;">
-            <div class="ansname" style="color: #4a3866;">Framework Schedule 4</div>
+          <div style="flex: 1; min-width: 240px; border: 1px solid #2d5791; border-radius: 10px; padding: 13px 15px; background: rgba(31,111,235,0.10);">
+            <div class="ansname" style="color: #ffffff; font-weight: 500;">Framework Schedule 4</div>
             <div class="anssub">part of the framework agreement itself</div>
           </div>
-          <div style="flex: 1; min-width: 210px; border: 1px dashed #a16b16; border-radius: 4px; padding: 10px 13px; background: #fbf7ef;">
-            <div class="ansname" style="color: #a16b16;">None of these</div>
+          <div style="flex: 1; min-width: 210px; border: 1px dashed #f99c00; border-radius: 4px; padding: 10px 13px; background: rgba(249,156,0,0.10);">
+            <div class="ansname" style="color: #f99c00;">None of these</div>
             <div class="anssub">it points at something this document set does not contain</div>
           </div>
-          <div style="flex: 1; min-width: 210px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 10px 13px; background: #ffffff;">
-            <div class="ansname" style="color: #3a3d42;">It is not a cross-reference</div>
+          <div style="flex: 1; min-width: 210px; border: 1px solid #3e3f47; border-radius: 10px; padding: 13px 15px; background: #28292f;">
+            <div class="ansname" style="color: #c8c8ca;">It is not a cross-reference</div>
             <div class="anssub">ordinary wording here</div>
           </div>
         </div>
@@ -160,20 +160,20 @@
 
     <!-- Right rail -->
     <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;">
-      <div class="card" style="border-top: 3px solid #75589b; padding: 14px 15px;">
+      <div class="card" style="border-top: 1px solid #2d5791; padding: 16px 17px;">
         <div style="font-size: 14px; font-weight: 700; margin-bottom: 7px;">What happens to your answers</div>
         <div class="explain">Each answer is kept as a labelled example. The system is scored against them, so the parts it gets wrong are the parts that get fixed. Nothing you answer changes the document itself.</div>
       </div>
       <div class="card" style="padding: 14px 15px;">
-        <div style="font-size: 12px; font-weight: 700; color: #6b6f76; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 9px;">Left to review</div>
+        <div style="font-size: 12px; font-weight: 700; color: #adafb7; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 9px;">Left to review</div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #3f6396; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Cross-references</span><span style="font-size: 15px; font-weight: 700;">3</span></div>
-          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #2e7373; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Defined terms</span><span style="font-size: 15px; font-weight: 700;">1</span></div>
-          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #1c1e21; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Flagged oddities</span><span style="font-size: 15px; font-weight: 700;">3</span></div>
+          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #1f6feb; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Cross-references</span><span style="font-size: 15px; font-weight: 700;">3</span></div>
+          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #30d3b1; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Defined terms</span><span style="font-size: 15px; font-weight: 700;">1</span></div>
+          <div style="display: flex; align-items: center; gap: 9px;"><span style="width: 4px; height: 15px; background: #5c5d64; border-radius: 2px;"></span><span class="explain" style="flex-grow: 1;">Flagged oddities</span><span style="font-size: 15px; font-weight: 700;">3</span></div>
         </div>
       </div>
-      <div class="card" style="background: #f5f4f1; padding: 14px 15px;">
-        <div style="font-size: 12px; font-weight: 700; color: #6b6f76; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px;">The page images are real</div>
+      <div class="card" style="background: #121417; padding: 16px 17px;">
+        <div style="font-size: 12px; font-weight: 700; color: #adafb7; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px;">The page images are real</div>
         <div class="explain">Each image is cut from the actual PDF when the row loads, at the coordinates the system recorded. If the image does not match the words, that itself is worth flagging.</div>
       </div>
     </div>
@@ -183,57 +183,57 @@
   <div style="display: flex; gap: 18px; align-items: flex-start;">
     <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
       <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 4px;">
-        <span style="width: 4px; height: 17px; background: #2e7373; border-radius: 2px; display: inline-block;"></span>
+        <span style="width: 4px; height: 17px; background: #30d3b1; border-radius: 2px; display: inline-block;"></span>
         <span class="sectitle">Defined terms</span>
-        <span class="chip" style="border-color: #d8d5cf; color: #6b6f76;">1 to review</span>
-        <span class="secsum" style="color: #6b6f76;">The agreement gives certain capitalised words a special meaning.</span>
+        <span class="chip" style="border-color: #3e3f47; color: #adafb7;">1 to review</span>
+        <span class="secsum" style="color: #adafb7;">The agreement gives certain capitalised words a special meaning.</span>
         <span style="flex-grow: 1;"></span>
         <span class="disc">▸ How to decide</span>
       </div>
 
-      <div class="card" style="border-left: 3px solid #2e7373; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;">
+      <div class="card" style="border-left: 3px solid #30d3b1; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;">
         <div style="display: flex; align-items: baseline; gap: 10px;">
           <span class="cite">Core Terms, Clause 3.1.1, paragraph (b)</span>
           <span class="where">page 1</span>
           <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
+          <span class="chip" style="border-color: #f99c00; color: #f99c00; background: rgba(249,156,0,0.10);">not yet answered</span>
         </div>
         <div style="display: flex; gap: 18px; align-items: flex-start;">
           <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; background: #ffffff;">
+            <div style="border: 1px solid #3e3f47; border-radius: 4px; overflow: hidden; background: #ffffff;">
               <svg width="298" height="72" viewBox="0 0 298 72" fill="none" style="display: block;">
                 <rect width="298" height="72" fill="#ffffff"/>
-                <rect x="12" y="20" width="168" height="21" rx="2" fill="#f2f8f8" stroke="#2e7373" stroke-width="1.6"/>
-                <rect x="19" y="28" width="154" height="5" rx="2.5" fill="#7fb0b0"/>
-                <rect x="190" y="28" width="82" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="18" y="52" width="132" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="12" y="20" width="168" height="21" rx="2" fill="rgba(48,211,177,0.10)" stroke="#30d3b1" stroke-width="1.6"/>
+                <rect x="19" y="28" width="154" height="5" rx="2.5" fill="#30d3b1"/>
+                <rect x="190" y="28" width="82" height="5" rx="2.5" fill="#3e3f47"/>
+                <rect x="18" y="52" width="132" height="5" rx="2.5" fill="#3e3f47"/>
               </svg>
             </div>
             <div class="where" style="font-size: 11px;">The page itself, with the words boxed</div>
           </div>
           <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 11px;">
             <div class="situation"><strong>“Good Working Practice”</strong> is a term this agreement defines.</div>
-            <div class="quote"><span style="background: #f2f8f8; border-bottom: 2px solid #2e7373; padding: 1px 2px; font-weight: 600; color: #1c1e21;">Good Working Practice</span> applies to everything supplied.”</div>
+            <div class="quote"><span style="background: rgba(48,211,177,0.10); border-bottom: 2px solid #30d3b1; padding: 1px 2px; font-weight: 600; color: #ffffff;">Good Working Practice</span> applies to everything supplied.”</div>
             <div class="explain">Here it sits at the start of a sentence, so the capital letter may just be normal punctuation rather than the defined term.</div>
-            <div style="border: 1px solid #c3d9d9; background: #f2f8f8; border-radius: 4px; padding: 10px 12px;">
-              <div style="font-size: 11.5px; font-weight: 700; color: #2e7373; margin-bottom: 4px;">The definition that would apply here</div>
-              <div class="explain" style="color: #1c1e21;">“standards which a skilled person would reasonably be expected to meet”</div>
+            <div style="border: 1px solid rgba(48,211,177,0.35); background: rgba(48,211,177,0.10); border-radius: 4px; padding: 10px 12px;">
+              <div style="font-size: 11.5px; font-weight: 700; color: #30d3b1; margin-bottom: 4px;">The definition that would apply here</div>
+              <div class="explain" style="color: #ffffff;">“standards which a skilled person would reasonably be expected to meet”</div>
               <div class="anssub" style="margin-top: 4px;">from Joint Schedule 1 (Definitions) — applies across the whole agreement</div>
             </div>
             <div class="question">Is this the defined term, or ordinary words?</div>
           </div>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch;">
-          <div style="flex: 1; min-width: 260px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
-            <div class="ansname" style="color: #4a3866;">Yes, it means “Good Working Practice”</div>
+          <div style="flex: 1; min-width: 260px; border: 1px solid #2d5791; border-radius: 10px; padding: 13px 15px; background: rgba(31,111,235,0.10);">
+            <div class="ansname" style="color: #ffffff; font-weight: 500;">Yes, it means “Good Working Practice”</div>
             <div class="anssub">the defined term applies here</div>
           </div>
-          <div style="flex: 1; min-width: 240px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
-            <div class="ansname" style="color: #3a3d42;">No, these are ordinary words</div>
+          <div style="flex: 1; min-width: 240px; border: 1px solid #3e3f47; border-radius: 10px; padding: 13px 15px; background: #28292f;">
+            <div class="ansname" style="color: #c8c8ca;">No, these are ordinary words</div>
             <div class="anssub">the capitals do not signal the defined term</div>
           </div>
         </div>
-        <div class="disc" style="border-top: 1px solid #ece9e4; padding-top: 10px;">If it is a use but of a different defined term, name that one first · ▸ Technical details</div>
+        <div class="disc" style="border-top: 1px solid rgba(255,255,255,0.07); padding-top: 10px;">If it is a use but of a different defined term, name that one first · ▸ Technical details</div>
       </div>
     </div>
     <div style="width: 300px; flex-shrink: 0;"></div>
@@ -243,30 +243,30 @@
   <div style="display: flex; gap: 18px; align-items: flex-start;">
     <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
       <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 4px;">
-        <span style="width: 4px; height: 17px; background: #1c1e21; border-radius: 2px; display: inline-block;"></span>
+        <span style="width: 4px; height: 17px; background: #5c5d64; border-radius: 2px; display: inline-block;"></span>
         <span class="sectitle">Flagged oddities</span>
-        <span class="chip" style="border-color: #d8d5cf; color: #6b6f76;">3 to review</span>
-        <span class="secsum" style="color: #6b6f76;">The wording is always kept exactly as printed; nothing is corrected.</span>
+        <span class="chip" style="border-color: #3e3f47; color: #adafb7;">3 to review</span>
+        <span class="secsum" style="color: #adafb7;">The wording is always kept exactly as printed; nothing is corrected.</span>
         <span style="flex-grow: 1;"></span>
         <span class="disc">▸ How to decide</span>
       </div>
 
-      <div class="card" style="border-left: 3px solid #1c1e21; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;">
+      <div class="card" style="border-left: 3px solid #ffffff; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;">
         <div style="display: flex; align-items: baseline; gap: 10px;">
           <span class="cite">Framework Award Form, row 3, the label</span>
           <span class="where">page 1</span>
           <span style="flex-grow: 1;"></span>
-          <span class="chip" style="border-color: #a16b16; color: #a16b16; background: #fbf7ef;">not yet answered</span>
+          <span class="chip" style="border-color: #f99c00; color: #f99c00; background: rgba(249,156,0,0.10);">not yet answered</span>
         </div>
         <div style="display: flex; gap: 18px; align-items: flex-start;">
           <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;">
-            <div style="border: 1px solid #d8d5cf; border-radius: 4px; overflow: hidden; background: #ffffff;">
+            <div style="border: 1px solid #3e3f47; border-radius: 4px; overflow: hidden; background: #ffffff;">
               <svg width="298" height="72" viewBox="0 0 298 72" fill="none" style="display: block;">
                 <rect width="298" height="72" fill="#ffffff"/>
-                <rect x="12" y="22" width="132" height="21" rx="2" fill="#f5f4f1" stroke="#1c1e21" stroke-width="1.6"/>
-                <rect x="19" y="30" width="118" height="5" rx="2.5" fill="#8f8b86"/>
-                <rect x="156" y="30" width="122" height="5" rx="2.5" fill="#d5d2cc"/>
-                <rect x="156" y="52" width="90" height="5" rx="2.5" fill="#d5d2cc"/>
+                <rect x="12" y="22" width="132" height="21" rx="2" fill="#121417" stroke="#ffffff" stroke-width="1.6"/>
+                <rect x="19" y="30" width="118" height="5" rx="2.5" fill="#8c8c8c"/>
+                <rect x="156" y="30" width="122" height="5" rx="2.5" fill="#3e3f47"/>
+                <rect x="156" y="52" width="90" height="5" rx="2.5" fill="#3e3f47"/>
               </svg>
             </div>
             <div class="where" style="font-size: 11px;">The page itself, with the label boxed</div>
@@ -276,12 +276,12 @@
             <div class="explain">That looks like a stray character. The wording is kept exactly as printed; nothing has been changed.</div>
             <div class="question">Should this be read as “Framework Contract”?</div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <div style="flex: 1; min-width: 250px; border: 1px solid #75589b; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
-                <div class="ansname" style="color: #4a3866;">Yes, it means “Framework Contract”</div>
+              <div style="flex: 1; min-width: 250px; border: 1px solid #2d5791; border-radius: 10px; padding: 13px 15px; background: rgba(31,111,235,0.10);">
+                <div class="ansname" style="color: #ffffff; font-weight: 500;">Yes, it means “Framework Contract”</div>
                 <div class="anssub">record the reading beside the original wording</div>
               </div>
-              <div style="flex: 1; min-width: 230px; border: 1px solid #d8d5cf; border-radius: 4px; padding: 11px 13px; background: #ffffff;">
-                <div class="ansname" style="color: #3a3d42;">No, that reading is wrong</div>
+              <div style="flex: 1; min-width: 230px; border: 1px solid #3e3f47; border-radius: 10px; padding: 13px 15px; background: #28292f;">
+                <div class="ansname" style="color: #c8c8ca;">No, that reading is wrong</div>
                 <div class="anssub">leave it flagged with no accepted reading</div>
               </div>
             </div>

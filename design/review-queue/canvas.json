@@ -1,17 +1,51 @@
 {
   "pages": [
-    { "id": "page-1", "name": "The screen" },
-    { "id": "page-2", "name": "How we got here" }
+    {
+      "id": "page-1",
+      "name": "The screen"
+    },
+    {
+      "id": "page-2",
+      "name": "How we got here"
+    }
   ],
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1560,
-      "title": "Review queue — the screen being built", "page": "page-1" },
-    { "file": "DirectionA.dc.html", "x": 0, "y": 0, "w": 520, "h": 420,
-      "title": "A · Evidence beside decision — CHOSEN, built", "page": "page-2" },
-    { "file": "DirectionB.dc.html", "x": 600, "y": 0, "w": 520, "h": 420,
-      "title": "B · Dense triage — explored, not chosen", "page": "page-2" },
-    { "file": "DirectionC.dc.html", "x": 1200, "y": 0, "w": 520, "h": 420,
-      "title": "C · Dossier — explored, not chosen", "page": "page-2" }
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1560,
+      "title": "Review queue \u2014 the screen being built",
+      "page": "page-1"
+    },
+    {
+      "file": "DirectionA.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 520,
+      "h": 420,
+      "title": "A \u00b7 Evidence beside decision \u2014 CHOSEN, built",
+      "page": "page-2"
+    },
+    {
+      "file": "DirectionB.dc.html",
+      "x": 600,
+      "y": 0,
+      "w": 520,
+      "h": 420,
+      "title": "B \u00b7 Dense triage \u2014 explored, not chosen",
+      "page": "page-2"
+    },
+    {
+      "file": "DirectionC.dc.html",
+      "x": 1200,
+      "y": 0,
+      "w": 520,
+      "h": 420,
+      "title": "C \u00b7 Dossier \u2014 explored, not chosen",
+      "page": "page-2"
+    }
   ],
   "annotations": [
     {
@@ -20,7 +54,7 @@
       "y": 0,
       "w": 520,
       "page": "page-1",
-      "text": "WHAT THIS BOARD IS\nOne screen: the review queue, where a person answers the questions the system could not answer by itself. This is a single design, already built — nothing here is asking you to choose between options.\n\nWHO IT IS FOR\nA contracts or procurement specialist. They know what a schedule and a defined term are. They have never seen a file path or a confidence score, and they should need no training to start.\n\nWHAT CHANGED THIS ROUND\n· Every row now says what is being reviewed and what question is being answered, in plain words.\n· Provisions are named the way the agreement names them — \"Core Terms, Clause 9.2\" — not by internal path. The path moved into a Technical details disclosure.\n· Candidate answers say what they are: \"Framework Schedule 2 — part of the framework agreement itself\".\n· Bare scores (0.5, 0.95) are gone from the row. Where the number carried meaning it is now a sentence: \"The system found nothing to prefer one over the other.\"\n· Each section carries a short How to decide.\n\nWHAT I WOULD VALUE YOUR EYES ON\n1. Does the question on each row match the decision you would actually be making?\n2. Are the four answers on a cross-reference the right four?\n3. Anything still reading as jargon."
+      "text": "WHAT THIS BOARD IS\nOne screen: the review queue, where a person answers the questions the system could not answer by itself. This is a single design, already built \u2014 nothing here is asking you to choose between options.\n\nWHO IT IS FOR\nA contracts or procurement specialist. They know what a schedule and a defined term are. They have never seen a file path or a confidence score, and they should need no training to start.\n\nWHAT CHANGED THIS ROUND\n\u00b7 Every row now says what is being reviewed and what question is being answered, in plain words.\n\u00b7 Provisions are named the way the agreement names them \u2014 \"Core Terms, Clause 9.2\" \u2014 not by internal path. The path moved into a Technical details disclosure.\n\u00b7 Candidate answers say what they are: \"Framework Schedule 2 \u2014 part of the framework agreement itself\".\n\u00b7 Bare scores (0.5, 0.95) are gone from the row. Where the number carried meaning it is now a sentence: \"The system found nothing to prefer one over the other.\"\n\u00b7 Each section carries a short How to decide.\n\nWHAT I WOULD VALUE YOUR EYES ON\n1. Does the question on each row match the decision you would actually be making?\n2. Are the four answers on a cross-reference the right four?\n3. Anything still reading as jargon."
     },
     {
       "id": "note-crops",
@@ -36,7 +70,7 @@
       "y": 900,
       "w": 520,
       "page": "page-1",
-      "text": "ON THE VISUAL STYLING\nThis round rebuilt the structure and the writing, which is where the problem was. Colour and type still follow the architecture diagram's palette. The Whitespace brand language is being written up separately and will be applied once it lands, without changing this layout or wording."
+      "text": "ON THE VISUAL STYLING\nNow built in the Whitespace product register from the brand memo: a neutral near-black ground, cards a step up from it, one flat action blue for anything you can act on, Inter for text and JetBrains Mono for references and page numbers. Status is a small pill, never a wash across a row.\n\nThe marketing lavender and the gradient appear only where the memo allows them: the soft glow in the corner behind the composer, and the connectors on the connections view. Nothing else borrows from the marketing look.\n\nBritish English throughout, sentence case on product labels."
     },
     {
       "id": "history",
@@ -44,8 +78,11 @@
       "y": -300,
       "w": 700,
       "page": "page-2",
-      "text": "HOW WE GOT HERE — reference only, no decision needed.\n\nBefore building, three directions were sketched for a single review row. A was chosen and is what page 1 shows.\n\nWHY A: the queue exists to turn a reviewer's judgement into ground truth, so a verdict reached without looking at the page is worse than no verdict at all — A is the only one that makes the page image impossible to skip, and keyboard triage buys back the density it costs.\n\nB stays the right answer once the system has earned trust and volume dominates. C is the arbitration view for a single contested item. Both are kept here so the reasoning stays visible; neither needs your approval."
+      "text": "HOW WE GOT HERE \u2014 reference only, no decision needed.\n\nBefore building, three directions were sketched for a single review row. A was chosen and is what page 1 shows.\n\nWHY A: the queue exists to turn a reviewer's judgement into ground truth, so a verdict reached without looking at the page is worse than no verdict at all \u2014 A is the only one that makes the page image impossible to skip, and keyboard triage buys back the density it costs.\n\nB stays the right answer once the system has earned trust and volume dominates. C is the arbitration view for a single contested item. Both are kept here so the reasoning stays visible; neither needs your approval."
     }
   ],
-  "launch": { "view": "canvas", "page": "page-1" }
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
 }

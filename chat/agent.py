@@ -115,8 +115,9 @@ not settle the question, say that in one sentence rather than padding."""
 class Citation:
     path: str
     page: int | None
-    status: str                       # ok | page_mismatch | unknown_path
+    status: str                       # ok | page_mismatch | page_unparseable | unknown_path
     crop_url: str | None = None
+    name: str | None = None           # how the agreement itself names it
 
 
 @dataclass
@@ -303,7 +304,8 @@ def run_turn(question: str, runner: ToolRunner | None = None) -> Iterator[tuple[
         "citations",
         {
             "citations": [
-                {"path": c.path, "page": c.page, "status": c.status, "crop_url": c.crop_url}
+                {"path": c.path, "page": c.page, "status": c.status,
+                 "crop_url": c.crop_url, "name": c.name}
                 for c in turn.citations
             ]
         },
@@ -342,9 +344,21 @@ def verify_citations(answer: str, runner: ToolRunner) -> list[Citation]:
                 status=status,
                 # a crop is offered only for a citation that actually checked out
                 crop_url=crop_url(path) if status == "ok" else None,
+                name=_name(path),
             )
         )
     return out
+
+
+def _name(path: str) -> str | None:
+    """How the agreement names this provision, for the reader-facing label."""
+    try:
+        from .naming import name_for_path
+        from .source import corpus
+
+        return name_for_path(corpus(), path)
+    except Exception:
+        return None
 
 
 def describe_backend() -> dict:
