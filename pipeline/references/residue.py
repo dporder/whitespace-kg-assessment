@@ -272,7 +272,7 @@ def extract_spans(sentences: list[dict], node_text: dict[str, str], *,
         return found, report
 
     spend_before = llm.stats()
-    for row in sentences:
+    for index, row in enumerate(sentences):
         text = node_text.get(row["node_path"]) or ""
         start, end = row["sentence_span"]
         sentence = text[start:end]
@@ -282,8 +282,11 @@ def extract_spans(sentences: list[dict], node_text: dict[str, str], *,
             raw = llm.structured(SPAN_TASK, build_span_prompt(sentence, row["keywords"]),
                                  system=SPAN_SYSTEM, prompt_version=SPAN_PROMPT_VERSION)
         except llm.LLMUnavailable as exc:
-            report["reason"] = str(exc)
-            report["queued"] = len(sentences) - report["called"]
+            # Everything from here on was never asked, including this one.
+            # Counting from `called` undercounts whenever an earlier sentence
+            # was skipped or failed to parse.
+            report["reason"] = llm.scrub(str(exc))
+            report["queued"] = len(sentences) - index
             break
         except llm.LLMResponseError as exc:
             report["rejections"].append({"node_path": row["node_path"],

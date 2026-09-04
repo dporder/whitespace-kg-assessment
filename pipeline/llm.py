@@ -116,13 +116,30 @@ def _secret(name: str) -> Optional[str]:
     return None
 
 
-def _scrub(text: str) -> str:
-    """Belt and braces: no secret ever reaches a log file or an exception."""
-    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "NEO4J_PASSWORD"):
+SECRET_NAMES = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "NEO4J_PASSWORD",
+                "ANTHROPIC_WORKSPACE_ID")
+# Below this a "secret" is too short to redact without mangling ordinary text.
+# Four is chosen so a real workspace id or password is always covered while a
+# stray one- or two-character value cannot blank out half a log line.
+MIN_REDACTABLE = 4
+
+
+def scrub(text: str) -> str:
+    """Belt and braces: no secret ever reaches a log file, a report or stdout.
+
+    The workspace id belongs here as much as the key does. A request carrying a
+    wrong one comes back as a 400 quoting it, and that error text travels into
+    `refs/report.json` and onto the terminal, so an id pasted from the wrong
+    workspace would be published by the very machinery meant to protect it.
+    """
+    for name in SECRET_NAMES:
         secret = _secret(name)
-        if secret and len(secret) > 8 and secret in text:
-            text = text.replace(secret, "***redacted***")
+        if secret and len(secret) >= MIN_REDACTABLE and secret in text:
+            text = text.replace(secret, f"***redacted:{name}***")
     return text
+
+
+_scrub = scrub          # the private name this module used before
 
 
 def workspace_id() -> Optional[str]:
@@ -618,9 +635,11 @@ def stream(*, model: str, system: str = "", messages: list[dict],
     resolved = task or _task_for_model(model)
     version = prompt_version or PROMPT_VERSIONS.get(resolved, CALLER_SUPPLIED)
     key = cache_key(payload, resolved, version)
+    _stats["requested"] += 1
 
     hit = cached(resolved, key)
     if hit is not None:
+        _stats["cache_hits"] += 1
         out = _completion_from_record(hit)
         out.cached = True
         if out.text:
@@ -638,17 +657,21 @@ def stream(*, model: str, system: str = "", messages: list[dict],
         _log_error(resolved, key, _record(resolved, version, payload, None, str(exc), 1))
         raise
     try:
+        _stats["api_calls"] += 1
         with client.messages.stream(**_for_sdk(payload)) as s:
             for delta in s.text_stream:
                 yield ("text", delta)
             final = s.get_final_message()
     except Exception as exc:                              # noqa: BLE001
-        detail = _scrub(f"{type(exc).__name__}: {exc}")
+        _stats["errors"] += 1
+        detail = scrub(f"{type(exc).__name__}: {exc}")
         _log_error(resolved, key, _record(resolved, version, payload, None, detail, 1))
         if _FATAL.search(detail):
             _trip(detail)
         raise LLMUnavailable(detail) from exc
     out = _normalise(final)
+    _stats["input_tokens"] += int(out.usage.get("input_tokens") or 0)
+    _stats["output_tokens"] += int(out.usage.get("output_tokens") or 0)
     _log_success(resolved, key, _record(resolved, version, payload,
                                         _serialisable(final), None, 1, out))
     yield ("done", out)

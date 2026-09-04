@@ -7,6 +7,7 @@ back afterwards, so they never disturb whatever else is in the graph.
 """
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Optional
 
@@ -132,13 +133,40 @@ def throwaway_batch() -> str:
     return f"TEST-{uuid.uuid4().hex[:8]}"
 
 
+FOREIGN_DATA_ENV = "PIPELINE_TEST_REQUIRE_EMPTY_NEO4J"
+
+
 @pytest.fixture
 def graph(throwaway_batch):
-    """A live Neo4j, or a skip. Everything this test wrote is rolled back."""
+    """A live Neo4j, or a skip. Everything this test wrote is rolled back.
+
+    All five worktrees share one database, so these tests take a census of
+    everything that is not theirs before they start and prove at teardown that
+    none of it was touched. That is stronger than refusing to run: a sweep or a
+    rollback with too wide a blast radius fails the test that caused it instead
+    of quietly deleting a colleague's graph, which is exactly what happened
+    before this fixture existed. Set PIPELINE_TEST_REQUIRE_EMPTY_NEO4J=1 to
+    refuse to run at all when the database holds anything else.
+    """
     if not Graph.available():
         pytest.skip("Neo4j is not reachable at config.NEO4J")
     g = Graph()
     g.ensure_schema()
+
+    def census() -> tuple[set, set]:
+        ids = {r["id"] for r in g.read(
+            "MATCH (n) WHERE n.id IS NOT NULL RETURN n.id AS id")}
+        keys = {r["k"] for r in g.read(
+            "MATCH (n) WHERE n:Term OR n:Legislation OR n:Concept "
+            "RETURN coalesce(n.name, n.key, n.id) AS k")}
+        return ids, keys
+
+    before_ids, before_keys = census()
+    if (before_ids or before_keys) and os.environ.get(FOREIGN_DATA_ENV) == "1":
+        g.close()
+        pytest.skip(f"{FOREIGN_DATA_ENV}=1 and the database holds "
+                    f"{len(before_ids)} node(s) these tests did not create")
+
     created: list[str] = [throwaway_batch]
     g.also_rollback = created.append          # tests add their own batch ids
     try:
@@ -149,4 +177,11 @@ def graph(throwaway_batch):
                 g.rollback(batch)
             except Exception:                             # noqa: BLE001
                 pass
+        after_ids, after_keys = census()
         g.close()
+        lost_ids = before_ids - after_ids
+        lost_keys = before_keys - after_keys
+        assert not lost_ids and not lost_keys, (
+            f"this test deleted data it did not create: {len(lost_ids)} node(s) and "
+            f"referent(s) {sorted(lost_keys)[:5]}. Every sweep and rollback here must "
+            f"be scoped to what the test itself asserted.")

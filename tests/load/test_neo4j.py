@@ -18,20 +18,34 @@ import pytest
 
 from pipeline.load import salience as salience_mod
 from pipeline.load.neo4j_loader import Graph, edge_merge, node_merge
-from pipeline.load.rows import legislation_rows, term_rows, tree_rows, walk
+from pipeline.load.rows import (legislation_rows, load_id_for, term_rows, tree_rows,
+                                walk)
+
+
+def build(tree, refs, batch, sites=None, uses=None, load_id=""):
+    rows = tree_rows({tree.path: tree}, {tree.path: refs}, batch_id=batch,
+                     document=None, load_id=load_id)
+    rows.nodes.extend(legislation_rows({tree.path: refs}, [], batch_id=batch,
+                                       load_id=load_id).nodes)
+    if sites is not None or uses is not None:
+        by_id = {n.id: n for n in walk(tree)}
+        terms = term_rows(sites or [], uses or [], by_id, batch_id=batch,
+                          load_id=load_id)
+        rows.nodes.extend(terms.nodes)
+        rows.edges.extend(terms.edges)
+    return rows
 
 
 def load(graph: Graph, tree, refs, batch, sites=None, uses=None):
-    rows = tree_rows({tree.path: tree}, {tree.path: refs}, batch_id=batch,
-                     document=None)
-    rows.nodes.extend(legislation_rows({tree.path: refs}, [], batch_id=batch).nodes)
-    if sites is not None or uses is not None:
-        by_id = {n.id: n for n in walk(tree)}
-        terms = term_rows(sites or [], uses or [], by_id, batch_id=batch)
-        rows.nodes.extend(terms.nodes)
-        rows.edges.extend(terms.edges)
+    """Load exactly what this batch asserts, with a load id over those rows."""
+    draft = build(tree, refs, batch, sites, uses)
+    load_id = load_id_for(batch, draft)
+    rows = build(tree, refs, batch, sites, uses, load_id=load_id)
+    known = {r.key_value for r in rows.nodes}
+    writable, _deferred = graph.partition_edges(rows.edges, known)
     graph.merge_nodes(rows.nodes)
-    graph.merge_edges(rows.edges)
+    graph.merge_edges(writable, load_id=load_id)
+    rows.load_id = load_id
     return rows
 
 
@@ -133,8 +147,8 @@ def test_sweep_removes_what_this_batch_did_not_reassert(graph, small_tree, small
 
     # the second run of the same part no longer contains 9.2, nor the ref to it
     small_tree.children[0].children = [small_tree.children[0].children[0]]
-    load(graph, small_tree, [small_refs[0]], second)
-    result = graph.sweep([part_id], second)
+    second_rows = load(graph, small_tree, [small_refs[0]], second)
+    result = graph.sweep([part_id], second, load_id=second_rows.load_id)
 
     assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                       id=doomed.id)[0]["n"] == 0, "the stale provision survived"
@@ -152,7 +166,7 @@ def test_sweep_never_reaches_outside_its_scope(graph, small_tree, small_refs,
     load(graph, small_tree, small_refs, first)
     graph.run("CREATE (n:Node {id: $id, path: $path, batch_id: $b})",
               id=f"{second}-outside", path=f"{part_id}-other/1", b=first)
-    graph.sweep([part_id], second)
+    graph.sweep([part_id], second, load_id="a-load-id-nothing-here-carries")
     assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                       id=f"{second}-outside")[0]["n"] == 1, \
         "a sweep scoped to one part deleted a node in another part"
@@ -162,18 +176,15 @@ def test_salience_is_breadth_times_log_damped_frequency(graph, small_tree, small
                                                         small_vocab, throwaway_batch):
     sites, uses = small_vocab
     load(graph, small_tree, small_refs, throwaway_batch, sites, uses)
-    nodes = list(walk(small_tree))
-    scores = salience_mod.compute(nodes, small_refs, uses)
-    applied = graph.apply_salience(scores.values, scores.term_values, scores.flagged)
-    assert applied["nodes_updated"] == len(scores.values)
+    applied = graph.recompute_salience(salience_mod.settings())
+    assert applied["source"] == "graph"
 
     target = small_tree.children[0].children[1]           # cited once, from one part
-    assert scores.values[target.id] == pytest.approx(1 * math.log(2))
     stored = graph.read("MATCH (n:Node {id: $id}) RETURN n.salience AS s", id=target.id)
-    assert stored[0]["s"] == pytest.approx(scores.values[target.id])
+    assert stored[0]["s"] == pytest.approx(1 * math.log(2))
     buyer = sites[0].term
     term = graph.read("MATCH (t:Term {name: $name}) RETURN t.salience AS s", name=buyer)
-    assert term[0]["s"] == pytest.approx(scores.term_values[buyer])
+    assert term[0]["s"] == pytest.approx(1 * math.log(2))
 
 
 def test_the_loader_counts_reconcile_with_what_the_database_holds(graph, small_tree,
@@ -225,7 +236,8 @@ def test_a_sweep_of_one_part_leaves_a_real_looking_part_alone(graph, small_tree,
     load(graph, small_tree, small_refs, throwaway_batch)
     graph.run("CREATE (n:Node {id: $id, path: 'core-terms/99/99.9', batch_id: $b})",
               id=f"{guard_batch}-real-looking", b=guard_batch)
-    graph.sweep([part_id], f"{throwaway_batch}-next")
+    graph.sweep([part_id], f"{throwaway_batch}-next",
+                load_id="a-load-id-nothing-here-carries")
     survived = graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
                           id=f"{guard_batch}-real-looking")[0]["n"]
     assert survived == 1, "a sweep scoped to a test part reached real Core Terms paths"
@@ -276,3 +288,147 @@ def test_rollback_still_removes_a_referent_nobody_else_uses(graph, small_tree,
     assert result["referents_kept"] == []
     assert graph.read("MATCH (l:Legislation {key: $key}) RETURN count(l) AS n",
                       key=statute_key)[0]["n"] == 0
+
+
+# --------------------------------------------------------------------------
+# the reviewer's probes, kept as regressions
+# --------------------------------------------------------------------------
+def test_four_edges_submitted_one_written_is_not_reported_as_four(graph, small_tree,
+                                                                  small_refs,
+                                                                  throwaway_batch):
+    """The reviewer's probe. merge_edges used to return len(payload), so edges
+    whose endpoint MATCH found nothing were counted as merged. Now the count
+    comes from the database and the unwritable ones are partitioned out first."""
+    from pipeline.schemas import GraphEdge
+
+    rows = load(graph, small_tree, small_refs, throwaway_batch)
+    real = small_tree.children[0].children[1].id
+    edges = [GraphEdge(type="CONTAINS", src=real, dst=real, props={},
+                       batch_id=throwaway_batch)]
+    for missing in ("no-such-node-1", "no-such-node-2", "no-such-node-3"):
+        edges.append(GraphEdge(type="CONTAINS", src=real, dst=missing, props={},
+                               batch_id=throwaway_batch))
+
+    known = {r.key_value for r in rows.nodes}
+    writable, deferred = graph.partition_edges(edges, known)
+    assert len(writable) == 1 and len(deferred) == 3
+    result = graph.merge_edges(writable, load_id=rows.load_id)
+    assert result == {"submitted": 1, "written": 1}
+
+    # and submitting them all anyway still reports only what landed
+    everything = graph.merge_edges(edges, load_id=rows.load_id)
+    assert everything["submitted"] == 4
+    assert everything["written"] == 1, "the database wrote one; four was the old lie"
+
+
+def test_a_referent_another_batch_will_need_survives_an_unrelated_sweep(
+        graph, small_tree, small_refs, throwaway_batch, part_id):
+    """The reviewer's scenario. A Concept loaded for B2 whose member provisions
+    live in B4 is legitimately edgeless until B4 arrives. The orphan cleanup
+    used to be a global unscoped DELETE, so an unrelated sweep took it."""
+    other = f"{throwaway_batch}-other"
+    graph.also_rollback(other)
+    concept_id = f"concept-waiting-{part_id}"
+    graph.run("CREATE (c:Concept {id: $id, batch_id: $b, load_id: $l})",
+              id=concept_id, b=other, l=f"{other}-load")
+
+    rows = load(graph, small_tree, small_refs, throwaway_batch)
+    referents = [r.key_value for r in rows.nodes
+                 if r.key_field in ("name", "key") or "Concept" in r.labels]
+    result = graph.sweep([part_id], throwaway_batch, load_id=rows.load_id,
+                         referent_keys=referents)
+
+    survived = graph.read("MATCH (c:Concept {id: $id}) RETURN count(c) AS n",
+                          id=concept_id)[0]["n"]
+    assert survived == 1, "an unrelated sweep deleted a concept waiting for its batch"
+    assert concept_id not in result["orphan_referents"]
+
+
+def test_a_sweep_only_cleans_up_referents_this_load_asserted(graph, small_tree,
+                                                             small_refs,
+                                                             throwaway_batch, part_id,
+                                                             statute_key):
+    """The load's own edgeless referent is still cleaned up."""
+    rows = load(graph, small_tree, small_refs, throwaway_batch)
+    graph.run("MATCH (:Node)-[r:RESOLVES_TO]->(:Legislation {key: $k}) DELETE r",
+              k=statute_key)
+    referents = [r.key_value for r in rows.nodes
+                 if r.key_field in ("name", "key") or "Concept" in r.labels]
+    result = graph.sweep([part_id], throwaway_batch, load_id=rows.load_id,
+                         referent_keys=referents)
+    assert statute_key in result["orphan_referents"]
+    assert graph.read("MATCH (l:Legislation {key: $k}) RETURN count(l) AS n",
+                      k=statute_key)[0]["n"] == 0
+
+
+def test_a_rerun_of_the_same_batch_converges(graph, small_tree, small_refs,
+                                             throwaway_batch, part_id):
+    """The tester's defect. Keying the sweep on batch identity cannot see a
+    rerun of the same batch, so a clause the rerun no longer asserts sits there
+    wearing the same tag as everything else. The sweep keys on load_id."""
+    load(graph, small_tree, small_refs, throwaway_batch)
+    doomed = small_tree.children[0].children[1]
+    assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
+                      id=doomed.id)[0]["n"] == 1
+
+    # the same batch id, re-ingested without that clause and its refs
+    small_tree.children[0].children = [small_tree.children[0].children[0]]
+    rows = load(graph, small_tree, [small_refs[0]], throwaway_batch)
+    result = graph.sweep([part_id], throwaway_batch, load_id=rows.load_id)
+
+    assert graph.read("MATCH (n:Node {id: $id}) RETURN count(n) AS n",
+                      id=doomed.id)[0]["n"] == 0, "a same-batch rerun did not converge"
+    assert result["nodes_deleted"] >= 1
+
+
+def test_an_identical_rerun_sweeps_nothing(graph, small_tree, small_refs,
+                                           throwaway_batch, part_id):
+    """load_id is a content hash, so an unchanged rerun computes the same id and
+    the sweep finds nothing stale."""
+    first = load(graph, small_tree, small_refs, throwaway_batch)
+    second = load(graph, small_tree, small_refs, throwaway_batch)
+    assert first.load_id == second.load_id
+    result = graph.sweep([part_id], throwaway_batch, load_id=second.load_id)
+    assert result["nodes_deleted"] == 0
+    assert result["relationships_deleted"] == 0
+
+
+def test_salience_from_the_graph_covers_batches_loaded_earlier(graph, small_tree,
+                                                               small_refs,
+                                                               small_vocab,
+                                                               throwaway_batch,
+                                                               part_id):
+    """The point of recomputing from the graph: a provision gains breadth when a
+    later batch citing it arrives, which a per-batch computation cannot see."""
+    import math
+
+    from pipeline.load import salience as salience_mod
+    from pipeline.schemas import lineage_key, node_id
+
+    sites, uses = small_vocab
+    load(graph, small_tree, small_refs, throwaway_batch, sites, uses)
+    target = small_tree.children[0].children[1]
+    graph.recompute_salience(salience_mod.settings())
+    before = graph.read("MATCH (n:Node {id: $id}) RETURN n.salience AS s",
+                        id=target.id)[0]["s"]
+    assert before == pytest.approx(1 * math.log(2))
+
+    # a second part, loaded later, cites the same provision
+    other = f"{throwaway_batch}-second"
+    graph.also_rollback(other)
+    other_part = f"{part_id}-two"
+    citing = f"{other_part}/1"
+    ref_path = f"{citing}/ref@0-5"
+    graph.run("CREATE (p:Node {id: $pid, path: $ppath, kind: 'clause', batch_id: $b}) "
+              "CREATE (r:Node {id: $rid, path: $rpath, kind: 'ref', batch_id: $b}) "
+              "CREATE (p)-[:CONTAINS {batch_id: $b}]->(r)",
+              pid=f"{other}-p", ppath=citing, rid=f"{other}-r", rpath=ref_path, b=other)
+    graph.run("MATCH (r:Node {id: $rid}), (t:Node {id: $tid}) "
+              "CREATE (r)-[:RESOLVES_TO {batch_id: $b}]->(t)",
+              rid=f"{other}-r", tid=target.id, b=other)
+
+    graph.recompute_salience(salience_mod.settings())
+    after = graph.read("MATCH (n:Node {id: $id}) RETURN n.salience AS s",
+                       id=target.id)[0]["s"]
+    assert after == pytest.approx(2 * math.log(3)), "breadth did not grow with the batch"
+    assert after > before

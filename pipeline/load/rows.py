@@ -21,6 +21,7 @@ nothing is lost.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Iterable, Iterator, Optional
@@ -93,8 +94,23 @@ def node_props(node: Node) -> dict:
     return props
 
 
+def load_id_for(batch_id: str, rows: "Rows") -> str:
+    """A content hash of exactly what this load asserts.
+
+    Deterministic, so an identical rerun computes the same id and the sweep
+    finds nothing stale; different the moment the asserted set changes, which is
+    what lets the sweep converge a rerun of the same batch. Hashing the keys
+    rather than the whole payload keeps it stable against property-only edits
+    that do not change what exists.
+    """
+    material = "\n".join([batch_id]
+                          + sorted(f"N:{r.key_field}={r.key_value}" for r in rows.nodes)
+                          + sorted(f"E:{merge_key(e)}" for e in rows.edges))
+    return hashlib.sha1(material.encode()).hexdigest()
+
+
 def node_row(node: Node, *, batch_id: str, access_label: Optional[str] = None,
-             extra: Optional[dict] = None) -> NodeRow:
+             load_id: str = "", extra: Optional[dict] = None) -> NodeRow:
     """`batch_id` is the batch of the load that asserted this row.
 
     That is what `rollback` and `sweep` key on: a node still wearing an older
@@ -103,10 +119,16 @@ def node_row(node: Node, *, batch_id: str, access_label: Optional[str] = None,
     `source_batch_id` so the provenance of the parse is not overwritten by the
     provenance of the load.
     """
+    if not batch_id:
+        # A row with no batch tag is invisible to both rollback and sweep, so it
+        # would live in the graph forever with nothing able to remove it.
+        raise ValueError(f"refusing to load {node.path!r} with no batch_id")
     props = node_props(node)
     if node.batch_id and node.batch_id != batch_id:
         props["source_batch_id"] = node.batch_id
     props["batch_id"] = batch_id
+    if load_id:
+        props["load_id"] = load_id
     if access_label and not props.get("access_label"):
         # DESIGN 5: every node carries the access classification inherited from
         # its document, so role-based access is a filter the query layer applies.
@@ -127,7 +149,8 @@ def edge(type_: str, src: str, dst: str, batch_id: str, **props) -> GraphEdge:
 # tier 1, the tree
 # --------------------------------------------------------------------------
 def tree_rows(trees: dict[str, Node], refs: dict[str, list[Node]], *, batch_id: str,
-              document: Optional[Node], access_label: Optional[str] = None) -> Rows:
+              document: Optional[Node], access_label: Optional[str] = None,
+              load_id: str = "") -> Rows:
     rows = Rows()
     by_path: dict[str, Node] = {}
     for part in sorted(trees):
@@ -136,7 +159,7 @@ def tree_rows(trees: dict[str, Node], refs: dict[str, list[Node]], *, batch_id: 
 
     if document is not None:
         rows.nodes.append(node_row(document, batch_id=batch_id,
-                                   access_label=access_label))
+                                   access_label=access_label, load_id=load_id))
 
     for part in sorted(trees):
         root = trees[part]
@@ -144,7 +167,7 @@ def tree_rows(trees: dict[str, Node], refs: dict[str, list[Node]], *, batch_id: 
             rows.edges.append(edge("CONTAINS", document.id, root.id, batch_id))
         for node in walk(root):
             rows.nodes.append(node_row(node, batch_id=batch_id,
-                                       access_label=access_label))
+                                       access_label=access_label, load_id=load_id))
             anatomy = [c for c in node.children if c.kind != "ref"]
             for child in anatomy:
                 rows.edges.append(edge("CONTAINS", node.id, child.id, batch_id))
@@ -162,7 +185,7 @@ def tree_rows(trees: dict[str, Node], refs: dict[str, list[Node]], *, batch_id: 
                                    "detail": f"no node at {parent_path}"})
                 continue
             rows.nodes.append(node_row(ref, batch_id=batch_id,
-                                       access_label=access_label))
+                                       access_label=access_label, load_id=load_id))
             rows.edges.append(edge("CONTAINS", parent.id, ref.id, batch_id))
             if ref.target_path and ref.status == "resolved":
                 target = by_path.get(ref.target_path)
@@ -190,7 +213,7 @@ def tree_rows(trees: dict[str, Node], refs: dict[str, list[Node]], *, batch_id: 
 # referents
 # --------------------------------------------------------------------------
 def legislation_rows(refs: dict[str, list[Node]], records: Iterable[Legislation],
-                     *, batch_id: str) -> Rows:
+                     *, batch_id: str, load_id: str = "") -> Rows:
     """One Legislation node per normalised key, plus the ref's RESOLVES_TO."""
     rows = Rows()
     known = {r.key: r for r in records}
@@ -201,7 +224,9 @@ def legislation_rows(refs: dict[str, list[Node]], records: Iterable[Legislation]
         rows.nodes.append(NodeRow(labels=["Legislation"], key_field="key",
                                   key_value=record.key,
                                   props={**record.model_dump(exclude_none=True),
-                                         "batch_id": batch_id},
+                                         "batch_id": batch_id,
+                                         **({"load_id": load_id} if load_id else {}),
+                                         "year_unknown": record.year == 0},
                                   batch_id=batch_id))
     return rows
 
@@ -219,12 +244,16 @@ def _legislation_from_key(key: str) -> Legislation:
     title = " ".join(w.title() for w in (bits[:-1] if year else bits))
     kind = ("regulations" if "regulations" in stem else
             "eu_regulation" if stem.startswith("regulation-eu") else "act")
+    # `Legislation.year` is a required int in schemas.py, so a key with no year
+    # in it has to carry 0. Nothing may read that as the year AD 0, so the row
+    # is flagged; see the handover note asking for Optional[int].
     return Legislation(key=key, title=title or stem, year=year,
                        instrument_kind=kind, provision=provision)
 
 
 def term_rows(sites: list[DefinitionSite], uses: list[TermUse],
-              nodes_by_id: dict[str, Node], *, batch_id: str) -> Rows:
+              nodes_by_id: dict[str, Node], *, batch_id: str,
+              load_id: str = "") -> Rows:
     """Term nodes, DEFINED_IN, USES_TERM, and the vocabulary's own DEFINED_USING.
 
     `DEFINED_USING` is deterministic and falls out of stage 4's own outputs: a
@@ -243,7 +272,8 @@ def term_rows(sites: list[DefinitionSite], uses: list[TermUse],
         rows.nodes.append(NodeRow(labels=["Term"], key_field="name", key_value=term,
                                   props={"name": term,
                                          "aliases": sorted(aliases[term]),
-                                         "batch_id": batch_id},
+                                         "batch_id": batch_id,
+                                         **({"load_id": load_id} if load_id else {})},
                                   batch_id=batch_id))
     for site in sites:
         if site.definition_node_id not in nodes_by_id:
@@ -273,7 +303,7 @@ def term_rows(sites: list[DefinitionSite], uses: list[TermUse],
 
 
 def concept_rows(concepts: list[Concept], nodes_by_id: dict[str, Node], *,
-                 batch_id: str) -> Rows:
+                 batch_id: str, load_id: str = "") -> Rows:
     rows = Rows()
     known = {c.id for c in concepts}
     for concept in concepts:
@@ -283,7 +313,8 @@ def concept_rows(concepts: list[Concept], nodes_by_id: dict[str, Node], *,
                                          "scope_path": concept.scope_path,
                                          "llm_derived": concept.llm_derived,
                                          "confidence": concept.confidence,
-                                         "citable": False, "batch_id": batch_id},
+                                         "citable": False, "batch_id": batch_id,
+                                         **({"load_id": load_id} if load_id else {})},
                                   batch_id=batch_id))
         for node_id in concept.member_node_ids:
             if node_id not in nodes_by_id:

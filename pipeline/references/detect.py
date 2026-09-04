@@ -115,9 +115,15 @@ def text_nodes(root: Node) -> Iterator[Node]:
             yield node
 
 
-def _group_id(node: Node, index: int) -> str:
+def _group_id(node: Node, part: str, index: int) -> str:
+    """Unique across the corpus, not just within a part.
+
+    Two parts both numbering a clause 9.2 would otherwise mint the same
+    "g-9.2-1" for unrelated list phrases, and a query grouping refs by
+    group_id would silently join citations from different schedules.
+    """
     stem = node.label or node.path.rsplit("/", 1)[-1]
-    return f"g-{stem}-{index}"
+    return f"g-{part}-{stem}-{index}"
 
 
 def _pointers_for(node: Node, citation: grammar.Citation, part: str,
@@ -128,7 +134,7 @@ def _pointers_for(node: Node, citation: grammar.Citation, part: str,
     out: list[Pointer] = []
     real_members = [m for m in citation.members if not m.expanded]
     single = len(citation.members) == 1
-    group = None if single else _group_id(node, group_index)
+    group = None if single else _group_id(node, part, group_index)
 
     if citation.anaphoric:
         return [Pointer(parent_path=node.path, part=part, span=citation.span,

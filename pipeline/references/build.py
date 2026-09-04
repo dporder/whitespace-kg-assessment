@@ -2,13 +2,17 @@
 
 A ref's id is `sha1("{document}|{version}|{path}")` like every other node's,
 so stage 3 has to mint ids under the same document and version stage 2 used.
-A part tree does not carry either string: `version_label` is a document-root
-field and the tree files are per part. Rather than guess, this module derives
-them from the ids the tree already holds. `lineage_key` is a hash of document
-and path alone, so the document falls out of a one-variable search; the version
-then falls out of a one-variable search against `id`. If neither search lands,
-that is reported as a violation and the run exits 2 rather than writing refs
-whose ids will never join up with their parents in the graph.
+A part tree carries neither string outright, so this module derives both from
+the ids the tree already holds: `lineage_key` is a hash of document and path
+alone, so the document falls out of a one-variable search, and each part's
+version then falls out of a one-variable search against that part's `id`.
+
+The version is per part. Stage 2 builds its Context with
+`version=part["template_version"]`, and this pack binds about forty-eight
+separately versioned templates, so Core Terms mints ids under v3.0.11 while the
+Award Form uses v3.10. A ref minted under the wrong one would never join its
+parent in the graph. If a search does not land, that is reported as a violation
+and the run exits 2 rather than writing refs whose ids can never join up.
 """
 from __future__ import annotations
 
@@ -28,44 +32,77 @@ VERSION_CANDIDATES = ("v1", "v3.0.11", "dev", "v0", config.DOCUMENT_ID)
 
 @dataclass
 class Identity:
+    """The document id, and the version each part's ids were minted under.
+
+    The version is per part, not per document, because that is what stage 2
+    actually does: `pipeline/assemble/tree.py` builds its Context with
+    `version=part["template_version"]`, and this pack is a binding of about
+    forty-eight separately versioned templates, so Core Terms mints ids under
+    v3.0.11 and the Award Form under v3.10. A ref's id has to be minted under
+    the same version as the provision it hangs off, or it will never join up
+    with its parent in the graph.
+    """
     document: str
-    version: str
+    versions: dict[str, str]
     verified: bool
     note: str
+    default_version: str = "v1"
+
+    def version_for(self, path: str) -> str:
+        return self.versions.get(path.split("/", 1)[0], self.default_version)
+
+    @property
+    def version(self) -> Optional[str]:
+        """The one version, when every part agrees. None when they do not."""
+        distinct = set(self.versions.values())
+        return distinct.pop() if len(distinct) == 1 else None
 
     def as_dict(self) -> dict:
-        return {"document": self.document, "version": self.version,
-                "verified": self.verified, "note": self.note}
+        return {"document": self.document, "versions": dict(sorted(self.versions.items())),
+                "one_version_for_every_part": self.version, "verified": self.verified,
+                "note": self.note}
 
 
 def infer_identity(roots: Iterable[Node], *, document: Optional[str] = None,
                    version: Optional[str] = None) -> Identity:
-    """Derive the document and version the trees' own ids were minted under."""
+    """Derive the document id, then each part's own version, from the trees' ids.
+
+    `lineage_key` is a hash of document and path alone, so the document falls
+    out of a one-variable search. Each part's version then falls out of a
+    one-variable search against that part's `id`.
+    """
     roots = list(roots)
     if not roots:
-        return Identity(document or config.DOCUMENT_ID, version or "v1", False,
-                        "no trees to derive identity from")
-    docs = ([document] if document else []) + [d for d in DOCUMENT_CANDIDATES]
-    extra = [r.source_file for r in roots if r.source_file]
-    docs += [str(s).rsplit(".", 1)[0] for s in extra]
+        return Identity(document or config.DOCUMENT_ID, {}, False,
+                        "no trees to derive identity from", version or "v1")
+    docs = ([document] if document else []) + list(DOCUMENT_CANDIDATES)
+    docs += [str(r.source_file).rsplit(".", 1)[0] for r in roots if r.source_file]
     found_doc = next((d for d in docs
                       if all(lineage_key(d, r.path) == r.lineage_key for r in roots)), None)
     if found_doc is None:
-        return Identity(document or config.DOCUMENT_ID, version or "v1", False,
+        return Identity(document or config.DOCUMENT_ID, {}, False,
                         f"no candidate document id reproduces the trees' lineage keys; "
-                        f"tried {docs}")
-    versions = ([version] if version else []) + list(VERSION_CANDIDATES)
-    versions += [r.version_label for r in roots if r.version_label]
-    versions += [r.template_version for r in roots if r.template_version]
-    found_version = next((v for v in versions if v and
-                          all(node_id(found_doc, v, r.path) == r.id for r in roots)), None)
-    if found_version is None:
-        return Identity(found_doc, version or "v1", False,
+                        f"tried {docs}", version or "v1")
+
+    versions: dict[str, str] = {}
+    unmatched: list[str] = []
+    for root in roots:
+        candidates = ([version] if version else []) + [
+            root.template_version, root.version_label, *VERSION_CANDIDATES]
+        found = next((v for v in candidates
+                      if v and node_id(found_doc, v, root.path) == root.id), None)
+        if found is None:
+            unmatched.append(root.path)
+        else:
+            versions[root.path] = found
+    if unmatched:
+        return Identity(found_doc, versions, False,
                         f"document id {found_doc!r} verified from lineage keys, but no "
-                        f"candidate version reproduces the trees' node ids; tried "
-                        f"{[v for v in versions if v]}")
-    return Identity(found_doc, found_version, True,
-                    "document and version both reproduce the trees' own ids")
+                        f"candidate version reproduces the node id of {unmatched}",
+                        version or "v1")
+    return Identity(found_doc, versions, True,
+                    f"document and per-part versions all reproduce the trees' own ids "
+                    f"({len(versions)} part(s))", version or "v1")
 
 
 def ref_node(pointer: Pointer, resolution: Resolution, parent: Node,
@@ -83,7 +120,9 @@ def ref_node(pointer: Pointer, resolution: Resolution, parent: Node,
     anomalies.extend(pointer.notes)
 
     return Node(
-        id=node_id(identity.document, identity.version, path),
+        # The version is the citing part's, because that is the version its
+        # parent's id was minted under (stage 2 keys on template_version).
+        id=node_id(identity.document, identity.version_for(path), path),
         lineage_key=lineage_key(identity.document, path),
         path=path,
         kind="ref",

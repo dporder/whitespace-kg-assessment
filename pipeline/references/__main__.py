@@ -486,9 +486,11 @@ def _print_summary(report: dict) -> None:
     det, res = report["detection"]["totals"], report["resolution"]["totals"]
     print(f"stage 3  run={report['run']}  source={report['input']['source']}  "
           f"parts={','.join(report['input']['parts_in_scope'])}")
+    versions = report["identity"]["versions"]
+    shown = (report["identity"]["one_version_for_every_part"]
+             or ", ".join(f"{p}={v}" for p, v in sorted(versions.items())))
     print(f"  identity   document={report['identity']['document']} "
-          f"version={report['identity']['version']} "
-          f"verified={report['identity']['verified']}")
+          f"version(s)={shown} verified={report['identity']['verified']}")
     print(f"  DETECTION  pointers={det.get('pointers', 0)}  "
           f"by kind {det.get('by_ref_kind', {})}")
     print(f"             by method {det.get('by_method', {})}  "

@@ -32,7 +32,9 @@ def version() -> str:
 
 @pytest.fixture
 def identity() -> Identity:
-    return Identity(DOC, VERSION, True, "derived in the fixture")
+    """Every synthetic part here is minted under one version, so the per-part
+    map is empty and the default covers them all."""
+    return Identity(DOC, {}, True, "derived in the fixture", VERSION)
 
 
 def node(path: str, kind: str, *, text: Optional[str] = None, label: Optional[str] = None,

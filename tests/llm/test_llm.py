@@ -246,3 +246,69 @@ def test_stream_replays_a_cached_turn_without_calling():
     done = events[-1]
     assert done[0] == "done" and done[1].text == "streamed" and done[1].cached
     assert len(client.messages.calls) == 1
+
+
+# --------------------------------------------------------------------------
+# scrubbing. Every test here fails if `scrub` stops being applied.
+# --------------------------------------------------------------------------
+class EchoesTheSecret(Exception):
+    """The shape a 400 takes when the upstream quotes what you sent it."""
+
+    status_code = 400
+
+    def __init__(self, secret):
+        self.secret = secret
+
+    def __str__(self):
+        return ("Error code: 400 - {'error': {'type': 'invalid_request_error', "
+                f"'message': \'workspace {self.secret} is not accessible with this "
+                "key\'}}")
+
+
+def test_a_refusal_quoting_the_workspace_id_is_scrubbed_from_the_log(monkeypatch):
+    """A wrong workspace id comes back quoted in the 400, and that error text
+    travels into refs/report.json and onto the terminal."""
+    monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "wrkspc_0123456789abcdef")
+    llm.set_client(FakeClient(error=EchoesTheSecret("wrkspc_0123456789abcdef")))
+    with pytest.raises(llm.LLMUnavailable) as exc:
+        llm.complete("reference_residue", "rank")
+    assert "wrkspc_0123456789abcdef" not in str(exc.value)
+    assert "***redacted:ANTHROPIC_WORKSPACE_ID***" in str(exc.value)
+    blob = "".join(p.read_text() for p in llm.log_dir().rglob("*.json"))
+    assert "wrkspc_0123456789abcdef" not in blob
+
+
+def test_a_refusal_quoting_the_api_key_is_scrubbed_from_the_log(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-secret-0123456789")
+    llm.set_client(FakeClient(error=EchoesTheSecret("sk-ant-secret-0123456789")))
+    with pytest.raises(llm.LLMUnavailable) as exc:
+        llm.complete("reference_residue", "rank")
+    assert "sk-ant-secret-0123456789" not in str(exc.value)
+    blob = "".join(p.read_text() for p in llm.log_dir().rglob("*.json"))
+    assert "sk-ant-secret-0123456789" not in blob
+
+
+def test_scrub_covers_every_secret_the_pipeline_reads(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-key-value-here")
+    monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "wrkspc_abcd")
+    monkeypatch.setenv("NEO4J_PASSWORD", "hunter2-password")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-value")
+    text = ("key sk-key-value-here workspace wrkspc_abcd password hunter2-password "
+            "openai sk-openai-value")
+    cleaned = llm.scrub(text)
+    for secret in ("sk-key-value-here", "wrkspc_abcd", "hunter2-password",
+                   "sk-openai-value"):
+        assert secret not in cleaned
+    assert "ANTHROPIC_WORKSPACE_ID" in cleaned
+
+
+def test_a_short_secret_is_still_redacted(monkeypatch):
+    """The old guard was `len > 8`, which left a short workspace id in the clear."""
+    monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "ws01")
+    assert "ws01" not in llm.scrub("workspace ws01 refused")
+
+
+def test_a_one_character_value_is_not_redacted(monkeypatch):
+    """Redacting a single character would blank out ordinary log text."""
+    monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "a")
+    assert llm.scrub("a plain sentence") == "a plain sentence"

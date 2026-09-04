@@ -28,11 +28,13 @@ import config
 from pipeline.eval import inputs as inputs_mod
 from pipeline.schemas import Legislation, Node, node_id, lineage_key
 
+from pipeline import llm
+
 from . import associated, export, salience as salience_mod
 from .audit import Audit
 from .neo4j_loader import Graph, duplicate_edge_keys
-from .rows import (Rows, concept_rows, dangling_endpoints, dedupe,
-                   legislation_rows, term_rows, tree_rows, walk)
+from .rows import (Rows, concept_rows, dangling_endpoints, dedupe, legislation_rows,
+                   load_id_for, term_rows, tree_rows, walk)
 
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
@@ -60,6 +62,10 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                    help="remove a batch completely and exit")
     p.add_argument("--sweep-only", action="store_true",
                    help="run the sweep for --batch over --parts and exit")
+    p.add_argument("--load-id", default=None,
+                   help="with --sweep-only, the load id to keep; everything else in "
+                        "scope goes. Without it the sweep would remove everything in "
+                        "scope, so it must be given explicitly")
     p.add_argument("--document-path", default=None,
                    help="path for the document root node when the trees carry none")
     p.add_argument("--access-label", default=None,
@@ -81,8 +87,21 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str) + "\n")
 
 
-def document_root(trees: dict[str, Node], path: Optional[str],
-                  batch_id: str) -> tuple[Optional[Node], Optional[dict]]:
+# The document root's version is the document's, never a part's. Stage 2 mints
+# every node id with `version=part["template_version"]`, so inferring the root's
+# version from whichever tree happened to come first gave Core Terms a root
+# under v3.0.11 and the Award Form one under v3.10: two Document nodes at one
+# path the moment a second batch landed. This pack binds about forty-eight
+# separately versioned templates and none of those versions is the document's,
+# so promoting one would assert something the document does not say. A neutral,
+# stable label is used instead and recorded as the root's `version_label`; each
+# part keeps its own `template_version`, which is where that fact belongs.
+DOCUMENT_VERSION_LABEL = "as-bound"
+
+
+def document_root(trees: dict[str, Node], path: Optional[str], batch_id: str,
+                  version_label: str = DOCUMENT_VERSION_LABEL
+                  ) -> tuple[Optional[Node], Optional[dict]]:
     """The graph's root. Synthesised only when no tree carries one.
 
     SPEC 2.5 lists `CONTAINS` from document to part, but stage 2 writes one file
@@ -101,12 +120,16 @@ def document_root(trees: dict[str, Node], path: Optional[str],
     root_path = path or document
     note = {"kind": "document_root_synthesised",
             "path": root_path,
+            "version_label": version_label,
             "detail": "no tree carried a node of kind 'document', so stage 7 minted the "
-                      "root that CONTAINS the parts. Stage 2 writes one file per part; "
-                      "if it later emits a document root, this stops happening."}
-    node = Node(id=node_id(document, _infer_version(sample, document), root_path),
+                      "root that CONTAINS the parts, under the pinned document version "
+                      f"{version_label!r} rather than any one part's template version, "
+                      "so every batch mints the same root. Stage 2 writes one file per "
+                      "part; if it later emits a document root, this stops happening."}
+    node = Node(id=node_id(document, version_label, root_path),
                 lineage_key=lineage_key(document, root_path),
                 path=root_path, kind="document", citable=False,
+                version_label=version_label,
                 page_start=min(r.page_start for r in trees.values()),
                 page_end=max(r.page_end for r in trees.values()),
                 order=0, batch_id=batch_id,
@@ -119,14 +142,6 @@ def _infer_document_id(sample: Node) -> str:
         if lineage_key(candidate, sample.path) == sample.lineage_key:
             return candidate
     return config.DOCUMENT_ID
-
-
-def _infer_version(sample: Node, document: str) -> str:
-    for candidate in ("v1", "v3.0.11", "dev", sample.template_version or "",
-                      sample.version_label or ""):
-        if candidate and node_id(document, candidate, sample.path) == sample.id:
-            return candidate
-    return "v1"
 
 
 def load_legislation_records(source_root: Path) -> list[Legislation]:
@@ -147,29 +162,30 @@ def load_legislation_records(source_root: Path) -> list[Legislation]:
 
 
 def build_rows(inputs, source_root: Path, batch_id: str, *,
-               document_path: Optional[str], access_label: Optional[str]
-               ) -> tuple[Rows, list[dict], Optional[Node]]:
+               document_path: Optional[str], access_label: Optional[str],
+               load_id: str = "") -> tuple[Rows, list[dict], Optional[Node]]:
     document, note = document_root(inputs.trees, document_path, batch_id)
     notes = [note] if note else []
     rows = tree_rows(inputs.trees, inputs.refs, batch_id=batch_id, document=document,
-                     access_label=access_label)
+                     access_label=access_label, load_id=load_id)
     nodes_by_id = {n.id: n for part in inputs.trees for n in walk(inputs.trees[part])}
 
     leg = legislation_rows(inputs.refs, load_legislation_records(source_root),
-                           batch_id=batch_id)
+                           batch_id=batch_id, load_id=load_id)
     rows.nodes.extend(leg.nodes)
     rows.edges.extend(leg.edges)
     rows.notes.extend(leg.notes)
 
     if inputs.definition_sites is not None or inputs.term_uses is not None:
         terms = term_rows(inputs.definition_sites or [], inputs.term_uses or [],
-                          nodes_by_id, batch_id=batch_id)
+                          nodes_by_id, batch_id=batch_id, load_id=load_id)
         rows.nodes.extend(terms.nodes)
         rows.edges.extend(terms.edges)
         rows.notes.extend(terms.notes)
 
     if inputs.concepts:
-        concepts = concept_rows(inputs.concepts, nodes_by_id, batch_id=batch_id)
+        concepts = concept_rows(inputs.concepts, nodes_by_id, batch_id=batch_id,
+                                load_id=load_id)
         rows.nodes.extend(concepts.nodes)
         rows.edges.extend(concepts.edges)
         rows.notes.extend(concepts.notes)
@@ -182,15 +198,63 @@ def build_rows(inputs, source_root: Path, batch_id: str, *,
     return rows, notes, document
 
 
-def reconcile(inputs, rows: Rows, document: Optional[Node]) -> dict:
-    """The loader's own counts against the stage outputs it read."""
+def build_rows_with_load_id(inputs, source_root: Path, batch_id: str, *,
+                            document_path: Optional[str], access_label: Optional[str]
+                            ) -> tuple[Rows, list[dict], Optional[Node], str]:
+    """Two passes: the load id is a hash of the rows, and then goes on them.
+
+    Cheap, and it keeps the id honest. Building the rows once to hash them and
+    once to stamp them is a few milliseconds; deriving the id from anything less
+    than the whole asserted set would let two different loads collide and the
+    sweep would then spare rows it should remove.
+    """
+    draft, _notes, _document = build_rows(inputs, source_root, batch_id,
+                                          document_path=document_path,
+                                          access_label=access_label)
+    load_id = load_id_for(batch_id, draft)
+    rows, notes, document = build_rows(inputs, source_root, batch_id,
+                                       document_path=document_path,
+                                       access_label=access_label, load_id=load_id)
+    return rows, notes, document, load_id
+
+
+def reconcile(inputs, rows: Rows, document: Optional[Node],
+              written: Optional[dict] = None, deferred: Optional[list[dict]] = None
+              ) -> dict:
+    """The loader's own counts against the stage outputs it read.
+
+    SPEC 5 makes node AND edge counts a release gate, so both are formed here
+    and both can fail. Edges deliberately not written because the far endpoint's
+    batch has not arrived are reported as deferred, which is an expected state
+    during batched ingestion, and are excluded from what the database was asked
+    to write rather than quietly counted as merged.
+    """
     tree_nodes = sum(1 for part in inputs.trees for _ in walk(inputs.trees[part]))
     ref_nodes = sum(len(v) for v in inputs.refs.values())
     expected_nodes = tree_nodes + ref_nodes + (1 if document is not None else 0)
     counted = rows.counts()
     referents = sum(counted["nodes_by_label"].get(label, 0)
                     for label in ("Term", "Legislation", "Concept"))
+    deferred = deferred or []
+    edges_expected = counted["edges"] - len(deferred)
+    edge_block: dict = {
+        "rows_built": counted["edges"],
+        "deferred_far_endpoint_absent": len(deferred),
+        "expected_to_write": edges_expected,
+        "written": None if written is None else written.get("edges_written"),
+        "reconciles": True if written is None
+        else written.get("edges_written") == edges_expected,
+        "deferred_detail": deferred[:50],
+    }
+    node_block: dict = {
+        "expected_to_write": counted["nodes"],
+        "written": None if written is None else written.get("nodes_written"),
+        "reconciles": True if written is None
+        else written.get("nodes_written") == counted["nodes"],
+    }
     return {
+        "nodes_in_database": node_block,
+        "edges_in_database": edge_block,
         "stage_inputs": {
             "tree_nodes": tree_nodes, "refs": ref_nodes,
             "definition_sites": len(inputs.definition_sites or []),
@@ -202,7 +266,8 @@ def reconcile(inputs, rows: Rows, document: Optional[Node]) -> dict:
         "tree_and_ref_nodes_expected": expected_nodes,
         "tree_and_ref_nodes_written": counted["nodes"] - referents,
         "referent_nodes_written": referents,
-        "reconciles": counted["nodes"] - referents == expected_nodes,
+        "reconciles": (counted["nodes"] - referents == expected_nodes
+                       and node_block["reconciles"] and edge_block["reconciles"]),
         "edge_types_skipped": edge_types_skipped(inputs, counted),
     }
 
@@ -290,7 +355,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
     if args.sweep_only:
         graph = Graph()
-        result = graph.sweep(parts or present, batch_id)
+        result = graph.sweep(parts or present, batch_id, load_id=args.load_id or "",
+                             referent_keys=None)
         audit.record("sweep", reason="operator asked for a sweep",
                      affected=result["affected_ids"], counts=result, scope=parts)
         audit.flush()
@@ -303,7 +369,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"no trees under {source_root / 'tree'}; nothing to load", file=sys.stderr)
         return 1
 
-    rows, doc_notes, document = build_rows(
+    rows, doc_notes, document, load_id = build_rows_with_load_id(
         inputs, source_root, batch_id, document_path=args.document_path,
         access_label=args.access_label)
     duplicates = duplicate_edge_keys(rows.edges)
@@ -331,6 +397,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     exported = export.write(rows, graph_dir / "graph.json",
                             {"run": run, "batch_id": batch_id, "parts": parts,
                              "source": source,
+                             "load_id": load_id,
                              "note": "the rows of this load, not the whole graph"})
 
     tree_nodes = [n for part in inputs.trees for n in walk(inputs.trees[part])]
@@ -365,31 +432,49 @@ def main(argv: Optional[list[str]] = None) -> int:
         graph = Graph()
         try:
             schema = graph.ensure_schema()
-            merged_nodes = graph.merge_nodes(rows.nodes)
-            merged_edges = graph.merge_edges(rows.edges)
+            known = {r.key_value for r in rows.nodes}
+            writable, deferred = graph.partition_edges(rows.edges, known)
+            nodes_written = graph.merge_nodes(rows.nodes)
+            edges_written = graph.merge_edges(writable, load_id=load_id)
             audit.record("merge", reason=f"batch {batch_id} loaded, MERGE only",
-                         counts={"nodes": merged_nodes, "edges": merged_edges,
-                                 **schema})
+                         counts={"nodes": nodes_written, "edges": edges_written,
+                                 "edges_deferred": len(deferred), **schema},
+                         load_id=load_id)
+            report["reconciliation"] = reconcile(
+                inputs, rows, document,
+                written={"nodes_written": nodes_written["written"],
+                         "edges_written": edges_written["written"]},
+                deferred=deferred)
             swept = None
             if not args.no_sweep:
-                swept = graph.sweep(parts, batch_id)
+                referent_keys = [r.key_value for r in rows.nodes
+                                 if r.key_field in ("name", "key")
+                                 or "Concept" in r.labels]
+                swept = graph.sweep(parts, batch_id, load_id=load_id,
+                                    referent_keys=referent_keys)
                 audit.record("sweep",
-                             reason="anything in this batch's scope still carrying an "
-                                    "earlier batch tag was not re-asserted by this run",
-                             affected=swept["affected_ids"], counts=swept, scope=parts)
+                             reason="anything in this batch's scope that this load did "
+                                    "not assert; keyed on load_id so a rerun of the "
+                                    "same batch converges too",
+                             affected=swept["affected_ids"], counts=swept, scope=parts,
+                             load_id=load_id)
             applied = None
             if not args.no_salience:
-                applied = graph.apply_salience(scores.values, scores.term_values,
-                                               scores.flagged)
+                applied = graph.recompute_salience(salience_mod.settings())
+                report["salience"] = applied
                 audit.record("salience",
-                             reason="recomputed from the graph: breadth * log(1 + "
-                                    "frequency), repeated furniture excluded",
-                             counts=applied)
-            report["neo4j"] = {"schema": schema, "nodes_merged": merged_nodes,
-                               "edges_merged": merged_edges, "sweep": swept,
+                             reason="recomputed from the whole graph: breadth * log(1 + "
+                                    "frequency), repeated furniture excluded, so every "
+                                    "batch loaded so far contributes breadth",
+                             counts={k: v for k, v in applied.items()
+                                     if k != "top_nodes"})
+            report["neo4j"] = {"schema": schema, "load_id": load_id,
+                               "nodes": nodes_written, "edges": edges_written,
+                               "edges_deferred": len(deferred), "sweep": swept,
                                "salience": applied, "counts": graph.counts(batch_id)}
         except Exception as exc:                          # noqa: BLE001
-            report["neo4j"] = {"error": f"{type(exc).__name__}: {exc}"}
+            # Driver exceptions quote the connection, which carries the password.
+            report["neo4j"] = {"error": llm.scrub(f"{type(exc).__name__}: {exc}")}
         finally:
             graph.close()
 
@@ -420,8 +505,14 @@ def _print_summary(report: dict) -> None:
     print(f"  RECONCILE  stage inputs {rec['stage_inputs']}")
     print(f"             tree+ref nodes expected={rec['tree_and_ref_nodes_expected']} "
           f"written={rec['tree_and_ref_nodes_written']} "
-          f"referents={rec['referent_nodes_written']}  "
-          f"reconciles={rec['reconciles']}")
+          f"referents={rec['referent_nodes_written']}")
+    nodes_db, edges_db = rec["nodes_in_database"], rec["edges_in_database"]
+    if nodes_db["written"] is not None:
+        print(f"             database nodes {nodes_db['written']}/"
+              f"{nodes_db['expected_to_write']} "
+              f"edges {edges_db['written']}/{edges_db['expected_to_write']} "
+              f"(deferred {edges_db['deferred_far_endpoint_absent']})")
+    print(f"             reconciles={rec['reconciles']}")
     a = report["associated_term"]
     print(f"  ASSOC_TERM edges={a['edges']} min_share={a['min_share']} "
           f"concepts={a['concepts_with_terms']}")
@@ -430,9 +521,11 @@ def _print_summary(report: dict) -> None:
         print(f"  SKIPPED    {len(skipped)} edge type(s), input not in this run: "
               + ", ".join(f"{s['edge_type']} (needs {s['needs']})" for s in skipped))
     s = report["salience"]
-    print(f"  SALIENCE   scored={s['nodes_scored']} nonzero={s['nodes_with_salience']} "
-          f"terms={s['terms_scored']} furniture excluded={s['furniture_nodes_excluded']} "
-          f"flagged={s['flagged_out_of_distribution']}")
+    if "nodes_scored" in s:
+        print(f"  SALIENCE   scored={s['nodes_scored']} "
+              f"nonzero={s['nodes_with_salience']} terms={s['terms_scored']} "
+              f"furniture excluded={s['furniture_nodes_excluded']} "
+              f"flagged={s['flagged_out_of_distribution']}")
     print(f"  EXPORT     {report['export']['nodes']} nodes, "
           f"{report['export']['edges']} edges -> {report['export']['path']}")
     neo = report["neo4j"]
@@ -441,15 +534,19 @@ def _print_summary(report: dict) -> None:
     elif neo.get("error"):
         print(f"  NEO4J      FAILED: {neo['error']}")
     else:
-        print(f"  NEO4J      merged nodes={neo['nodes_merged']} edges={neo['edges_merged']}")
+        print(f"  NEO4J      merged nodes={neo['nodes']['written']}/"
+              f"{neo['nodes']['submitted']} edges={neo['edges']['written']}/"
+              f"{neo['edges']['submitted']} deferred={neo['edges_deferred']}")
         if neo.get("sweep"):
             print(f"             sweep deleted nodes={neo['sweep']['nodes_deleted']} "
                   f"rels={neo['sweep']['relationships_deleted']} "
                   f"orphan referents={neo['sweep']['orphan_referents_deleted']}")
         if neo.get("salience"):
-            print(f"             salience written to nodes="
-                  f"{neo['salience']['nodes_updated']} terms="
-                  f"{neo['salience']['terms_updated']}")
+            sal = neo["salience"]
+            print(f"             salience from the graph: nodes="
+                  f"{sal['nodes_with_salience']} terms={sal['terms_with_salience']} "
+                  f"furniture excluded={sal['furniture_nodes_excluded']} "
+                  f"flagged={sal['flagged']}")
         print(f"             graph now nodes={neo['counts']['nodes_total']} "
               f"rels={neo['counts']['relationships_total']}")
     if report["dangling_edge_endpoints"]["count"]:
