@@ -109,6 +109,7 @@ def detect_parts(page_signatures: list[tuple[int, Optional[str], Optional[str], 
         )
         runs.append(run)
         _absorb_versions(run, page, model_v, header_v, project_v)
+    _note_missing_title_numbers(runs)
     return _deduplicate_slugs(runs)
 
 
@@ -141,6 +142,25 @@ def _absorb_versions(
         run.version_source = "footer"
     elif run.header_version_raw is not None:
         run.version_source = "header"
+
+
+_NUMBERED_FAMILIES = ("framework-schedule", "joint-schedule", "call-off-schedule")
+_TITLE_NUMBER = re.compile(r"\bSchedule\s+(\d{1,2})\b", re.IGNORECASE)
+
+
+def _note_missing_title_numbers(runs: list[PartRun]) -> None:
+    """A schedule that does not print its own number.
+
+    Page 209 heads itself "Joint Schedule (Minimum Standards of Reliability)"
+    where every other joint schedule prints its number. The part still parses;
+    what it loses is the number a citation would use, so that is recorded.
+    """
+    for run in runs:
+        if run.family in _NUMBERED_FAMILIES and not _TITLE_NUMBER.search(run.title):
+            run.anomalies.append(
+                f"part_title_missing_number: {run.title!r} names no schedule number, "
+                f"so the derived id is {run.slug!r}"
+            )
 
 
 def _deduplicate_slugs(runs: list[PartRun]) -> list[PartRun]:
