@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import Optional
 
 # The anchor set is exactly SPEC 2.2's. `Table` is a unit the interpretation
 # clause names (JS1 1.3.8) but the spec's citation grammar does not, so it is
@@ -298,7 +298,3 @@ def find_orphans(text: str, consumed: list[tuple[int, int]]) -> list[dict]:
 def _overlaps(span: tuple[int, int], taken: list[tuple[int, int]]) -> bool:
     return any(span[0] < end and start < span[1] for start, end in taken)
 
-
-def iter_spans(citations: list[Citation]) -> Iterator[tuple[int, int]]:
-    for c in citations:
-        yield c.span

@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Iterable, Optional
+from typing import Iterable, Optional
 
 import config
-from pipeline.schemas import EdgeType, GraphEdge
+from pipeline.schemas import GraphEdge
 
 from .rows import KIND_LABELS, NodeRow, REFERENT_LABELS, merge_key
 

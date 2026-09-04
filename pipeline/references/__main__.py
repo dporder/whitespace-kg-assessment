@@ -35,7 +35,7 @@ from pipeline.schemas import Legislation, Node, RefsFile
 from . import nearmiss, residue
 from .build import Identity, infer_identity, ref_node, span_intact
 from .corpus import Corpus
-from .detect import Pointer, PartDetection, detect_part
+from .detect import PartDetection, detect_part
 from .resolve import resolve_pointer
 
 REFERENCES_DEFAULTS = {

@@ -246,6 +246,3 @@ def queue_file(report: dict) -> dict:
                      "is reachable; answers already given replay from the llm cache"),
             "items": report["queue"]}
 
-
-def dumps(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=False)

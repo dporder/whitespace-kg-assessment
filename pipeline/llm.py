@@ -178,11 +178,6 @@ def stats() -> dict:
     return dict(_stats)
 
 
-def reset_stats() -> None:
-    for key in _stats:
-        _stats[key] = 0
-
-
 def stats_since(before: dict) -> dict:
     return {k: _stats[k] - before.get(k, 0) for k in _stats}
 
