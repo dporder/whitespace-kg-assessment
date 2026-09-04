@@ -126,7 +126,30 @@ Both gates must clear on data the model never trained on. A model that passes pr
 - The longest defined term in RM6116, against GLiNER's K=12 token span ceiling. Needs the extracted vocabulary.
 - CPU latency for GLiNER v2.1 specifically. Only GLiNER2's 130-208ms range is published, on unstated hardware.
 - The NuNER few-shot numbers in section 3 are read from a figure, not a table. Directionally reliable, not exact.
-- Any published NER or token classification result on contract text comparing a legal-domain encoder against a general one. I found none. The evidence for legal-domain pretraining is classification-heavy.
-- The existence of a cased legal-domain encoder, or any UK-contract-specific pretrained encoder.
+- Any published NER or token classification result on contract text comparing a legal-domain encoder against a general one. **Resolved in the addendum:** the evidence exists and it is thin, roughly 1 to 2 F1, mostly from the Legal-BERT authors themselves.
+- The existence of a cased legal-domain encoder, or any UK-contract-specific pretrained encoder. **Resolved in the addendum:** no UK or English-law contract encoder exists in any family checked; the sole UK-specific encoder is criminal appellate case law.
 - Whether CC-BY-SA-4.0 on `legal-bert-base-uncased` propagates to fine-tuned derived weights. This is a legal question, not a technical one, and it should go to counsel rather than be assumed either way.
-- Parameter count for `nlpaueb/legal-bert-base-uncased`, not stated on its card.
+- Parameter count for `nlpaueb/legal-bert-base-uncased`, not stated on its card. **Resolved in the addendum:** 110M per the paper.
+
+---
+
+## Addendum: licence and evidence sweep of the legal encoder family
+
+A parallel sweep of the legal-domain encoders finished after the memo above was written. Everything below is from primary sources (model card frontmatter, the HF API, the papers' own tables); the orchestrator independently re-verified the casehold licence claim against the HF API before this addendum was accepted.
+
+**Licence map, the part that decides eligibility for a commercial sovereign deployment.**
+
+| Family | Licence (verbatim) | Verdict |
+|---|---|---|
+| `nlpaueb/*` (Legal-BERT, 5 checkpoints incl. a 35M small and a contracts-only variant) | `cc-by-sa-4.0` on all | Share-alike, counsel question, and all uncased |
+| `casehold/legalbert`, `casehold/custom-legalbert` | **No licence field at all** (frontmatter and API both) | Excluded: no grant of rights exists |
+| `pile-of-law/legalbert-large-1.7M-2` (340M) | No model licence; dataset is CC-BY-NC-SA-4.0 with the card deferring to the paper's Appendix G | Excluded: NC-encumbered, legally ambiguous |
+| `lexlms/legal-roberta-base` / `-large` (124M / 355M) | `cc-by-sa-4.0` | Only family whose corpus includes UK case law (BAILII, 1.9% of tokens) |
+| `ai-law-society-lab/CaseLawModernBERT-base` / `-large` (150M / 396M, 8k context) | `apache-2.0` on the cards; the paper says CC-BY-4.0, a conflict to confirm at download | US court opinions only, no contracts, no published NER eval |
+| `tsantosh7/Bailii-Roberta` | `apache-2.0` | The only UK-specific encoder found: cased, but pretrained on Court of Appeal Criminal Division judgments, not contracts; essentially undocumented |
+
+**No pretrained encoder specific to English contract law exists.** Every contract corpus in every family checked is US SEC-EDGAR; UK material, where present, is legislation or case law. The gap the memo flagged as unconfirmed is now confirmed as real.
+
+**The evidence that legal-domain pretraining helps contract token classification is small and mostly one group's.** The Legal-BERT paper's own CONTRACTS-NER gains are 1.1 to 1.8 F1, reported only in a bar chart, on a dataset that was never released. The follow-up with real numbers ([arXiv 2101.04355](https://arxiv.org/pdf/2101.04355), Table 5) shows LEGALBERT-CRF beating BERT-CRF in two of three subsets by 1 to 2 F1, while its own conclusion is that a BiLSTM-CRF over frozen in-domain word2vec is competitive with every BERT variant tested. The one independent ablation, CUAD (NeurIPS 2021), found 8GB of contract pretraining worth +2.6 AUPR against +5.6 for simply moving to a larger general encoder, concluding annotation quality dominates. At LegalLens-2024, legal pretraining was worth +0.7 to +2.3 macro-F1 while pipeline and architecture choices were worth about 32. LexGLUE contains zero token-level tasks, so it cannot speak to this question either way.
+
+**Consequences for the shortlist above: none.** The exclusion of `legal-bert-base-uncased` stands on stronger ground (the whole family is uncased or licence-blocked, and the domain gain it would be chasing is 1 to 2 F1 at best). The three-arm experiment is unchanged. If a legal-domain arm is ever added despite this, `lexlms/legal-roberta-base` is the least-bad candidate (cased, UK case law present, share-alike caveat), and `casehold/*` and `pile-of-law/*` must not ship regardless of merit.

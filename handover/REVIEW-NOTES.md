@@ -92,3 +92,13 @@ kept as arbitration, licence confirmed per checkpoint. Its note that the 40-samp
 certify a model switch (Wilson interval wider than the gate) is worth carrying into any future
 tuning of `AUDIT.confident_term_sample_size`.
 
+**Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
+sweep of the legal encoder family still running when it reported; it landed afterwards with two
+exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
+against the HF API myself before accepting; `pile-of-law/*` is NC-encumbered), confirmation that
+no English-contract encoder exists anywhere, and a review showing the domain-pretraining gain for
+contract token classification is 1 to 2 F1, mostly self-reported by one group, dominated by
+architecture and annotation quality. Shortlist unchanged; the memo's Legal-BERT exclusion now
+stands on stronger ground. Integrated by the orchestrator, marked as an addendum, resolved items
+annotated in the memo's unverified list.
+
