@@ -323,6 +323,35 @@ was one line, a rule-thickness cap rejecting the table's heavy border, verified 
 pages before concluding, and the fix also made Call-Off Schedule 6's 24-row definitions table
 parse for the first time. The four part-local terms now sit as label cells, verbatim.
 
+## 11. Resolver fix round and merge; the chat demo hardening (both merged)
+
+**Resolver.** All gate findings closed with the reviewer's probes as regression tests: the orphan
+referent cleanup now touches only what the load itself asserted (the 4-reported-1-written probe
+and the cross-batch orphan survival are both pinned tests), reconciliation forms a real edge
+expectation the exit code gates on, with deferred edges (far endpoint's batch not yet arrived)
+partitioned and reported rather than silently uncounted. The document root is pinned to
+"as-bound" rather than promoting one part's footer version, on the builder's own reasoning that
+the pack binds ~48 separately versioned templates and the root asserting v3.0.11 would claim
+something the document does not say, accepted as better than the ruling it replaced. Same-batch
+reloads converge via a load-content hash. Its four-part run then proved the demonstration
+mechanics live: 1,843 nodes and 3,299 relationships converging on rerun, 39 cross-part resolved
+references, and salience visibly recomputing when a citing schedule arrives, core-terms/27
+rising from 1.946 to 4.159. A first four-part stage 3 run also surfaced nine same-span duplicate
+ref paths (LLM spans overlapping grammar citations), now deduped at emission under a generalised
+span ordinal pinned in SPEC 2.2.
+
+**Chat, driven by the operator's live testing before his presentation.** Dan's dead-citation
+report traced to two stacked causes the tester had flagged as a hazard: the run-directory picker
+choosing a cache directory, and all-or-nothing source loading that let a missing refs/ take
+working crops down with it. Fixed per-artifact with the loaded state reported in the health
+endpoint. His trace-copy complaints became a shared gap-wording table both backends must use,
+with the Neo4j side distinguishing, in-graph, a term with no definition site loaded from an
+unknown term (by DEFINED_IN edges, not labels, since uniqueness constraints pre-create empty
+labels). Browser-level audit also caught Enter-to-send missing, the connections view collapsing
+into overlapping pills past a dozen nodes (replaced with a deterministic no-overlap layout), and
+fixture vocabulary leaking into suggestion chips against real data. Every fix verified in a
+browser against the live graph before merge.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified
