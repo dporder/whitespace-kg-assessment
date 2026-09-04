@@ -176,7 +176,17 @@ class FixturesBackend(ToolBackend):
                     sites, term, matched_via = ss, name, "case_insensitive"
                     break
         if not sites:
-            return {"term": term, "found": False, "sites": [], "governs": {}}
+            # "not defined" is wrong when the definitions schedule simply is not
+            # in the loaded slice. The two look identical from here unless we
+            # check whether any vocabulary loaded at all, so say which it is.
+            if not self.c.definition_sites:
+                return {"term": term, "found": False, "sites": [], "governs": {},
+                        "gap": "vocabulary_not_loaded",
+                        "note": ("the schedule that defines terms is not loaded into "
+                                 "this document set yet")}
+            return {"term": term, "found": False, "sites": [], "governs": {},
+                    "gap": "term_not_defined",
+                    "note": "no definition of that term in this document set"}
 
         rows = []
         for s in sites:
@@ -216,7 +226,9 @@ class FixturesBackend(ToolBackend):
     # --------------------------------------------------------------- concepts
     def find_by_concept(self, label: str) -> dict:
         if not self.c.concepts:
-            return {"label": label, "found": False, "concepts": [], "citable": False}
+            return {"label": label, "found": False, "concepts": [], "citable": False,
+                    "gap": "concepts_not_loaded",
+                    "note": "no topic tags have been generated for this document set yet"}
         names = [c.label for c in self.c.concepts]
         scored = process.extract(label, names, scorer=fuzz.WRatio, limit=len(names))
         out = []
@@ -281,10 +293,21 @@ class FixturesBackend(ToolBackend):
     def cite(self, path: str) -> dict:
         n = self.c.node(path)
         if n is None:
-            return {"path": path, "found": False}
+            # Say which of the two it is. "no crop for X" was the same message
+            # whether the provision was missing from the loaded run or merely
+            # had no recorded box, which made a bad data root look like a bug
+            # in the crop renderer.
+            if not self.c.trees:
+                reason = ("no provisions are loaded at all — the run directory "
+                          f"{self.c.root} has no parsed trees")
+            else:
+                reason = (f"no provision at that path in the loaded run "
+                          f"({', '.join(sorted(self.c.trees)) or 'nothing'})")
+            return {"path": path, "found": False, "reason": reason}
         box = self.c.first_box(n)
         if box is None:
-            return {"path": path, "found": False, "reason": "node carries no bbox"}
+            return {"path": path, "found": False,
+                    "reason": "this provision has no page coordinates recorded"}
         # A chat citation is always drawn in the deterministic blue: the box
         # marks where the quoted words are, not what the pipeline thinks of
         # them. The review queue colours by tier, where that distinction is

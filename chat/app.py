@@ -39,6 +39,14 @@ def index() -> FileResponse:
 def health() -> dict:
     info = describe_backend()
     info["tools"] = list(TOOL_NAMES)
+    # What actually loaded, so a half-populated run directory is visible here
+    # rather than showing up as unexplained 404s on every page crop.
+    try:
+        from .source import corpus
+
+        info["loaded"] = corpus().report()
+    except Exception as exc:                               # noqa: BLE001
+        info["loaded"] = {"error": f"{type(exc).__name__}: {exc}"}
     return info
 
 

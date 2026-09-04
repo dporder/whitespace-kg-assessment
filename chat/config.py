@@ -11,6 +11,7 @@ which the orchestrator owns and this module never shadows.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -23,11 +24,13 @@ import config as pipeline_config                   # noqa: E402  repo-root confi
 # --- the one switch that moves both UIs off fixtures ------------------------
 # "fixtures" reads the hand-made stage outputs committed under fixtures/.
 # "output"   reads real pipeline output under output/<OUTPUT_RUN>/.
-DATA_SOURCE = "fixtures"
+# Overridable from the environment so a demo can be pointed at a real run
+# without editing code: RM6116_DATA_SOURCE=output RM6116_OUTPUT_RUN=<dir>
+DATA_SOURCE = os.environ.get("RM6116_DATA_SOURCE", "fixtures").strip() or "fixtures"
 
 # Which run directory under output/ to read when DATA_SOURCE == "output".
 # None means "the newest directory that exists".
-OUTPUT_RUN: str | None = None
+OUTPUT_RUN: str | None = os.environ.get("RM6116_OUTPUT_RUN") or None
 
 # --- the one switch that moves the chat tools off the JSON files -----------
 # "fixtures" serves every tool from the JSON files loaded by chat/source.py.
@@ -55,20 +58,39 @@ MAX_TOOL_CALLS = 24
 LLM_LOG_RUN = "chat"
 
 
+def is_run_dir(p: Path) -> bool:
+    """A run directory is one with a tree/ holding at least one part.
+
+    Not every directory under output/ is a pipeline run: llm_cache, llm_log and
+    eval sit there too, and picking the alphabetically-last one selected a cache
+    directory with no trees, which silently emptied the corpus and turned every
+    crop into a 404. The presence of parsed trees is the only thing that makes a
+    directory servable, so that is what the test is.
+    """
+    return p.is_dir() and any((p / "tree").glob("*.json"))
+
+
 def data_root() -> Path:
-    """Directory holding tree/, refs/, vocab/ and concepts.json."""
+    """Directory holding tree/, and optionally refs/, vocab/ and concepts.json."""
     if DATA_SOURCE == "fixtures":
         return ROOT / "fixtures"
     if DATA_SOURCE != "output":
         raise ValueError(f"DATA_SOURCE must be 'fixtures' or 'output', got {DATA_SOURCE!r}")
+
     out = pipeline_config.OUTPUT
-    if OUTPUT_RUN:
-        return out / OUTPUT_RUN
-    runs = sorted((p for p in out.glob("*") if p.is_dir()), key=lambda p: p.name)
+    if OUTPUT_RUN:                       # an explicit pin always wins
+        pinned = out / OUTPUT_RUN
+        if not pinned.is_dir():
+            raise FileNotFoundError(f"OUTPUT_RUN points at {pinned}, which does not exist")
+        return pinned
+
+    runs = sorted((p for p in out.glob("*") if is_run_dir(p)), key=lambda p: p.name)
     if not runs:
+        present = sorted(p.name for p in out.glob("*") if p.is_dir())
         raise FileNotFoundError(
-            f"DATA_SOURCE is 'output' but no run directory exists under {out}. "
-            "Run the pipeline, or set DATA_SOURCE back to 'fixtures'."
+            f"DATA_SOURCE is 'output' but no directory under {out} contains parsed "
+            f"trees. Directories present: {present or 'none'}. Run stages 1 and 2, "
+            "pin one with OUTPUT_RUN, or set DATA_SOURCE back to 'fixtures'."
         )
     return runs[-1]
 

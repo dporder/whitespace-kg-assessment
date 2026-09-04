@@ -15,6 +15,7 @@ relocating this is a one-line change.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -55,6 +56,7 @@ class Corpus:
     definition_sites: list[DefinitionSite] = field(default_factory=list)
     term_uses: list[TermUse] = field(default_factory=list)
     concepts: list[Concept] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)   # artifacts that would not load
 
     # -- derived indexes -----------------------------------------------------
     refs_by_parent: dict[str, list[Node]] = field(default_factory=dict)
@@ -65,41 +67,76 @@ class Corpus:
     # ---------------------------------------------------------------- loading
     @classmethod
     def load(cls, root: Path | None = None) -> "Corpus":
+        """Load whatever this run directory actually has.
+
+        Deliberately per-artifact tolerant. A partial run is the normal state
+        while the pipeline is still filling in: trees land before refs, refs
+        before vocabulary. One missing or malformed artifact used to take the
+        whole corpus down with it, so a run with good trees but no vocabulary
+        served nothing at all and every page crop 404'd. Trees alone must be
+        enough to answer get_provision, cite and the crop endpoint.
+
+        What loaded, and what did not, is recorded in `report` and surfaced on
+        /api/health, because a silently half-loaded corpus is worse than a
+        loudly incomplete one.
+        """
         root = root or ui_config.data_root()
         c = cls(root=root)
 
         for f in sorted((root / "tree").glob("*.json")):
-            tree = Node.model_validate(json.loads(f.read_text()))
+            try:
+                tree = Node.model_validate(json.loads(f.read_text()))
+            except Exception as exc:                       # noqa: BLE001
+                c.problems.append(f"tree/{f.name}: {type(exc).__name__}: {exc}")
+                continue
             c.trees[tree.path] = tree
             for n in _walk(tree):
                 c.by_path[n.path] = n
                 c.by_id[n.id] = n
 
-        refs_dir = root / "refs"
-        if refs_dir.is_dir():
-            for f in sorted(refs_dir.glob("*.json")):
+        for f in sorted((root / "refs").glob("*.json")):
+            try:
                 rf = RefsFile.model_validate(json.loads(f.read_text()))
-                for ref in rf.refs:
-                    c.refs.append(ref)
-                    c.by_path[ref.path] = ref
-                    c.by_id[ref.id] = ref
+            except Exception as exc:                       # noqa: BLE001
+                c.problems.append(f"refs/{f.name}: {type(exc).__name__}: {exc}")
+                continue
+            for ref in rf.refs:
+                c.refs.append(ref)
+                c.by_path[ref.path] = ref
+                c.by_id[ref.id] = ref
 
-        vocab = root / "vocab"
-        sites_f = vocab / "definition_sites.json"
-        if sites_f.exists():
-            c.definition_sites = [
-                DefinitionSite.model_validate(d) for d in json.loads(sites_f.read_text())
-            ]
-        uses_f = vocab / "term_uses.json"
-        if uses_f.exists():
-            c.term_uses = [TermUse.model_validate(d) for d in json.loads(uses_f.read_text())]
-
-        concepts_f = root / "concepts.json"
-        if concepts_f.exists():
-            c.concepts = [Concept.model_validate(d) for d in json.loads(concepts_f.read_text())]
+        c.definition_sites = c._load_list(
+            root / "vocab" / "definition_sites.json", DefinitionSite)
+        c.term_uses = c._load_list(root / "vocab" / "term_uses.json", TermUse)
+        c.concepts = c._load_list(root / "concepts.json", Concept)
 
         c._index()
         return c
+
+    def _load_list(self, path: Path, model) -> list:
+        if not path.exists():
+            return []
+        try:
+            return [model.model_validate(d) for d in json.loads(path.read_text())]
+        except Exception as exc:                           # noqa: BLE001
+            self.problems.append(f"{path.name}: {type(exc).__name__}: {exc}")
+            return []
+
+    def report(self) -> dict:
+        """What this corpus actually has, for /api/health."""
+        return {
+            "data_root": str(self.root),
+            "parts": sorted(self.trees),
+            "trees": len(self.trees),
+            "nodes": len(self.by_path),
+            "refs": len(self.refs),
+            "definition_sites": len(self.definition_sites),
+            "term_uses": len(self.term_uses),
+            "concepts": len(self.concepts),
+            "vocabulary_loaded": bool(self.definition_sites),
+            "refs_loaded": bool(self.refs),
+            "problems": list(self.problems),
+        }
 
     def _index(self) -> None:
         for ref in self.refs:
@@ -171,5 +208,19 @@ _CACHE: dict[str, Corpus] = {}
 def corpus(reload: bool = False) -> Corpus:
     key = str(ui_config.data_root())
     if reload or key not in _CACHE:
-        _CACHE[key] = Corpus.load()
+        c = Corpus.load()
+        r = c.report()
+        # Say at startup which directory was chosen and what came out of it.
+        # Picking the wrong one is silent otherwise, and looks like a bug in
+        # everything downstream rather than in the choice of root.
+        print(f"[chat.source] data root {r['data_root']} :: "
+              f"{r['trees']} tree(s) {r['parts']}, {r['nodes']} nodes, "
+              f"{r['refs']} refs, {r['definition_sites']} definitions, "
+              f"{r['concepts']} concepts", file=sys.stderr, flush=True)
+        for p in r["problems"]:
+            print(f"[chat.source] COULD NOT LOAD {p}", file=sys.stderr, flush=True)
+        if not c.trees:
+            print("[chat.source] WARNING: no trees loaded — provisions and page "
+                  "crops will not resolve", file=sys.stderr, flush=True)
+        _CACHE[key] = c
     return _CACHE[key]
