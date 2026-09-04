@@ -55,6 +55,8 @@ class Context:
     # from it loads with citable=False. Intro and ref are fixed False by the
     # schema regardless, so the list only decides the kinds it can decide.
     citable_kinds: frozenset[str]
+    # Rulebook labels for the units the interpretation clause is silent on.
+    item_labels: dict[str, str]
     printed_pages: dict[int, Optional[str]]
     anomalies: list[str] = field(default_factory=list)
     order: int = 0
@@ -109,6 +111,7 @@ def build_part(layout: dict, profile: dict) -> tuple[Node, list[str]]:
         batch_id=part.get("batch_id"),
         unit_label=unit_label,
         citable_kinds=frozenset(profile.get("citable_kinds", ())),
+        item_labels=dict(profile.get("item_labels", {})),
         printed_pages={p["page"]: p["printed_page"] for p in layout["pages"]},
     )
 
@@ -222,6 +225,11 @@ def _make_node(
     # citable=False from the caller (intro) is never overridden upward.
     if citable is None:
         citable = kind in ctx.citable_kinds
+    # A source with no label is a claim about nothing. The Award Form has no
+    # unit label at all, so its preamble must not record where a label it does
+    # not have came from.
+    if unit_label is None:
+        unit_label_source = None
     return Node(
         id=node_id(ctx.document, ctx.version, path),
         lineage_key=lineage_key(ctx.document, path),
@@ -264,9 +272,9 @@ def _node_for_block(ctx: Context, parent: Node, block: dict) -> Node:
     # dotted item is not one of those: it is numbered exactly like the clause
     # and subclause above it, so it takes the part's own unit label from the
     # document like any other numbered provision.
-    lettered = bool(block["number"]) and block["number"].startswith("(")
-    if block["depth"] == 4 and lettered:
-        unit_label, source = "Paragraph", ITEM_LABEL_SOURCE
+    bracketed = bool(block["number"]) and block["number"].startswith("(")
+    if block["depth"] == 4 and bracketed:
+        unit_label, source = _item_label(block["number"], ctx), ITEM_LABEL_SOURCE
     else:
         unit_label, source = ctx.unit_label, DOCUMENT_LABEL_SOURCE
 
@@ -293,6 +301,23 @@ def _node_for_block(ctx: Context, parent: Node, block: dict) -> Node:
             page=block["number_bbox"]["page"], bbox=tuple(block["number_bbox"]["bbox"])
         )
     return node
+
+
+_ROMAN = re.compile(r"^[ivxl]+$", re.IGNORECASE)
+
+
+def _item_label(number: str, ctx: Context) -> Optional[str]:
+    """Unit label for a lettered or roman item, from the rulebook.
+
+    The interpretation clause names Clause, Schedule, Part, Paragraph, Annex
+    and Table and is silent on these, so the label comes from
+    `item_labels` in the profile and the node records `profile` as its source.
+    No string literal here: a family that calls its roman items something else
+    says so in config.
+    """
+    inner = number.strip("()")
+    kind = "roman" if _ROMAN.fullmatch(inner) else "letter"
+    return ctx.item_labels.get(kind)
 
 
 def _number_boxes(node: Node, ctx: Context) -> list[BBox]:
@@ -323,6 +348,12 @@ def _scope_node(ctx: Context, root: Node, title_block: Optional[dict], index: in
     title = (title_block or {}).get("text", "").strip() or None
     slug = _SLUG_STRIP.sub("-", title.lower()).strip("-") if title else ""
     key = slug or f"section-{index + 1}"
+    # Two scopes whose titles slug alike would take the same path and one would
+    # name two sections. Disambiguated by sequence and recorded, never allowed
+    # to collide silently.
+    collided = any(c.path == f"{root.path}/{key}" for c in root.children)
+    if collided:
+        key = f"{key}-{index + 1}"
     unit_label, source = ctx.unit_label, DOCUMENT_LABEL_SOURCE
     if title:
         first = title.split()[0].rstrip(":,")
@@ -348,6 +379,11 @@ def _scope_node(ctx: Context, root: Node, title_block: Optional[dict], index: in
         "the ones before it"
         + (f"; the section is titled {title!r}" if title else "; the section prints no title")
     )
+    if collided:
+        node.anomalies.append(
+            f"scope_id_collision: another section already claimed {slug!r}, "
+            f"this one is {key!r}"
+        )
     return node
 
 
@@ -394,7 +430,7 @@ def _flush_prose(ctx: Context, parent: Node, prose: list[dict], has_more_childre
         # opening words: a preamble, citable in its own right.
         node = _make_node(
             ctx,
-            path=f"{parent.path}/preamble" if not existing else f"{parent.path}/preamble-{len(existing)}",
+            path=f"{parent.path}/{_next_suffix(parent, 'preamble')}",
             kind="preamble",
             page_start=page_start,
             page_end=page_end,
@@ -417,10 +453,9 @@ def _flush_prose(ctx: Context, parent: Node, prose: list[dict], has_more_childre
         page_start = min(b.page for b in boxes)
         page_end = max(b.page for b in boxes)
 
-    suffix = "intro" if not any(c.path.endswith("/intro") for c in existing) else f"intro-{len(existing)}"
     node = _make_node(
         ctx,
-        path=f"{parent.path}/{suffix}",
+        path=f"{parent.path}/{_next_suffix(parent, 'intro')}",
         kind="intro",
         page_start=page_start,
         page_end=page_end,
@@ -429,7 +464,27 @@ def _flush_prose(ctx: Context, parent: Node, prose: list[dict], has_more_childre
         citable=False,
         anomalies=anomalies,
     )
-    parent.children.insert(0, node)
+    # Appended, not inserted first. This runs at the point in document order
+    # where the prose was read, so appending IS its reading-order position: a
+    # lead-in lands first because it was read first. Forcing every prose run to
+    # index 0 stacked successive runs backwards, so a container with prose on
+    # pages 102 and 105 read the later one first, which the sibling ordering
+    # invariant then reported against the builder that caused it.
+    parent.children.append(node)
+
+
+def _next_suffix(parent: Node, stem: str) -> str:
+    """Path segment for the next `stem` child, numbered by sequence.
+
+    The first is `intro`, then `intro-2`, `intro-3`, counting how many of that
+    stem the parent already holds rather than how many children of any kind it
+    has, so the numbers run consecutively in document order.
+    """
+    taken = sum(
+        1 for c in parent.children
+        if c.path.rsplit("/", 1)[-1] == stem or c.path.rsplit("/", 1)[-1].startswith(f"{stem}-")
+    )
+    return stem if taken == 0 else f"{stem}-{taken + 1}"
 
 
 def _merge_boxes(boxes: list[BBox]) -> list[BBox]:
@@ -551,7 +606,7 @@ def _finalise(node: Node, ctx: Context) -> None:
         # exactly one owner. This is the specified shape, not an anomaly.
         intro = _make_node(
             ctx,
-            path=f"{node.path}/intro",
+            path=f"{node.path}/{_next_suffix(node, 'intro')}",
             kind="intro",
             page_start=node.page_start,
             page_end=node.page_end,

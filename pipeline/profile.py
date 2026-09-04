@@ -59,6 +59,15 @@ UNIT_WORDS = (
     "Regulation", "Regulations", "Rule", "Rules", "Item", "Items",
 )
 _QUOTED_UNIT = re.compile(r"[\"“]([A-Z][a-z]+)[\"”]")
+
+# All five SPEC 2.7 checks run per part, not just the two that used to.
+CHECK_IDS = (
+    "interpretation_clause",
+    "unmatched_numbering",
+    "orphan_text",
+    "depth_out_of_range",
+    "geometry_disagrees_with_numbering",
+)
 # A dotted number at the start of a line, however deep.
 _DOTTED_NUMBER = re.compile(r"^\s{0,12}(\d{1,3}(?:\.\d{1,3})+)\.?\s")
 
@@ -268,6 +277,13 @@ def _looks_like_detector_artifact(text: str) -> bool:
     return bool(_ABBREVIATION_OPENER.match(text))
 
 
+def _ink(text: str) -> int:
+    """Non-whitespace characters. The one basis on which a reflowed block and
+    the source lines it came from can be compared: reflow moves whitespace, it
+    never adds or removes a visible glyph."""
+    return sum(1 for ch in text if not ch.isspace())
+
+
 def _numbering_style(text: str) -> str:
     for name, pattern in _STYLE_PATTERNS:
         if pattern.match(text):
@@ -293,32 +309,59 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
     geometry = {"tested": 0, "disagreements": 0, "abstained_parts": [], "measured_parts": []}
     disagreement_examples: list[dict] = []
     orphan_examples: list[dict] = []
+    # Per-part COUNTS are uncapped; the caps below apply only to stored
+    # examples. Counting capped examples attributed every disagreement past
+    # the cap to whichever part happened to hit it first.
+    orphan_by_part: dict[str, int] = {}
+    part_ink_by_part: dict[str, int] = {}
+    geometry_by_part: dict[str, int] = {}
+    geometry_tested_by_part: dict[str, int] = {}
+    deep_by_part: dict[str, list] = {}
 
     for part in document.parts:
         inputs: list[PageInput] = []
         for page_no in range(part.page_start, part.page_end + 1):
             page_scan = document.pages[page_no]
             inputs.append(collect_page(doc[page_no - 1], page_no, page_scan.furniture.body))
-            body_chars += page_scan.body_chars
         blocks = build_blocks(inputs, rulebook)
 
+        # Both sides counted in ink: non-whitespace characters only. Reflow
+        # moves whitespace around, joining wrapped lines with a space that was
+        # never a character on the page, so counting raw length compared a
+        # reflowed string against an unreflowed one and made `placed` exceed the
+        # body it came from by up to 974 characters. Every visible glyph in a
+        # block came from the page, so ink is the one basis both sides share.
+        #
         # A numbered block's own words exclude its number, which moves to the
-        # node's `label`, so the numbering token counts as placed. Without this
-        # the check would read a better-covered grammar as more homeless text:
-        # every newly matched item would move its "a)" out of `text` and into a
-        # label, and the orphan rate would rise as the parse improved.
+        # node's label, so the numbering token counts as placed too.
         placed = sum(
-            len(b.text) + len(b.number_printed or "")
+            _ink(b.text) + _ink(b.number_printed or "")
             for b in blocks
             if b.block_kind in ("numbered", "prose", "part_title")
         )
-        placed += sum(len(c.text) for b in blocks for c in b.cells)
-        part_body = sum(document.pages[p].body_chars for p in range(part.page_start, part.page_end + 1))
-        missing = max(0, part_body - placed)
-        orphan_chars += missing
-        if missing and len(orphan_examples) < 15:
+        placed += sum(_ink(c.text) for b in blocks for c in b.cells)
+        part_body = sum(
+            _ink(line.text)
+            for p in range(part.page_start, part.page_end + 1)
+            for line in document.pages[p].furniture.body
+        )
+        # Signed, not clamped. A surplus is as suspicious as a deficit: it means
+        # ink was counted twice, which a max(0, ...) would hide completely and
+        # with it any chance of this check ever firing.
+        residual = part_body - placed
+        body_chars += part_body
+        orphan_chars += residual
+        orphan_by_part[part.slug] = residual
+        part_ink_by_part[part.slug] = part_body
+        if residual and len(orphan_examples) < 15:
             orphan_examples.append(
-                {"part": part.slug, "pages": [part.page_start, part.page_end], "chars": missing}
+                {
+                    "part": part.slug,
+                    "pages": [part.page_start, part.page_end],
+                    "body_ink": part_body,
+                    "placed_ink": placed,
+                    "residual": residual,
+                }
             )
 
         # Depth is measured on the numbering the page prints, not on the
@@ -334,6 +377,16 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
                 if not m:
                     continue
                 dots = m.group(1).count(".") + 1
+                if dots > rulebook.max_dotted_depth:
+                    # Per-part ledger, uncapped and never reset. The shared
+                    # `deep_examples` list below is a display sample that resets
+                    # whenever a deeper number turns up; a part's own record of
+                    # numbering too deep for the rulebook must not depend on
+                    # what some other part printed.
+                    deep_by_part.setdefault(part.slug, []).append(
+                        {"part": part.slug, "page": page_no, "number": m.group(1),
+                         "text": line.text.strip()[:90]}
+                    )
                 if dots > max_dotted:
                     max_dotted = dots
                     deep_examples = [
@@ -348,14 +401,20 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
         for block in blocks:
             max_tree_depth = max(max_tree_depth, block.depth or 0)
 
-        _measure_geometry(part.slug, blocks, geometry, disagreement_examples)
+        _measure_geometry(
+            part.slug, blocks, geometry, disagreement_examples,
+            geometry_by_part, geometry_tested_by_part,
+        )
 
     doc.close()
     return {
         "orphan": {
-            "body_chars": body_chars,
-            "unattached_chars": orphan_chars,
-            "rate": round(orphan_chars / body_chars, 4) if body_chars else 0.0,
+            "body_ink": body_chars,
+            "residual_ink": orphan_chars,
+            "rate": round(abs(orphan_chars) / body_chars, 4) if body_chars else 0.0,
+            "signed_rate": round(orphan_chars / body_chars, 6) if body_chars else 0.0,
+            "by_part": dict(sorted(orphan_by_part.items())),
+            "ink_by_part": dict(sorted(part_ink_by_part.items())),
             "examples": orphan_examples,
         },
         "depth": {
@@ -363,9 +422,12 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
             "rulebook_max_dotted_depth": rulebook.max_dotted_depth,
             "max_numbered_depth": max_tree_depth,
             "rulebook_levels": len(rulebook.numbered_levels),
+            "by_part": {k: v for k, v in sorted(deep_by_part.items())},
             "examples": deep_examples,
         },
         "geometry": {
+            "by_part": dict(sorted(geometry_by_part.items())),
+            "tested_by_part": dict(sorted(geometry_tested_by_part.items())),
             "pairs_tested": geometry["tested"],
             "disagreements": geometry["disagreements"],
             "rate": round(geometry["disagreements"] / geometry["tested"], 4)
@@ -379,7 +441,12 @@ def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> d
 
 
 def _measure_geometry(
-    part_id: str, blocks: list, geometry: dict, examples: list[dict]
+    part_id: str,
+    blocks: list,
+    geometry: dict,
+    examples: list[dict],
+    by_part: dict[str, int],
+    tested_by_part: dict[str, int],
 ) -> None:
     """Check 5, per part, abstaining where indentation carries no signal."""
     lefts: dict[int, list[float]] = {}
@@ -433,8 +500,14 @@ def _measure_geometry(
         if parent_depth not in medians or block.depth not in measurable:
             continue
         geometry["tested"] += 1
+        by_part.setdefault(part_id, 0)
+        tested_by_part[part_id] = tested_by_part.get(part_id, 0) + 1
         if block.left < medians[parent_depth] - INDENT_TOLERANCE:
             geometry["disagreements"] += 1
+            # Uncapped per-part count. Counting the capped example list instead
+            # attributed every disagreement past the twentieth to whichever
+            # part happened to fill the cap.
+            by_part[part_id] = by_part.get(part_id, 0) + 1
             if len(examples) < 20:
                 examples.append(
                     {
@@ -447,7 +520,13 @@ def _measure_geometry(
                 )
 
 
-def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds: dict) -> dict:
+def fit_by_part(
+    numbering: dict,
+    probe: dict,
+    document: DocumentScan,
+    thresholds: dict,
+    interpretation: dict,
+) -> dict:
     """The same fit checks, scoped to each part.
 
     The pack is not one document, it is roughly fifty separately versioned
@@ -459,16 +538,20 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
     not, so the document-level verdict from SPEC 2.7 is kept exactly as
     specified and this sits beside it, saying which parts it was that failed.
     """
+    # Every ledger below is the uncapped per-part count from `probe_parts`.
+    # These used to be reconstructed by counting the capped example lists, which
+    # attributed everything past a cap to whichever part filled it and silently
+    # zeroed the rest: Framework Schedule 1 reported 20 geometry disagreements
+    # and passed.
     unmatched = numbering.get("unmatched_by_part", {})
-    orphan_by_part = {e["part"]: e["chars"] for e in probe["orphan"].get("examples", [])}
-    geometry_by_part: dict[str, int] = {}
-    for example in probe["geometry"].get("examples", []):
-        geometry_by_part[example["part"]] = geometry_by_part.get(example["part"], 0) + 1
+    orphan_by_part = probe["orphan"].get("by_part", {})
+    geometry_by_part = probe["geometry"].get("by_part", {})
+    geometry_tested_by_part = probe["geometry"].get("tested_by_part", {})
     depth_limit = probe["depth"]["rulebook_max_dotted_depth"]
-    deep_by_part: dict[str, list] = {}
-    for example in probe["depth"].get("examples", []):
-        if example["number"].count(".") + 1 > depth_limit:
-            deep_by_part.setdefault(example["part"], []).append(example)
+    deep_by_part = probe["depth"].get("by_part", {})
+    part_ink_by_part = probe["orphan"].get("ink_by_part", {})
+    interpretation_ok = interpretation["found"]
+    unknown_units = interpretation["units_unknown_to_rulebook"]
 
     out: dict[str, dict] = {}
     limit = thresholds["max_unmatched_numbering_rate"]
@@ -506,10 +589,69 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
                 {
                     "check": "depth_out_of_range",
                     "detail": f"this part numbers deeper than the rulebook's "
-                    f"{depth_limit} dotted levels",
+                    f"{depth_limit} dotted levels, {len(deep_by_part[part.slug])} line(s)",
                     "examples": deep_by_part[part.slug][:5],
                 }
             )
+
+        # Check 1, scoped as far as it can be. The interpretation clause is a
+        # document-level fact: one clause governs the whole pack, so its absence
+        # or a unit it names that the rulebook lacks condemns every part, and a
+        # part is not credited with an interpretation clause of its own.
+        if thresholds.get("require_interpretation_clause") and not interpretation_ok:
+            alarms.append(
+                {
+                    "check": "interpretation_clause_missing",
+                    "detail": "no interpretation cue from the rulebook appears in the document",
+                    "examples": [],
+                }
+            )
+        if unknown_units:
+            alarms.append(
+                {
+                    "check": "interpretation_names_unknown_units",
+                    "detail": "the document names units the rulebook does not declare: "
+                    + ", ".join(unknown_units),
+                    "examples": interpretation["examples"][:3],
+                }
+            )
+
+        # Check 3, on the signed residual: a surplus means ink counted twice.
+        residual = orphan_by_part.get(part.slug, 0)
+        part_ink = part_ink_by_part.get(part.slug, 0)
+        orphan_rate = abs(residual) / part_ink if part_ink else 0.0
+        if orphan_rate > thresholds["max_orphan_block_rate"]:
+            alarms.append(
+                {
+                    "check": "orphan_text",
+                    "detail": f"{residual:+d} ink characters of {part_ink} unaccounted for "
+                    f"({'deficit' if residual > 0 else 'surplus'}), rate "
+                    f"{round(orphan_rate, 4)} > {thresholds['max_orphan_block_rate']}",
+                    "examples": [
+                        e for e in probe["orphan"].get("examples", [])
+                        if e.get("part") == part.slug
+                    ][:3],
+                }
+            )
+
+        # Check 5, with the part's own denominator.
+        geometry_bad = geometry_by_part.get(part.slug, 0)
+        geometry_tested = geometry_tested_by_part.get(part.slug, 0)
+        geometry_rate = geometry_bad / geometry_tested if geometry_tested else 0.0
+        if geometry_tested and geometry_rate > thresholds["max_geometry_disagreement"]:
+            alarms.append(
+                {
+                    "check": "geometry_disagrees_with_numbering",
+                    "detail": f"{geometry_bad} of {geometry_tested} numbered lines sit left "
+                    f"of their level's parent, rate {round(geometry_rate, 4)} > "
+                    f"{thresholds['max_geometry_disagreement']}",
+                    "examples": [
+                        e for e in probe["geometry"].get("examples", [])
+                        if e.get("part") == part.slug
+                    ][:3],
+                }
+            )
+
         out[part.slug] = {
             "pages": [part.page_start, part.page_end],
             "numbered_lines": counts,
@@ -519,8 +661,13 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
             # further rulebook entry can be written against evidence.
             "unmatched_styles": numbering.get("styles_by_part", {}).get(part.slug, {}),
             "unmatched_examples": numbering.get("examples_by_part", {}).get(part.slug, [])[:6],
-            "orphan_chars": orphan_by_part.get(part.slug, 0),
-            "geometry_disagreements": geometry_by_part.get(part.slug, 0),
+            "orphan_residual_ink": residual,
+            "part_ink": part_ink,
+            "orphan_rate": round(orphan_rate, 6),
+            "geometry_disagreements": geometry_bad,
+            "geometry_tested": geometry_tested,
+            "geometry_rate": round(geometry_rate, 4),
+            "checks_run": sorted(CHECK_IDS),
             "alarms": alarms,
             "passed": not alarms,
         }
@@ -562,8 +709,9 @@ def evaluate_fit(interpretation: dict, numbering: dict, probe: dict, thresholds:
         alarms.append(
             {
                 "check": "orphan_text",
-                "detail": f"{probe['orphan']['unattached_chars']} of {probe['orphan']['body_chars']} "
-                f"body characters attached to no node, rate {probe['orphan']['rate']} > {limit}",
+                "detail": f"{probe['orphan']['residual_ink']:+d} of "
+                f"{probe['orphan']['body_ink']} body ink characters unaccounted for, "
+                f"rate {probe['orphan']['rate']} > {limit}",
                 "examples": probe["orphan"]["examples"][:10],
             }
         )
@@ -613,7 +761,9 @@ def main(argv: list[str] | None = None) -> int:
     numbering = numbering_coverage(document, rulebook, config.PDF)
     probe = probe_parts(config.PDF, document, rulebook)
     fit = evaluate_fit(interpretation, numbering, probe, config.QUARANTINE_THRESHOLDS)
-    per_part = fit_by_part(numbering, probe, document, config.QUARANTINE_THRESHOLDS)
+    per_part = fit_by_part(
+        numbering, probe, document, config.QUARANTINE_THRESHOLDS, interpretation
+    )
 
     pages = profile_pages(document)
     report = {
@@ -671,8 +821,10 @@ def main(argv: list[str] | None = None) -> int:
           f"units named {sorted(fit['interpretation_clause']['units_named_by_document'])}")
     print(f"profile: unmatched numbering {numbering['unmatched_lines']}/{numbering['numbered_lines']} "
           f"= {numbering['rate']:.4f} (limit {config.QUARANTINE_THRESHOLDS['max_unmatched_numbering_rate']})")
-    print(f"profile: orphan text {probe['orphan']['unattached_chars']}/{probe['orphan']['body_chars']} "
-          f"= {probe['orphan']['rate']:.4f} (limit {config.QUARANTINE_THRESHOLDS['max_orphan_block_rate']})")
+    print(f"profile: orphan text {probe['orphan']['residual_ink']:+d}/"
+          f"{probe['orphan']['body_ink']} ink "
+          f"= {probe['orphan']['rate']:.4f} (limit "
+          f"{config.QUARANTINE_THRESHOLDS['max_orphan_block_rate']}, signed residual)")
     print(f"profile: max dotted depth {probe['depth']['max_dotted_depth']} "
           f"(rulebook allows {probe['depth']['rulebook_max_dotted_depth']})")
     print(f"profile: geometry {probe['geometry']['disagreements']}/{probe['geometry']['pairs_tested']} "

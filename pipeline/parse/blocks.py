@@ -244,8 +244,19 @@ def build_blocks(pages: list[PageInput], rulebook: Rulebook) -> list[Block]:
             if kind == "grid":
                 close()
                 gi, grid = payload           # type: ignore[misc]
-                cells, _outside = fill_cells(grid, grid_lines.get(gi, []), page.words)
-                blocks.append(_table_block(len(blocks), grid, cells))
+                cells, outside = fill_cells(grid, grid_lines.get(gi, []), page.words)
+                table = _table_block(len(blocks), grid, cells)
+                inked = [l for l in outside if l.text.strip()]
+                if inked:
+                    # Ink that fell inside the table's bounds but into no cell
+                    # is text with no home. It was being dropped silently; now
+                    # it is named on the table with what it said.
+                    table.anomalies.append(
+                        f"table_lines_outside_any_cell: {len(inked)} line(s) inside the "
+                        f"table's bounds landed in no cell, first is "
+                        f"{inked[0].text.strip()[:60]!r} on page {inked[0].page}"
+                    )
+                blocks.append(table)
                 continue
 
             line: VisualLine = payload       # type: ignore[assignment]

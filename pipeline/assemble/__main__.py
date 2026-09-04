@@ -18,7 +18,7 @@ from pathlib import Path
 
 import config
 
-from pipeline.assemble.invariants import check_tree
+from pipeline.assemble.invariants import UNEXPLAINED_PREFIX, check_tree, stale_ledger_entries
 from pipeline.assemble.tree import build_part, renumber
 from pipeline.parse.model import dump_json
 from pipeline.schemas import Node
@@ -105,13 +105,30 @@ def main(argv: list[str] | None = None) -> int:
             f"anomalies={count_anomalies(validated):<5} -> {out_path.relative_to(config.ROOT)}"
         )
 
-    violations_path = tree_dir / "violations.json"
+    # The manifest lives at the run root, never inside tree/. Stage 8
+    # enumerates tree/*.json as part files and tried to validate this one as a
+    # Node; tree/ holds part files and nothing else.
+    stale = stale_ledger_entries(reports)
+    for entry in stale:
+        print(
+            f"assemble: STALE verified-typesetting entry {entry['part']} {entry['path']} "
+            f"(page {entry['page']}, {entry['check']}) matched no violation",
+            file=sys.stderr,
+        )
+    violations_path = config.OUTPUT / args.run / "violations.json"
+    legacy = tree_dir / "violations.json"
+    if legacy.exists():
+        legacy.unlink()
     violations_path.write_text(
         dump_json(
             {
                 "run": args.run,
                 "total_violations": sum(len(r.violations) for r in reports),
                 "total_unexplained": total_unexplained,
+                # Ledger entries that explained nothing this run. Surfaced so a
+                # human observation that has drifted off its node is visible
+                # rather than sitting silently in the code.
+                "stale_verified_entries": stale,
                 "parts": [r.as_json() for r in reports],
             }
         ),
@@ -137,15 +154,20 @@ def _attach_violations(root: Node, report) -> None:
         node = by_path.get(violation.path)
         if node is None:
             continue
-        # An explained violation says on the node why it is explained, so a
-        # reviewer reading the tree sees the reasoning rather than a bare
-        # geometric complaint they would have to look up.
+        # One anomaly instance per violation, stamped on the violating node,
+        # which is one of the two the check compared. Not deduplicated: stage 8
+        # matches explanations to violations one for one, so collapsing two
+        # identical stamps would leave a violation looking unexplained.
+        #
+        # An explanation is keyed `<check_id>_<reason>`. An unexplained
+        # violation is stamped under `unresolved_<check_id>` instead, because a
+        # bare `<check_id>:` key would start with the check id and stage 8 would
+        # read the complaint as its own explanation.
         if violation.explained:
             note = f"{violation.explained} ({violation.check}: {violation.detail})"
         else:
-            note = f"{violation.check}: {violation.detail}"
-        if note not in node.anomalies:
-            node.anomalies.append(note)
+            note = f"{UNEXPLAINED_PREFIX}_{violation.check}: {violation.detail}"
+        node.anomalies.append(note)
 
 
 if __name__ == "__main__":

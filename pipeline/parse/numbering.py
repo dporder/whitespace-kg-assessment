@@ -52,7 +52,11 @@ NUMBER_SHAPED = re.compile(
 
 @dataclass(frozen=True)
 class NumberMatch:
-    label: str          # the printed number, verbatim: "3.1.2", "(a)", "35."
+    # The lookup key, canonicalised: a dotted number as printed ("3.1.2"), and a
+    # lettered or roman item always bracketed ("(a)") whether the page printed
+    # "(a)" or "a)". NOT verbatim, which is what `token` is for, and what the
+    # block carries as `number_printed` so the printed form is never lost.
+    label: str
     token: str          # the whitespace-delimited word the label came from
     level: str          # rulebook level name
     depth: int          # 1-based index into the rulebook's levels below "part"

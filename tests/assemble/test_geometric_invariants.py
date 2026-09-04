@@ -86,7 +86,7 @@ def test_a_child_left_of_its_parent_is_reported():
     clause = _node("p/1", "clause", (1, (100.0, 100.0, 120.0, 114.0)), [child])
     root = _node("p", "part", None, [clause])
     report = check_tree("p", root)
-    hits = _checks(report, "child_left_of_parent")
+    hits = _checks(report, "child_left_edge")
     assert [v.path for v in hits] == ["p/1/a"]
     assert hits[0].measure == pytest.approx(20.0)
 
@@ -96,7 +96,7 @@ def test_a_parent_below_its_first_child_is_reported():
     clause = _node("p/1", "clause", (1, (100.0, 100.0, 120.0, 114.0)), [child])
     root = _node("p", "part", None, [clause])
     report = check_tree("p", root)
-    assert [v.path for v in _checks(report, "own_box_below_first_child")] == ["p/1"]
+    assert [v.path for v in _checks(report, "own_box_above_first_child")] == ["p/1"]
 
 
 def test_siblings_out_of_order_and_overlapping_are_told_apart():
@@ -104,13 +104,13 @@ def test_siblings_out_of_order_and_overlapping_are_told_apart():
     first = _node("p/1/a", "item", (1, (110.0, 120.0, 400.0, 134.0)), text="first")
     clause = _node("p/1", "clause", (1, (100.0, 100.0, 120.0, 114.0)), [first, up])
     root = _node("p", "part", None, [clause])
-    assert [v.path for v in _checks(check_tree("p", root), "siblings_out_of_reading_order")] == ["p/1/b"]
+    assert [v.path for v in _checks(check_tree("p", root), "siblings_ascend")] == ["p/1/b"]
 
     overlap = _node("p/2/b", "item", (1, (110.0, 128.0, 400.0, 142.0)), text="overlaps by most of a line")
     first2 = _node("p/2/a", "item", (1, (110.0, 120.0, 400.0, 140.0)), text="first")
     clause2 = _node("p/2", "clause", (1, (100.0, 100.0, 120.0, 114.0)), [first2, overlap])
     root2 = _node("p", "part", None, [clause2])
-    assert [v.path for v in _checks(check_tree("p", root2), "siblings_overlap_vertically")] == ["p/2/b"]
+    assert [v.path for v in _checks(check_tree("p", root2), "sibling_overlap")] == ["p/2/b"]
 
 
 def test_font_metric_overlap_between_siblings_is_not_a_violation():
@@ -120,7 +120,7 @@ def test_font_metric_overlap_between_siblings_is_not_a_violation():
     second = _node("p/1/b", "item", (1, (110.0, 134.5, 400.0, 150.5)), text="second")
     clause = _node("p/1", "clause", (1, (100.0, 100.0, 120.0, 114.0)), [first, second])
     root = _node("p", "part", None, [clause])
-    assert _checks(check_tree("p", root), "siblings_overlap_vertically") == []
+    assert _checks(check_tree("p", root), "sibling_overlap") == []
 
 
 def test_cells_of_one_row_are_not_stacked_siblings():
@@ -132,7 +132,14 @@ def test_cells_of_one_row_are_not_stacked_siblings():
     table = _node("p/t", "table", None, [left, right], n_rows=1, n_cols=2)
     root = _node("p", "part", None, [table])
     report = check_tree("p", root)
-    assert report.violations == []
+    # Counted and explained on the spot, not skipped: a report that silently
+    # dropped the pair could not be reconciled with one that applies the
+    # stacked-sibling rule to cells, and reconciling the two is the point.
+    assert report.unexplained == []
+    overlaps = [v for v in report.violations if v.check == "sibling_overlap"]
+    assert [v.path for v in overlaps] == ["p/t/0/1"]
+    assert overlaps[0].explained.startswith("sibling_overlap_cells_share_a_row")
+    assert not [v for v in report.violations if v.check == "siblings_ascend"]
 
 
 def test_cells_in_the_wrong_column_order_are_reported():
@@ -142,7 +149,7 @@ def test_cells_in_the_wrong_column_order_are_reported():
                   row=0, col=1, cell_role="value", role_confidence=0.99)
     table = _node("p/t", "table", None, [left, right], n_rows=1, n_cols=2)
     root = _node("p", "part", None, [table])
-    assert [v.path for v in _checks(check_tree("p", root), "siblings_out_of_reading_order")] == ["p/t/0/1"]
+    assert [v.path for v in _checks(check_tree("p", root), "siblings_ascend")] == ["p/t/0/1"]
 
 
 def test_a_level_wide_offset_is_explained_and_an_isolated_one_is_not():
@@ -155,9 +162,15 @@ def test_a_level_wide_offset_is_explained_and_an_isolated_one_is_not():
     heading = _node("p/1", "heading", (1, (30.4, 80.0, 300.0, 96.0)), children)
     root = _node("p", "part", None, [heading])
     report = check_tree("p", root)
-    hits = _checks(report, "child_left_of_parent")
+    hits = _checks(report, "child_left_edge")
     assert len(hits) == len(children)
-    assert all(v.explained and v.explained.startswith("systematic_level_offset") for v in hits)
+    # The explanation key is `<check_id>_<reason>`, the shared contract stage 8
+    # matches on: an anomaly explains a violation only when its key starts with
+    # the canonical check id.
+    assert all(
+        v.explained and v.explained.startswith("child_left_edge_systematic_offset")
+        for v in hits
+    )
     assert report.unexplained == []
 
     aligned = [
@@ -179,7 +192,7 @@ def test_the_report_serialises_counts_and_locations():
     assert data["part"] == "p"
     assert data["total"] == 1
     assert data["unexplained"] == 1
-    assert data["by_check"]["child_left_of_parent"] == 1
+    assert data["by_check"]["child_left_edge"] == 1
     assert data["violations"][0]["path"] == "p/1/a"
     assert "left of parent's" in data["violations"][0]["detail"]
 

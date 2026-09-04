@@ -38,13 +38,25 @@ from pipeline.parse.geometry import (
 )
 from pipeline.schemas import Node
 
+# The canonical check ids from SPEC 2.1. Shared contract: stage 8 matches an
+# explanation to a violation by testing whether the anomaly key starts with the
+# check id, so these names are not ours to choose locally. Two stages named the
+# same checks differently once and their reports disagreed over identical
+# trees; the vocabulary is pinned in the spec to stop that recurring.
 CHECKS = (
-    "child_left_of_parent",
-    "own_box_below_first_child",
-    "siblings_overlap_vertically",
-    "siblings_out_of_reading_order",
-    "extent_escapes_parent",
+    "child_left_edge",
+    "own_box_above_first_child",
+    "sibling_overlap",
+    "siblings_ascend",
+    "extent_nests",
 )
+
+# An explanation anomaly is keyed `<check_id>_<reason>`. An unexplained
+# violation is stamped too, so a reviewer reading the tree sees it, but under a
+# key that CANNOT be mistaken for an explanation: a bare "child_left_edge: ..."
+# would start with the check id and stage 8 would count the complaint as its own
+# excuse, turning every violation into a silent pass.
+UNEXPLAINED_PREFIX = "unresolved"
 
 # A violation is systematic when it fires on this share of the comparable pairs
 # at the same (part, parent kind, child kind), over at least this many pairs.
@@ -55,43 +67,93 @@ SYSTEMATIC_MIN_COUNT = 3
 
 @dataclass(frozen=True)
 class VerifiedRender:
-    """One page whose geometry was checked by rendering it and reading the ink.
+    """One node whose geometry was checked by rendering its page and reading it.
 
     A violation the parser cannot explain from the numbers alone is not
-    necessarily a mis-parse; sometimes the page really is set that way. The
-    only way to tell is to look, so each entry here records a page that was
-    rendered and what was seen on it. Entries are added for pages a person has
-    actually looked at, never to quieten a count: an unverified violation stays
-    unexplained, which is what keeps the number meaningful.
+    necessarily a mis-parse; sometimes the page really is set that way. The only
+    way to tell is to look, so each entry records a node that was looked at and
+    what was seen.
+
+    Keyed on the node path, not just the page. A page key would blanket-explain
+    any later violation that happened to land on the same page with prose about
+    a node nobody rendered, which is how a ledger quietly becomes a rubber
+    stamp. Two sibling items with identical measurements on adjacent pages are
+    two separate observations, and only the one that was seen is explained.
     """
     part: str
     page: int
     check: str
+    path: str
     seen: str
 
 
-# Pages rendered at 2x and read during the parser build. Every one of these
-# shows the document printing a child further left than the parent above it,
-# which is this pack's house style for hanging-indented sub-paragraphs, not a
-# mis-parented node.
-VERIFIED_TYPESETTING: tuple[VerifiedRender, ...] = (
+# Nodes whose pages were rendered and read during the parser build. Each shows
+# the document printing that child further left than the parent above it, which
+# is the pack's house style for hanging-indented sub-paragraphs, not a
+# mis-parented node. Only nodes actually looked at appear here: Framework
+# Schedule 7's item (b) under 3.1.4 measures identically to its sibling (a) but
+# sits on the next page, was not rendered, and stays unexplained.
+_VERIFIED_ENTRIES: tuple[VerifiedRender, ...] = (
     VerifiedRender(
-        part="call-off-schedule-9", page=344, check="child_left_of_parent",
+        part="call-off-schedule-9", page=344, check="child_left_edge",
+        path="call-off-schedule-9/5/5.2/5.2.1",
         seen="paragraph 5.2.1 is printed at the left margin, left of its parent 5.2",
     ),
     VerifiedRender(
-        part="call-off-schedule-9", page=347, check="child_left_of_parent",
-        seen="paragraphs 2.3.1 and 2.3.2 are printed left of their parent 2.3",
+        part="call-off-schedule-9", page=347, check="child_left_edge",
+        path="call-off-schedule-9/part-b-long-form-security-requirements/2/2.3/2.3.1",
+        seen="paragraph 2.3.1 is printed left of its parent 2.3",
     ),
     VerifiedRender(
-        part="framework-schedule-7", page=95, check="child_left_of_parent",
-        seen="the lettered items under 3.1.4 hang left of the number above them",
+        part="call-off-schedule-9", page=347, check="child_left_edge",
+        path="call-off-schedule-9/part-b-long-form-security-requirements/2/2.3/2.3.2",
+        seen="paragraph 2.3.2 is printed left of its parent 2.3",
     ),
     VerifiedRender(
-        part="framework-schedule-7", page=97, check="child_left_of_parent",
-        seen="every lettered item on the page hangs left of its parent's number",
+        part="framework-schedule-7", page=95, check="child_left_edge",
+        path="framework-schedule-7/3/3.1/3.1.4/a",
+        seen="item (a) hangs left of the number 3.1.4 above it",
     ),
+) + tuple(
+    VerifiedRender(
+        part="framework-schedule-7", page=97, check="child_left_edge",
+        path=f"framework-schedule-7/3/3.2/{parent}/{letter}",
+        seen=f"item ({letter}) hangs left of the number {parent} above it",
+    )
+    for parent, letters in (("3.2.2", "abcde"), ("3.2.4", "ab"))
+    for letter in letters
 )
+VERIFIED_TYPESETTING: tuple[VerifiedRender, ...] = _VERIFIED_ENTRIES
+
+
+def stale_ledger_entries(reports: "list[InvariantReport]") -> list[dict]:
+    """Ledger entries that matched no violation in this run.
+
+    Reported, never silently ignored. A stale entry means the tree changed
+    under a human observation: either the parse improved and the violation is
+    gone, or a node moved and the entry now explains nothing. Both are things
+    someone should look at, and an unnoticed stale entry is an explanation
+    waiting to attach itself to the wrong node later.
+    """
+    matched = {
+        (r.part, v.check, v.path, v.page)
+        for r in reports
+        for v in r.violations
+    }
+    # Only parts this run actually assembled can make an entry stale. A run
+    # scoped to one batch says nothing about the entries for parts it never
+    # looked at, and calling those stale would cry wolf on every batch run.
+    in_scope = {r.part for r in reports}
+    return [
+        {
+            "part": e.part, "check": e.check, "path": e.path, "page": e.page,
+            "seen": e.seen,
+            "note": "ledger entry matched no violation in this run; the parse may have "
+                    "changed under it, or the node may have moved",
+        }
+        for e in VERIFIED_TYPESETTING
+        if e.part in in_scope and (e.part, e.check, e.path, e.page) not in matched
+    ]
 
 
 @dataclass
@@ -128,6 +190,9 @@ class InvariantReport:
     # The denominator of the systematic test, so "all 146 of them" can be told
     # apart from "3 of 146".
     tested: dict[tuple[str, str, str], int] = field(default_factory=dict)
+    # Comparisons the checker declined to make, with the reason. A check that
+    # silently skips looks identical in the numbers to a check that passed.
+    skipped: list[dict] = field(default_factory=list)
 
     def record_test(self, check: str, parent_kind: str, child_kind: str) -> None:
         key = (check, parent_kind, child_kind)
@@ -149,6 +214,7 @@ class InvariantReport:
             "total": len(self.violations),
             "unexplained": len(self.unexplained),
             "by_check": self.counts(),
+            "skipped": self.skipped,
             "violations": [v.as_json() for v in self.violations],
         }
 
@@ -196,9 +262,23 @@ def _check_left(node: Node, parent: Node, report: InvariantReport) -> None:
         # another is not nested under it. Their geometry is checked by the
         # row-major sibling rule instead.
         return
-    own = _own_boxes(node) or node.bboxes_extent
-    parent_own = _own_boxes(parent) or parent.bboxes_extent
+    own = _own_boxes(node)
+    parent_own = _own_boxes(parent)
     if not own or not parent_own:
+        # Falling back to a parent's extent made this check vacuous: the extent
+        # already contains the child, so the comparison could never fail. A
+        # container with no ink of its own is not compared at all, and the skip
+        # is recorded so the report says what it did not measure rather than
+        # implying it measured and passed.
+        report.skipped.append(
+            {
+                "check": "child_left_edge",
+                "path": node.path,
+                "parent_path": parent.path,
+                "reason": "no own boxes on the child" if not own else
+                          "parent holds no ink of its own to compare an indent against",
+            }
+        )
         return
     # Indentation only means anything within one page. A node that wraps over a
     # page break resumes at the next page's left margin, which is further left
@@ -215,11 +295,11 @@ def _check_left(node: Node, parent: Node, report: InvariantReport) -> None:
         page = min(b.page for b in own)
         left = min(b.bbox[0] for b in own if b.page == page)
         parent_left = min(b.bbox[0] for b in parent_own)
-    report.record_test("child_left_of_parent", parent.kind, node.kind)
+    report.record_test("child_left_edge", parent.kind, node.kind)
     if left < parent_left - INDENT_TOLERANCE:
         report.violations.append(
             Violation(
-                check="child_left_of_parent",
+                check="child_left_edge",
                 path=node.path,
                 parent_path=parent.path,
                 kind=node.kind,
@@ -243,7 +323,7 @@ def _check_own_above_first_child(node: Node, first: Node, report: InvariantRepor
     ):
         report.violations.append(
             Violation(
-                check="own_box_below_first_child",
+                check="own_box_above_first_child",
                 path=node.path,
                 parent_path=None,
                 kind=node.kind,
@@ -253,6 +333,7 @@ def _check_own_above_first_child(node: Node, first: Node, report: InvariantRepor
                     f"first child {first.path} at page {child_top[0]} y={child_top[1]:.1f}"
                 ),
                 measure=own_top[1] - child_top[1],
+                page=own_top[0],
             )
         )
 
@@ -267,18 +348,19 @@ def _check_sibling_order(first: Node, second: Node, report: InvariantReport) -> 
         return
     a_end = max((x.page, x.bbox[3]) for x in a)
     b_start = min((x.page, x.bbox[1]) for x in b)
-    report.record_test("siblings_out_of_reading_order", first.kind, second.kind)
-    report.record_test("siblings_overlap_vertically", first.kind, second.kind)
+    report.record_test("siblings_ascend", first.kind, second.kind)
+    report.record_test("sibling_overlap", first.kind, second.kind)
     if b_start[0] < a_end[0]:
         report.violations.append(
             Violation(
-                check="siblings_out_of_reading_order",
+                check="siblings_ascend",
                 path=second.path,
                 parent_path=first.path,
                 kind=second.kind,
                 parent_kind=first.kind,
                 detail=f"starts on page {b_start[0]}, previous sibling ends on page {a_end[0]}",
                 measure=float(a_end[0] - b_start[0]),
+                page=b_start[0],
             )
         )
         return
@@ -292,19 +374,20 @@ def _check_sibling_order(first: Node, second: Node, report: InvariantReport) -> 
     if b_box[1] < a_box[1] - VERTICAL_TOLERANCE:
         report.violations.append(
             Violation(
-                check="siblings_out_of_reading_order",
+                check="siblings_ascend",
                 path=second.path,
                 parent_path=first.path,
                 kind=second.kind,
                 parent_kind=first.kind,
                 detail=f"top {b_box[1]:.1f} is above previous sibling's top {a_box[1]:.1f} on page {page}",
                 measure=a_box[1] - b_box[1],
+                page=page,
             )
         )
     elif b_box[1] < a_box[3] - sibling_overlap_tolerance(a_box, b_box):
         report.violations.append(
             Violation(
-                check="siblings_overlap_vertically",
+                check="sibling_overlap",
                 path=second.path,
                 parent_path=first.path,
                 kind=second.kind,
@@ -314,6 +397,7 @@ def _check_sibling_order(first: Node, second: Node, report: InvariantReport) -> 
                     f"{a_box[3]:.1f} on page {page}"
                 ),
                 measure=a_box[3] - b_box[1],
+                page=page,
             )
         )
 
@@ -325,15 +409,44 @@ def _check_cell_order(first: Node, second: Node, a, b, report: InvariantReport) 
     stacked-sibling rule is the wrong one for them and would fire on every
     definition in the schedule.
     """
-    report.record_test("siblings_out_of_reading_order", "cell", "cell")
+    report.record_test("siblings_ascend", "cell", "cell")
     same_row = first.row is not None and first.row == second.row
     a_box = a[0].bbox
     b_box = b[0].bbox
     if same_row:
+        # Two cells of one row share a vertical band by construction: they sit
+        # side by side, so a stacked-sibling overlap rule can never be satisfied
+        # by them. Recorded as a violation and explained on the spot rather than
+        # skipped, because a reader comparing this report against one that does
+        # apply the stacked rule to cells needs to see the same pair counted and
+        # be told why it is not evidence of anything.
+        report.record_test("sibling_overlap", "cell", "cell")
+        if b_box[1] < a_box[3] - sibling_overlap_tolerance(a_box, b_box):
+            report.violations.append(
+                Violation(
+                    check="sibling_overlap",
+                    path=second.path,
+                    parent_path=first.path,
+                    kind="cell",
+                    parent_kind="cell",
+                    detail=(
+                        f"column {second.col} shares row {second.row} with column "
+                        f"{first.col} and so shares its vertical band"
+                    ),
+                    measure=a_box[3] - b_box[1],
+                    page=a[0].page,
+                    explained=(
+                        "sibling_overlap_cells_share_a_row: these two cells are columns "
+                        f"{first.col} and {second.col} of row {second.row}, side by side "
+                        "rather than stacked, so vertical overlap between them is the "
+                        "table's shape and not a mis-ordered sibling"
+                    ),
+                )
+            )
         if b_box[0] < a_box[0] - INDENT_TOLERANCE:
             report.violations.append(
                 Violation(
-                    check="siblings_out_of_reading_order",
+                    check="siblings_ascend",
                     path=second.path,
                     parent_path=first.path,
                     kind="cell",
@@ -343,26 +456,28 @@ def _check_cell_order(first: Node, second: Node, a, b, report: InvariantReport) 
                         f"column {first.col} at x={a_box[0]:.1f} in the same row"
                     ),
                     measure=a_box[0] - b_box[0],
+                    page=a[0].page,
                 )
             )
         return
     if b[0].page < a[0].page:
         report.violations.append(
             Violation(
-                check="siblings_out_of_reading_order",
+                check="siblings_ascend",
                 path=second.path,
                 parent_path=first.path,
                 kind="cell",
                 parent_kind="cell",
                 detail=f"row {second.row} starts on page {b[0].page}, before row {first.row} on page {a[0].page}",
                 measure=float(a[0].page - b[0].page),
+                page=b[0].page,
             )
         )
         return
     if b[0].page == a[0].page and b_box[1] < a_box[1] - sibling_overlap_tolerance(a_box, b_box):
         report.violations.append(
             Violation(
-                check="siblings_out_of_reading_order",
+                check="siblings_ascend",
                 path=second.path,
                 parent_path=first.path,
                 kind="cell",
@@ -372,24 +487,29 @@ def _check_cell_order(first: Node, second: Node, a, b, report: InvariantReport) 
                     f"{first.row} at y={a_box[1]:.1f} on page {b[0].page}"
                 ),
                 measure=a_box[1] - b_box[1],
+                page=b[0].page,
             )
         )
 
 
 def _check_extent(node: Node, parent: Node, report: InvariantReport) -> None:
-    report.record_test("extent_escapes_parent", parent.kind, node.kind)
+    # One test per page compared, because this check can produce one violation
+    # per page. Counting a single test for a node that spans five pages made the
+    # systematic-offset ratio compare five hits against one comparison.
     for box in node.bboxes_extent:
+        report.record_test("extent_nests", parent.kind, node.kind)
         outer = _page_box(parent.bboxes_extent, box.page)
         if outer is None:
             report.violations.append(
                 Violation(
-                    check="extent_escapes_parent",
+                    check="extent_nests",
                     path=node.path,
                     parent_path=parent.path,
                     kind=node.kind,
                     parent_kind=parent.kind,
                     detail=f"page {box.page} is in the child's extent but not the parent's",
                     measure=1.0,
+                    page=box.page,
                 )
             )
             continue
@@ -402,13 +522,14 @@ def _check_extent(node: Node, parent: Node, report: InvariantReport) -> None:
         if slack > INDENT_TOLERANCE:
             report.violations.append(
                 Violation(
-                    check="extent_escapes_parent",
+                    check="extent_nests",
                     path=node.path,
                     parent_path=parent.path,
                     kind=node.kind,
                     parent_kind=parent.kind,
                     detail=f"extent on page {box.page} escapes the parent's by {slack:.1f}pt",
                     measure=slack,
+                    page=box.page,
                 )
             )
 
@@ -426,12 +547,13 @@ def _explain(report: InvariantReport) -> None:
             if (
                 verified.part == report.part
                 and verified.check == violation.check
+                and verified.path == violation.path
                 and verified.page == violation.page
             ):
                 violation.explained = (
-                    f"geometry_is_document_typesetting: page {verified.page} rendered and "
-                    f"read, {verified.seen}; the ink is genuinely left of the parent and "
-                    f"the parse is correct"
+                    f"{violation.check}_document_typesetting: page {verified.page} rendered "
+                    f"and read, {verified.seen}; the ink is genuinely set that way and the "
+                    f"parse is correct"
                 )
                 break
 
@@ -448,10 +570,14 @@ def _explain(report: InvariantReport) -> None:
             continue
         key = (v.check, v.parent_kind, v.kind)
         hits = populations[key]
-        total = totals.get(key, hits)
+        # Default 0, never `hits`. Falling back to the hit count would make a
+        # missing denominator read as "all of them failed", so a check whose
+        # comparisons were never counted would auto-explain every violation it
+        # produced. A missing denominator explains nothing.
+        total = totals.get(key, 0)
         if hits >= SYSTEMATIC_MIN_COUNT and total and hits / total >= SYSTEMATIC_SHARE:
             v.explained = (
-                f"systematic_level_offset: {hits} of {total} {v.parent_kind}->{v.kind} pairs "
-                f"in this part show the same {v.check}, so it is the part's typesetting "
+                f"{v.check}_systematic_offset: {hits} of {total} {v.parent_kind}->{v.kind} "
+                f"pairs in this part fail the same way, so it is the part's typesetting "
                 f"rather than a mis-parented node"
             )

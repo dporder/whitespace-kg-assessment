@@ -34,8 +34,10 @@ INDENT_TOLERANCE = _GEOMETRY["indent_tolerance"]
 # firing on every line. Call-Off Schedule 9 separates by 72.0 / 75.8 / 117.0.
 MIN_INDENT_STEP = _GEOMETRY["min_indent_step"]
 
-# Vertical tolerance when asserting "at or above" and "siblings ascend".
-VERTICAL_TOLERANCE = 1.0
+# Vertical tolerance when asserting "at or above" and "siblings ascend". One
+# authoritative map for both stage 2 and stage 8: the two stages counting the
+# same ink against different slack is how two reports disagree over one tree.
+VERTICAL_TOLERANCE = _GEOMETRY["vertical_tolerance"]
 
 # A line's box spans the font's full ascent and descent, which exceeds the
 # leading between lines, so consecutive lines overlap vertically by a point or

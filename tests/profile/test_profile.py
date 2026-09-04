@@ -45,7 +45,8 @@ def _clean():
         },
         "numbering": {"numbered_lines": 100, "unmatched_lines": 2, "rate": 0.02, "examples": []},
         "probe": {
-            "orphan": {"body_chars": 1000, "unattached_chars": 10, "rate": 0.01, "examples": []},
+            "orphan": {"body_ink": 1000, "residual_ink": 10, "rate": 0.01,
+                       "signed_rate": 0.01, "by_part": {}, "ink_by_part": {}, "examples": []},
             "depth": {
                 "max_dotted_depth": 3, "rulebook_max_dotted_depth": 3,
                 "max_numbered_depth": 4, "rulebook_levels": 4, "examples": [],
@@ -93,10 +94,14 @@ def test_check_two_fires_above_the_configured_rate():
 
 
 def test_check_three_fires_on_too_much_homeless_text():
+    """The residual is signed and the rate is its magnitude: a surplus means ink
+    was counted twice and is as suspicious as a deficit."""
     limit = THRESHOLDS["max_orphan_block_rate"]
     assert _fit(orphan={"rate": limit})["passed"] is True
-    fit = _fit(orphan={"rate": limit + 0.01, "unattached_chars": 500})
-    assert [a["check"] for a in fit["alarms"]] == ["orphan_text"]
+    deficit = _fit(orphan={"rate": limit + 0.01, "residual_ink": 500})
+    assert [a["check"] for a in deficit["alarms"]] == ["orphan_text"]
+    surplus = _fit(orphan={"rate": limit + 0.01, "residual_ink": -500})
+    assert [a["check"] for a in surplus["alarms"]] == ["orphan_text"]
 
 
 def test_check_four_fires_when_numbering_runs_deeper_than_the_rulebook():
