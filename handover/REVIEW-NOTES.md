@@ -161,6 +161,41 @@ exchange over real HTTP myself before merging, four citations, all ok, crops res
 after my own gate run on the integrated state: 285 tests green, decisions defaulting to
 golden/decisions.jsonl per spec.
 
+## 6. Parser stages 0 to 2 (parser-builder, round 1 back, config corrected, fix round running)
+
+**What it delivered.** Stages 0 to 2 complete: Core Terms parses to 444 nodes with zero
+unexplained geometric violations, and the full 475 page structural run derives 48 parts covering
+every page with no gaps, the third independent witness for 48 against the notes' prose claim of
+46 (after the notes' own table and the embedded outline). 27 parts assembled, 21 refused by the
+fit checks, every refusal named with evidence.
+
+**Two real bugs it found in my config, fixed in config with the evidence recorded.** The item
+pattern required leading whitespace a PDF text layer never emits (indentation is geometry, not
+characters) and matched zero of Core Terms' 169 lettered items; it also demanded an opening
+bracket most schedules do not print ("a)" not "(a)"). Dotted numbers needed an optional trailing
+period for Framework Schedule 1's "1.1." style. The builder measured each variant across the pack
+before proposing, did not touch config itself, and reported instead, exactly per contract.
+
+**One spec claim of ours did not survive the parser.** The "34 of 35 headings" quirk does not
+reproduce in Core Terms, whose headings are typographically identical; the real detached number
+case is Framework Schedule 5's "2   Reporting period". Also 146 two level provisions in Core
+Terms is actually 144, the other two being cross references at the start of wrapped lines. SPEC
+corrected both ways; the quirk list is now something the parser proved rather than something it
+inherited.
+
+**Ruling: per part fit checks, spec-first.** The pack is a binding of ~48 separately versioned
+templates without one shared numbering house style, so the five fit checks now also run per part,
+parts failing quarantine individually with no override flag, the document verdict still computed.
+B4 (Call-Off Schedule 9) was refused at 19.1% unmatched under the broken item pattern; the config
+fix is expected to clear it, being re-measured now.
+
+**Findings worth keeping.** The definitions schedule is missing ink in the source itself: 224
+term cells carry a closing quote with no opening one, and in wrapped cases the first letter is
+genuinely absent from the page (verified by rendering at 4x). Recorded verbatim, never repaired.
+And two of the geometric violations the parser refused to explain away are the document's own
+typesetting, Call-Off Schedule 9 really prints 5.2.1 left of its parent 5.2, true ink, correctly
+reported.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified

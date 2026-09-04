@@ -200,6 +200,8 @@ Stage 0 assigns a rulebook and then checks the shoe actually fits, writing `{"pr
 
 Any alarm quarantines the document, exit code 2, a written `quarantine.json` naming the signal with examples and page numbers, and no load. Thresholds live in `config.py`. Do not add a fallback that parses anyway, a confidently wrong hierarchy corrupts every citation built on it.
 
+Multi-template bindings get the same checks at the granularity the pack actually has. When profiling detects that one file is a binding of separately versioned templates, each with its own footer signature, the five fit checks also run per part: parts that pass proceed, parts that fail quarantine individually with their evidence in `fit_by_part`, and stage 1 refuses a quarantined part with no override flag. The document level verdict is still computed and reported. This is not a relaxation, it is the fit check applied to the thing that actually has a house style, and a binding whose parts disagree about numbering conventions is exactly the case the per document number would misjudge in both directions.
+
 ## 3. Stage CLI contracts
 
 | Stage | Command | Reads | Writes | Runs |
@@ -231,9 +233,9 @@ Rulebook entries (config):
 
 Quirks of this pack (tests and anomalies, not design inputs):
 
-- Verified counts across all 475 pages: zero four level dotted numbers anywhere, 522 lettered items, 82 roman items. Within Core Terms alone, 146 two level, 43 three level, 169 lettered, 1 roman, so do not calibrate the grammar on Core Terms and assume it generalises, roman items are a real level in the schedules.
+- Verified counts across all 475 pages: zero four level dotted numbers anywhere, 522 lettered items, 82 roman items. Within Core Terms alone, 144 two level, 43 three level, 169 lettered, 1 roman, so do not calibrate the grammar on Core Terms and assume it generalises, roman items are a real level in the schedules. The earlier count of 146 two level provisions included two cross references that start a wrapped line ("...10.4.3, 10.5 or 20.2 or a Contract expires..."), which the parser records as `numbering_read_as_wrapped_text` rather than minting phantom provisions.
 - Depth is ragged. Eight numbers in Core Terms are bare sub headings grouping children with no sentence of their own, including 3.1, 3.2, 10.1 and 10.3. These get no text and no intro child.
-- The brief says Core Terms holds clauses 1 to 35, a straightforward heading regex finds 34, so one top level heading does not match the obvious pattern. Find it, record what made it different in `anomalies`. This is a check on the parser, not a trick.
+- The brief says Core Terms holds clauses 1 to 35, and all 35 parse: the earlier claim here that a straightforward regex finds only 34 did not survive the parser, Core Terms headings are typographically identical. The real detached-number case is Framework Schedule 5, whose second top level heading prints "2   Reporting period" with no period after the number. It is recovered from the part's own heading typography and sequence position, with `heading_number_missing_period` recorded, and the behaviour is pinned in `tests/parse/test_heading_quirk.py`. The lesson stands: find the non conforming heading, record what made it different, never guess.
 - The definitions schedule is a two column layout, quoted term left, definition right, terms wrap across lines mid cell. Parse by box geometry, not line order.
 - The Award Form is numbered label and value rows with `[Insert ...]` placeholders and at least one stray character typo (`rFramework`). It is a form, not clauses. Log, never repair.
 - The mislabelled cross reference case. The pack mostly follows its own stipulation, 35 "Paragraph 1.x" and 27 "paragraph N of this Schedule" against 3 "Clause 1.x" inside Schedules. Resolve those 3 to the stipulated target, set status ambiguous, attach both candidates with the reason. Never silently, never dropped.
