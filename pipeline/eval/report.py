@@ -1,0 +1,180 @@
+"""Report assembly and rendering. Section names are asserted against SPEC 2.6.
+
+Two deliberate choices about the report itself:
+
+**No wall-clock timestamp anywhere in it.** EVALUATION.md section 4 says
+"regression is a diff between reports, not a feeling". A timestamp would make
+every diff non-empty and destroy that property, so identical inputs produce a
+byte-identical report. What replaces it is `inputs_fingerprint`, a hash over the
+exact files this run read, which distinguishes "same inputs, different answer"
+(a real regression) from "different inputs" without pretending to be a clock.
+
+**Markdown headings are the bare section names.** `## invariants`, not a prettier
+paraphrase, so the SPEC 2.6 contract is greppable in both outputs. The
+explanatory sentence goes underneath.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+from pipeline.eval.context import Context
+from pipeline.eval.gates import GateResult, exit_code
+from pipeline.eval.rates import Section
+from pipeline.eval.sections import SECTION_NAMES
+
+REPORT_VERSION = "1"
+
+SECTION_SUBTITLES = {
+    "invariants": "structural and geometric checks, pass or fail with locations",
+    "page_map_vs_provided": "the derived page map against the one in the assignment notes",
+    "outline_vs_provided": "the derived tree against the PDF's embedded outline, triaged",
+    "definitions_vs_provided": "the discovered vocabulary against the declared schedule",
+    "golden_refs": "detection and resolution scored separately, abstention scored",
+    "golden_terms": "term uses, per ambiguity kind, cost weighted",
+    "stratified_audit": "an independent check on a stratified sample of confident cases",
+    "confidence_calibration": "raw score bucket against observed precision, per resolver",
+    "resolution_transitions": "per batch, unresolved to resolved",
+    "concepts": "duplicate rate, coverage, spot check",
+}
+
+
+def inputs_fingerprint(ctx: Context) -> dict[str, Any]:
+    """A hash over exactly the files this run read. Replaces a timestamp."""
+    entries = []
+    for rec in ctx.inputs.records:
+        if rec.state != "loaded" or rec.path is None:
+            continue
+        try:
+            digest = hashlib.sha1(Path(rec.path).read_bytes()).hexdigest()
+        except Exception:                                 # noqa: BLE001
+            digest = "unreadable"
+        entries.append({"file": str(rec.path), "sha1": digest})
+    for path in ctx.golden.files:
+        try:
+            digest = hashlib.sha1(Path(path).read_bytes()).hexdigest()
+        except Exception:                                 # noqa: BLE001
+            digest = "unreadable"
+        entries.append({"file": path, "sha1": digest})
+    entries.sort(key=lambda e: e["file"])
+    combined = hashlib.sha1(
+        "".join(f"{e['file']}:{e['sha1']}" for e in entries).encode()).hexdigest()
+    return {"combined": combined, "files": entries}
+
+
+def assemble(ctx: Context, sections: list[Section],
+             gates: list[GateResult]) -> dict[str, Any]:
+    names = [s.name for s in sections]
+    if names != SECTION_NAMES:
+        raise AssertionError(
+            f"report sections do not match handover/SPEC.md 2.6.\n"
+            f"expected: {SECTION_NAMES}\ngot:      {names}")
+    return {
+        "report_version": REPORT_VERSION,
+        "run": ctx.run,
+        "scope": {
+            "mode": ctx.scope_mode,
+            "batch": ctx.batch,
+            "full": ctx.full,
+            "parts": ctx.scope_parts,
+            "cross_checks": ctx.cross_check_scope,
+        },
+        "input_source": {
+            "source": ctx.inputs.source,
+            "root": str(ctx.inputs.root),
+            "loaded": [r.as_dict() for r in ctx.inputs.records if r.state == "loaded"],
+            "absent": [r.as_dict() for r in ctx.inputs.absences()],
+            "failed": [r.as_dict() for r in ctx.inputs.failures()],
+        },
+        "provided_artifacts": {
+            "page_map": {"state": ctx.page_map.state, "source_file": ctx.page_map.source_file,
+                         "rows": len(ctx.page_map.rows), "error": ctx.page_map.error},
+            "embedded_outline": {"state": ctx.outline.state,
+                                 "source_file": ctx.outline.source_file,
+                                 "entries": len(ctx.outline.entries),
+                                 "error": ctx.outline.error},
+        },
+        "golden": ctx.golden.as_dict(),
+        "inputs_fingerprint": inputs_fingerprint(ctx),
+        "gates": {
+            "thresholds_from": "config.GATES",
+            "exit_code": exit_code(gates),
+            "results": [g.as_dict() for g in gates],
+        },
+        "sections": {s.name: s.as_dict() for s in sections},
+    }
+
+
+def render_markdown(ctx: Context, sections: list[Section],
+                    gates: list[GateResult], payload: dict[str, Any]) -> str:
+    code = payload["gates"]["exit_code"]
+    lines: list[str] = []
+    lines.append(f"# Evaluation report, run `{ctx.run}`")
+    lines.append("")
+    lines.append(f"Stage 8, `python -m pipeline.eval`. Exit code **{code}** "
+                 f"({'gates passed' if code == 0 else 'a gate failed, see below'}).")
+    lines.append("")
+    lines.append(f"- **input source**: `{ctx.inputs.source}` at `{ctx.inputs.root}`")
+    lines.append(f"- **scope**: {ctx.scope_mode}, parts "
+                 f"{', '.join(ctx.scope_parts) or 'none'}; cross checks over "
+                 f"{ctx.cross_check_scope}")
+    lines.append(f"- **provided page map**: {ctx.page_map.state}"
+                 + (f", from `{ctx.page_map.source_file}`" if ctx.page_map.source_file else ""))
+    lines.append(f"- **embedded outline**: {ctx.outline.state}, "
+                 f"{len(ctx.outline.entries)} entries"
+                 + (f", from `{ctx.outline.source_file}`" if ctx.outline.source_file else ""))
+    lines.append(f"- **golden labels**: {len(ctx.golden.records)} in "
+                 f"`{ctx.golden.directory}` ({ctx.golden.state})")
+    lines.append(f"- **inputs fingerprint**: `{payload['inputs_fingerprint']['combined']}` "
+                 f"over {len(payload['inputs_fingerprint']['files'])} file(s). No timestamp "
+                 f"is written anywhere in this report, so two runs over identical inputs "
+                 f"produce identical bytes and a regression is a diff.")
+    failed_inputs = payload["input_source"]["failed"]
+    if failed_inputs:
+        lines.append("")
+        lines.append(f"**{len(failed_inputs)} input file(s) failed to load**, which is "
+                     f"different from absent:")
+        for f in failed_inputs:
+            lines.append(f"  - `{f['path']}`: {f['error']}")
+    lines.append("")
+    lines.append("## gates")
+    lines.append("")
+    lines.append("Thresholds from `config.GATES`. A gate never fires on missing data; "
+                 "it records `skipped_no_data` and says why.")
+    lines.append("")
+    lines.append("| gate | what it answers | threshold | observed | status |")
+    lines.append("|---|---|---|---|---|")
+    for g in gates:
+        mark = {"pass": "pass", "fail": "**FAIL**",
+                "skipped_no_data": "skipped, no data",
+                "unimplemented": "**UNIMPLEMENTED**"}.get(g.status, g.status)
+        lines.append(f"| `{g.name}` | {g.question or ''} | {g.threshold} | "
+                     f"{g.observed or '—'} | {mark} |")
+    reasons = [g for g in gates if g.reason]
+    if reasons:
+        lines.append("")
+        for g in reasons:
+            lines.append(f"- `{g.name}`: {g.reason}")
+    for section in sections:
+        lines.append("")
+        lines.append(f"## {section.name}")
+        lines.append("")
+        lines.append(f"_{SECTION_SUBTITLES[section.name]}. Status: **{section.status}**"
+                     + (f", {section.reason}" if section.reason else "") + "._")
+        lines.append("")
+        lines.extend(section.md or ["_no output_"])
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def write(ctx: Context, sections: list[Section],
+          gates: list[GateResult]) -> tuple[Path, Path, dict[str, Any]]:
+    payload = assemble(ctx, sections, gates)
+    ctx.eval_dir.mkdir(parents=True, exist_ok=True)
+    json_path = ctx.eval_dir / "report.json"
+    md_path = ctx.eval_dir / "report.md"
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    md_path.write_text(render_markdown(ctx, sections, gates, payload))
+    return json_path, md_path, payload
