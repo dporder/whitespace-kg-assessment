@@ -50,11 +50,19 @@ HIERARCHY_PROFILES = {
             # 475 pages: the original item pattern matched 0 of Core Terms'
             # 169 lettered items; this one matches all 169.
             "heading":  r"^\s{0,4}(\d{1,2})\.\s+(?=[A-Z])",
+            # Some schedules print the heading number alone on its line with the
+            # title elsewhere; the parser confirms via the part's own typography.
+            "heading_bare": r"^\s{0,4}(\d{1,2})\.\s*$",
             "clause":   r"^\s{0,10}(\d{1,2}\.\d{1,2})\.?\s+",
             "subclause": r"^\s{0,12}(\d{1,2}\.\d{1,2}\.\d{1,2})\.?\s+",
+            # 46 four-level dotted numbers exist (CO Schedule 6, CO Schedule 22,
+            # Joint Schedule 8, e.g. 2.1.1.1 p193, 9.1.3.2 p202). They parse as
+            # kind=item, the deepest addressable unit, per the kind-by-function rule.
+            "item_dotted": r"^\s{0,14}(\d{1,2}\.\d{1,2}\.\d{1,2}\.\d{1,2})\.?\s+",
             "item":     r"^\s*\(?([a-z]{1,2}|(?:x{0,3})(?:ix|iv|v?i{0,3}))\)\s",
         },
-        "max_dotted_depth": 3,          # verified across all 475 pages, zero four-level numbers
+        "max_dotted_depth": 4,          # 46 four-level lines verified across all 475 pages;
+                                        # the earlier "zero four-level" claim was wrong
         "unit_labels": {"core-terms": "Clause", "_schedule_default": "Paragraph"},
         "unit_labels_from_document": ["Clause", "Schedule", "Part", "Paragraph", "Annex", "Table"],
         "unit_labels_from_profile": ["item"],   # interpretation clause is silent on (a) and (i)
