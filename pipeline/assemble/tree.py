@@ -549,10 +549,13 @@ def _finalise(node: Node, ctx: Context) -> None:
     for child in children:
         boxes.extend(child.bboxes_extent)
     node.bboxes_extent = _merge_boxes(boxes)
-    if node.bboxes_extent:
+    if node.bboxes_extent and node.kind != "part":
         node.page_start = min(b.page for b in node.bboxes_extent)
         node.page_end = max(b.page for b in node.bboxes_extent)
         node.printed_page = ctx.printed(node.page_start)
+    # A part covers its whole derived page range, including any page whose ink
+    # produced no node. Shrinking it to the pages that happened to parse would
+    # quietly lose the fact that the part runs to page 60.
     if node.kind in ("document", "part", "form_row", "table"):
         node.text = None
         node.content_hash = None

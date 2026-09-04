@@ -151,6 +151,23 @@ def main(argv: list[str] | None = None) -> int:
                 "profile": rulebook.name,
                 "source_sha256": document.sha256,
                 "derived_part_count": len(document.parts),
+                # The derived page map: every part the PDF's own furniture
+                # supports, whether or not it was parsed. Derived from the
+                # document alone; diffing it against the notes' page map is
+                # stage 8's job, not this one's.
+                "derived_page_map": [
+                    {
+                        "part": part.slug,
+                        "title": part.title,
+                        "family": part.family,
+                        "page_start": part.page_start,
+                        "page_end": part.page_end,
+                        "pages": part.page_end - part.page_start + 1,
+                        "template_version_raw": part.model_version_raw or part.header_version_raw,
+                        "anomalies": part.anomalies,
+                    }
+                    for part in document.parts
+                ],
                 "parts_written": index,
                 "parts_refused_as_quarantined": [
                     {"part": part_id, "reason": reason} for part_id, reason in refused
