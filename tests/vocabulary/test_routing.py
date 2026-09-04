@@ -1,0 +1,238 @@
+"""Typed ambiguity routing: one prompt per failure mode, and the pending path.
+
+`pipeline/llm.py` does not exist yet, so the mock here stands in for it by
+injecting a module of that name. That is deliberate: the tests prove the whole
+path, prompt to verdict to applied decision, so that when the real client lands
+one rerun completes the work rather than a new code path being written.
+"""
+from __future__ import annotations
+
+import json
+import sys
+import types
+
+import config
+from pipeline.vocabulary import llmio, routing
+from pipeline.vocabulary.matching import Match
+
+
+def make_match(kind: str, term: str = "Widget", **kw) -> Match:
+    return Match(term=term, surface=kw.pop("surface", term), node_id="n1",
+                 node_path="p/1/1.1", part="p", section_path="p/1",
+                 field_name="text", span=(0, len(term)), status="ambiguous",
+                 ambiguity_kind=kind, kinds=[kind], definition_used="document",
+                 sentence=f"{term} deliveries must be logged.", **kw)
+
+
+class FakeLLM:
+    """Stands in for pipeline.llm. Records prompts, returns scripted replies."""
+
+    def __init__(self, reply):
+        self.prompts: list[tuple[str, str]] = []
+        self._reply = reply
+
+    def complete(self, task: str, prompt: str) -> str:
+        self.prompts.append((task, prompt))
+        return self._reply(task, prompt) if callable(self._reply) else self._reply
+
+
+def install(monkeypatch, fake) -> None:
+    module = types.ModuleType("pipeline.llm")
+    module.complete = fake.complete
+    monkeypatch.setitem(sys.modules, "pipeline.llm", module)
+
+
+def runner(tmp_path, enabled=True) -> llmio.Runner:
+    return llmio.runner("vocabulary", tmp_path / "run", tmp_path, enabled=enabled)
+
+
+def no_definition(_term):
+    return "the defined meaning"
+
+
+def no_candidates(term):
+    return [term]
+
+
+# ------------------------------------------------------------- the prompts
+
+
+def test_every_ambiguity_kind_has_its_own_prompt():
+    """DESIGN tier 2: a model asked "is this capital a sentence start" and one
+    asked "is this capital a typo" are answering different questions."""
+    from pipeline.schemas import AmbiguityKind
+    kinds = set(AmbiguityKind.__args__) - {"none"}
+    assert set(routing.PROMPTS) == kinds
+    bodies = list(routing.PROMPTS.values())
+    assert len(set(bodies)) == len(bodies), "prompts must differ, not be one template"
+
+
+def test_each_prompt_names_its_own_failure_mode():
+    assert "start of a sentence" in routing.PROMPTS["sentence_initial"]
+    assert "headings are capitalised" in routing.PROMPTS["heading"]
+    assert "BOTH directions" in routing.PROMPTS["typo_dense"]
+    assert "abbreviation" in routing.PROMPTS["alias_collision"]
+
+
+def test_confidence_is_asked_for_before_the_verdict():
+    """EVALUATION.md layer 5: the score is elicited before the answer is
+    committed, so it is not a defence of a conclusion already stated."""
+    item = routing.RoutedItem(index=0, match=make_match("heading"), payload={})
+    prompt = routing.build_prompt("heading", [item])
+    assert prompt.index('"confidence"') < prompt.index('"verdict"')
+    assert "State `confidence` before `verdict`" in prompt
+
+
+def test_items_are_batched_by_kind(tmp_path, monkeypatch):
+    fake = FakeLLM("[]")
+    install(monkeypatch, fake)
+    matches = [make_match("heading"), make_match("sentence_initial"),
+               make_match("typo_dense")]
+    routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    assert len(fake.prompts) == 3
+    versions = {p.split("\n")[0] for _t, p in fake.prompts}
+    assert len(versions) == 3, "each kind must get its own prompt, not one shared"
+
+
+def test_the_task_is_named_and_the_config_gap_is_recorded():
+    assert routing.TASK in config.MODELS
+    assert "config.MODELS has no vocabulary" in routing.TASK_NOTE
+
+
+# --------------------------------------------------------- pending llm.py
+
+
+def test_without_llm_py_the_queue_is_built_and_marked_pending(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    matches = [make_match("heading"), make_match("typo_dense")]
+    r = runner(tmp_path)
+    queues = routing.route(matches, r, no_definition, no_candidates)
+    assert set(queues) == {"heading", "typo_dense"}
+    for queue in queues.values():
+        assert queue.state == llmio.PENDING_MODULE
+        assert queue.batches[0]["prompt"], "the prompt is built and stored anyway"
+        assert queue.verdicts == {}
+    kept, rejected = routing.apply(matches, queues)
+    assert len(kept) == 2 and rejected == []
+    assert all(m.status == "ambiguous" and m.method == "exact_longest" for m in kept)
+
+
+def test_no_llm_flag_builds_the_queue_without_calling(tmp_path, monkeypatch):
+    fake = FakeLLM("[]")
+    install(monkeypatch, fake)
+    queues = routing.route([make_match("heading")], runner(tmp_path, enabled=False),
+                           no_definition, no_candidates)
+    assert fake.prompts == []
+    assert queues["heading"].state == llmio.DISABLED
+
+
+# ------------------------------------------------------------- the verdicts
+
+
+def reply_for(verdict, confidence=0.95, term=None):
+    def build(_task, prompt):
+        indices = [item["i"] for item in json.loads(prompt.split("Items:\n", 1)[1])]
+        return json.dumps([{"i": i, "confidence": confidence, "verdict": verdict,
+                            "governing_term": term or "Widget", "why": "because"}
+                           for i in indices])
+    return build
+
+
+def test_a_confirmed_use_becomes_confident_by_llm(tmp_path, monkeypatch):
+    install(monkeypatch, FakeLLM(reply_for("use")))
+    matches = [make_match("sentence_initial")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    kept, rejected = routing.apply(matches, queues)
+    assert rejected == []
+    assert kept[0].status == "confident"
+    assert kept[0].ambiguity_kind == "none"
+    assert kept[0].method == "llm"
+    assert kept[0].to_schema().method == "llm"
+
+
+def test_a_confident_not_a_use_removes_the_match_and_records_why(tmp_path, monkeypatch):
+    install(monkeypatch, FakeLLM(reply_for("not_a_use", confidence=0.95)))
+    matches = [make_match("sentence_initial")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    kept, rejected = routing.apply(matches, queues)
+    assert kept == []
+    assert rejected[0]["term"] == "Widget"
+    assert rejected[0]["why"] == "because"
+
+
+def test_an_unsure_not_a_use_is_kept_because_false_negatives_cost_more(
+        tmp_path, monkeypatch):
+    """EVALUATION.md section 2: a false negative hides an obligation from the
+    person searching for it, so removing a match needs a confident checker."""
+    install(monkeypatch, FakeLLM(reply_for("not_a_use", confidence=0.4)))
+    matches = [make_match("sentence_initial")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    kept, rejected = routing.apply(matches, queues)
+    assert len(kept) == 1 and rejected == []
+    assert kept[0].status == "ambiguous"
+
+
+def test_unsure_stays_ambiguous_for_the_review_queue(tmp_path, monkeypatch):
+    install(monkeypatch, FakeLLM(reply_for("unsure")))
+    matches = [make_match("typo_dense")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    kept, _rejected = routing.apply(matches, queues)
+    assert kept[0].status == "ambiguous"
+    assert kept[0].ambiguity_kind == "typo_dense"
+
+
+def test_an_alias_collision_verdict_picks_the_governing_term(tmp_path, monkeypatch):
+    install(monkeypatch, FakeLLM(reply_for("use", term="Handover Body")))
+    match = make_match("alias_collision", term="Holding Body", surface="HB")
+    match.collides_with = ["Handover Body", "Holding Body"]
+    queues = routing.route([match], runner(tmp_path), no_definition, no_candidates)
+    kept, _rejected = routing.apply([match], queues)
+    assert kept[0].term == "Handover Body"
+
+
+def test_an_unparseable_reply_fails_the_batch_not_the_run(tmp_path, monkeypatch):
+    install(monkeypatch, FakeLLM("not json at all"))
+    matches = [make_match("heading")]
+    queues = routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    assert "parse_error" in queues["heading"].batches[0]
+    kept, rejected = routing.apply(matches, queues)
+    assert len(kept) == 1 and kept[0].status == "ambiguous" and rejected == []
+
+
+# --------------------------------------------------------------- the cache
+
+
+def test_a_second_run_replays_from_the_cache_and_calls_nothing(tmp_path, monkeypatch):
+    fake = FakeLLM(reply_for("use"))
+    install(monkeypatch, fake)
+    matches = [make_match("heading")]
+    routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    assert len(fake.prompts) == 1
+    again = [make_match("heading")]
+    queues = routing.route(again, runner(tmp_path), no_definition, no_candidates)
+    assert len(fake.prompts) == 1, "the replay cache must serve the second run"
+    assert queues["heading"].batches[0]["call"]["state"] == llmio.REPLAYED
+    kept, _r = routing.apply(again, queues)
+    assert kept[0].status == "confident"
+
+
+def test_the_call_log_records_model_prompt_version_and_response(tmp_path, monkeypatch):
+    install(monkeypatch, FakeLLM(reply_for("use")))
+    r = runner(tmp_path)
+    routing.route([make_match("heading")], r, no_definition, no_candidates)
+    path = r.flush_log()
+    row = json.loads(path.read_text().strip())
+    assert row["stage"] == "vocabulary"
+    assert row["model"] == config.MODELS[routing.TASK]
+    assert row["prompt_version"].startswith(routing.PROMPT_VERSION)
+    assert row["response"]
+
+
+def test_a_credential_refusal_is_marked_pending_not_failed(tmp_path, monkeypatch):
+    class Refusing:
+        def complete(self, task, prompt):
+            raise RuntimeError("401 authentication_error: invalid x-api-key")
+    install(monkeypatch, Refusing())
+    queues = routing.route([make_match("heading")], runner(tmp_path),
+                           no_definition, no_candidates)
+    assert queues["heading"].state == llmio.PENDING_CREDENTIALS

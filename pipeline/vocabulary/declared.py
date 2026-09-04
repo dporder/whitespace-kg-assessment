@@ -118,16 +118,30 @@ def _cue_match(text: str) -> Optional[str]:
     return None
 
 
-def _scope_from_cue(cue_text: str, part: str) -> tuple[str, str]:
-    """(scope, scope_source) for a block introduced by `cue_text`."""
-    if _PART_LOCAL_CUE.search(cue_text):
+def _scope_from_cue(cue_sentence: str, part: str) -> tuple[str, str]:
+    """(scope, scope_source) for a block whose lead-in reads `cue_sentence`.
+
+    The whole lead-in sentence is classified, not just the phrase that matched
+    a cue pattern. Joint Schedule 1 opens "In each Contract, unless the context
+    otherwise requires, the following words shall have the following meanings",
+    and classifying only the trailing clause would lose the words that say how
+    far the block reaches.
+    """
+    if _PART_LOCAL_CUE.search(cue_sentence):
         return f"part:{part}", "cue"
-    if _DOCUMENT_CUE.search(cue_text):
+    if _DOCUMENT_CUE.search(cue_sentence):
         return DOCUMENT_SCOPE, "cue"
     return f"part:{part}", "block_default"
 
 
-def governing_cue(part: Node, target: Node) -> tuple[Optional[Node], Optional[str]]:
+@dataclass
+class Cue:
+    node: Node
+    marker: str          # the phrase that matched a cue pattern
+    sentence: str        # the whole field it was found in, which is what scopes
+
+
+def governing_cue(part: Node, target: Node) -> Optional[Cue]:
     """The nearest definitions lead-in printed before `target` inside `part`.
 
     Searched first within the target's own top-level section, then across the
@@ -135,11 +149,10 @@ def governing_cue(part: Node, target: Node) -> tuple[Optional[Node], Optional[st
     paragraph's lead-in rather than one from three sections earlier.
     """
     sections = {s.path: s for s in treeio.sections(part)}
-    section_of = treeio.section_of(part)
-    home = section_of.get(target.id)
+    home = treeio.section_of(part).get(target.id)
 
-    def scan(nodes: Iterable[Node]) -> tuple[Optional[Node], Optional[str]]:
-        best: tuple[Optional[Node], Optional[str]] = (None, None)
+    def scan(nodes: Iterable[Node]) -> Optional[Cue]:
+        best: Optional[Cue] = None
         best_order = -1
         for n in nodes:
             if n.kind == "ref" or n.order >= target.order:
@@ -147,14 +160,14 @@ def governing_cue(part: Node, target: Node) -> tuple[Optional[Node], Optional[st
             for value in (n.text, n.title):
                 if not value:
                     continue
-                cue = _cue_match(value)
-                if cue and n.order > best_order:
-                    best, best_order = (n, cue), n.order
+                marker = _cue_match(value)
+                if marker and n.order > best_order:
+                    best, best_order = Cue(n, marker, value), n.order
         return best
 
     if home and home in sections:
         found = scan(treeio.walk(sections[home].node))
-        if found[0] is not None:
+        if found is not None:
             return found
     return scan(treeio.walk(part))
 
@@ -298,11 +311,13 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
     for node in treeio.walk(part):
         if node.kind != "table":
             continue
-        cue_node, cue_text = governing_cue(part, node)
-        if not is_definitions_table(node, under_cue=cue_text is not None):
+        cue = governing_cue(part, node)
+        if not is_definitions_table(node, under_cue=cue is not None):
             continue
-        if cue_text:
-            scope, scope_source = _scope_from_cue(cue_text, pid)
+        if cue is not None:
+            scope, scope_source = _scope_from_cue(cue.sentence, pid)
+            if scope_source == "block_default" and doc_level_part:
+                scope, scope_source = DOCUMENT_SCOPE, "part_identity"
         elif doc_level_part:
             scope, scope_source = DOCUMENT_SCOPE, "part_identity"
         else:
@@ -326,7 +341,8 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
                 pointer=pointer_for(value.text or ""), part=pid,
                 term_node_id=label.id, term_node_path=label.path,
                 definition_node_path=value.path, block_path=node.path,
-                cue_path=cue_node.path if cue_node else None, cue_text=cue_text,
+                cue_path=cue.node.path if cue else None,
+                cue_text=cue.sentence if cue else None,
                 scope_source=scope_source, shape="table", raw_term_text=raw,
                 anomalies=anomalies))
 
@@ -339,14 +355,12 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
         found = prose_definitions(node)
         if not found:
             continue
-        cue_node, cue_text = governing_cue(part, node)
-        own_cue = _cue_match(node.text or "") or _cue_match(node.title or "")
-        if own_cue and cue_text is None:
-            cue_node, cue_text = node, own_cue
-        if cue_text is None:
+        own_marker = _cue_match(node.text or "") or _cue_match(node.title or "")
+        cue = (Cue(node, own_marker, node.text or node.title or "") if own_marker
+               else governing_cue(part, node))
+        if cue is None:
             continue                                   # discovered only, not declared
-        if cue_text:
-            scope, scope_source = _scope_from_cue(cue_text, pid)
+        scope, scope_source = _scope_from_cue(cue.sentence, pid)
         if doc_level_part and scope_source == "block_default":
             scope, scope_source = DOCUMENT_SCOPE, "part_identity"
         for raw_term, _verb in found:
@@ -357,7 +371,7 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
                 pointer=pointer_for(node.text or ""), part=pid,
                 term_node_id=node.id, term_node_path=node.path,
                 definition_node_path=node.path, block_path=node.path,
-                cue_path=cue_node.path if cue_node else None, cue_text=cue_text,
+                cue_path=cue.node.path, cue_text=cue.sentence,
                 scope_source=scope_source, shape="prose", raw_term_text=raw_term,
                 anomalies=[]))
     return sites

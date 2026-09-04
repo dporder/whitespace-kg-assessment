@@ -36,7 +36,7 @@ from pipeline.vocabulary.declared import (
     RawSite, definition_rows, pointer_for, split_trailing_alias,
 )
 from pipeline.vocabulary.text import (
-    is_capitalised_phrase, is_initialism_of, looks_like_term, term_key,
+    initials, is_capitalised_phrase, looks_like_term, term_key,
 )
 
 VERB = r"means\b|shall mean\b|has the meaning\b|shall have the meaning\b"
@@ -75,21 +75,25 @@ class DiscoveryResult:
     aliases: list[AliasCandidate] = field(default_factory=list)
 
 
-def _preceding_phrase(field_text: str, end: int) -> str:
-    """The longest trailing capitalised phrase immediately before an offset.
+def _abbreviated_phrase(field_text: str, end: int, abbreviation: str) -> str:
+    """The phrase immediately before an offset that `abbreviation` stands for.
 
-    The quote marks the drafters wrap a term in are stripped for the shape test
-    and for the returned phrase, so `"Central Buying Office" ("CBO")` yields
-    `Central Buying Office` and the initialism test can see that CBO abbreviates
-    it rather than minting CBO as a term of its own.
+    Windows are tried shortest first, so `The Central Widget Office (CWO)` binds
+    CWO to `Central Widget Office` and not to the sentence's opening `The`,
+    which would then match no term. Quote marks are stripped per word, because
+    the phrase often arrives still wearing the drafters' quotation marks:
+    `"Central Buying Office" ("CBO")` must yield `Central Buying Office`.
     """
+    letters = re.sub(r"[^A-Za-z]", "", abbreviation)
+    if not letters or not letters.isupper() or len(letters) < 2:
+        return ""
     words = [w.strip("()[]“”\"'’.,;:") for w in field_text[:end].split()]
     words = [w for w in words if w]
     tail = words[-ALIAS_LOOKBACK_WORDS:]
-    for start in range(len(tail)):
-        candidate = " ".join(tail[start:]).strip()
-        if candidate and is_capitalised_phrase(candidate):
-            return candidate
+    for window in range(len(letters), min(len(letters) * 2 + 2, len(tail)) + 1):
+        phrase = " ".join(tail[-window:]).strip()
+        if phrase and is_capitalised_phrase(phrase) and initials(phrase) == letters:
+            return phrase
     return ""
 
 
@@ -142,8 +146,8 @@ def _parenthetical(node: Node, part: str) -> tuple[list[RawSite], list[AliasCand
             key = term_key(m.group("term"))
             if not key or not looks_like_term(key):
                 continue
-            phrase = _preceding_phrase(value, m.start())
-            if phrase and is_initialism_of(key, phrase):
+            phrase = _abbreviated_phrase(value, m.start(), key)
+            if phrase:
                 aliases.append(AliasCandidate(alias=key, phrase=phrase, node_id=node.id,
                                               node_path=node.path, part=part))
                 continue
@@ -159,8 +163,8 @@ def _parenthetical(node: Node, part: str) -> tuple[list[RawSite], list[AliasCand
             key = term_key(m.group("term"))
             if not key:
                 continue
-            phrase = _preceding_phrase(value, m.start())
-            if phrase and is_initialism_of(key, phrase):
+            phrase = _abbreviated_phrase(value, m.start(), key)
+            if phrase:
                 aliases.append(AliasCandidate(alias=key, phrase=phrase, node_id=node.id,
                                               node_path=node.path, part=part))
     return sites, aliases
