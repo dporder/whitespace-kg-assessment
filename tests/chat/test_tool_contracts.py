@@ -119,7 +119,10 @@ def test_follow_references_outbound(backend):
     for r in out["references"]:
         assert set(r) == {"ref_path", "text", "ref_kind", "status", "target_path",
                           "scope_rule", "resolver", "confidence", "group_id",
-                          "candidates", "char_span", "page", "from_path"}
+                          "candidates", "char_span", "page", "from_path",
+                          # the names the agreement uses, so a caller never has
+                          # to reach past the tools to label what it renders
+                          "from_name", "target_name"}
     statuses = sorted(r["status"] for r in out["references"])
     assert statuses == ["ambiguous", "external", "resolved", "resolved"]
 
@@ -150,7 +153,7 @@ def test_ambiguous_ref_keeps_its_candidates_and_mints_no_target(backend):
     )
     assert ref["target_path"] is None, "an ambiguous ref must never carry a target"
     assert len(ref["candidates"]) == 2
-    assert all(set(cd) == {"path", "score", "reason"} for cd in ref["candidates"])
+    assert all(set(cd) == {"path", "score", "reason", "name"} for cd in ref["candidates"])
 
 
 def test_follow_references_rejects_a_bad_direction(backend):
@@ -166,7 +169,8 @@ def test_define_shape(backend):
     assert out["aliases"] == ["CBO"]
     site = out["sites"][0]
     assert set(site) == {"term", "scope", "source", "aliases", "pointer",
-                         "definition_path", "definition_text", "page"}
+                         "definition_path", "definition_name", "definition_text", "page"}
+    assert site["definition_name"].startswith("Joint Schedule 1")
     assert site["scope"] == "document"
     assert site["definition_path"] == "joint-schedule-1/2/table/2/1"
 

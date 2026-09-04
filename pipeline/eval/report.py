@@ -127,6 +127,7 @@ def assemble(ctx: Context, sections: list[Section],
             "loaded": [r.as_dict() for r in ctx.inputs.records if r.state == "loaded"],
             "absent": [r.as_dict() for r in ctx.inputs.absences()],
             "failed": [r.as_dict() for r in ctx.inputs.failures()],
+            "skipped_not_a_part": [r.as_dict() for r in ctx.inputs.skipped()],
         },
         "provided_artifacts": {
             "page_map": {"state": ctx.page_map.state, "source_file": ctx.page_map.source_file,
@@ -181,6 +182,13 @@ def render_markdown(ctx: Context, sections: list[Section],
         lines.append(f"**{len(failed_inputs)} input file(s) failed to load**, which is "
                      f"different from absent:")
         for f in failed_inputs:
+            lines.append(f"  - `{f['path']}`: {f['error']}")
+    skipped_inputs = payload["input_source"]["skipped_not_a_part"]
+    if skipped_inputs:
+        lines.append("")
+        lines.append(f"{len(skipped_inputs)} file(s) in `tree/` were skipped as not "
+                     f"part files, which is different again from failing to load:")
+        for f in skipped_inputs:
             lines.append(f"  - `{f['path']}`: {f['error']}")
     lines.append("")
     lines.append("## gates")

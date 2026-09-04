@@ -6,156 +6,183 @@
 <title>Review queue — RM6116</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-  /* Tokens lifted from diagram/Main.dc.html: the trust gradient means the same
-     thing here as on the architecture canvas and in the chat UI. */
+  /* Whitespace PRODUCT register. Near-black ground, generous empty space, one
+     flat action blue. Status is carried by a small pill, never by a row wash;
+     the lavender belongs to connectors and glows, never to a button. */
   :root {
-    --paper:#fbfaf8; --card:#fff; --line:#d8d5cf; --hair:#ece9e4; --sunk:#f5f4f1;
-    --ink:#1c1e21; --body:#3a3d42; --muted:#6b6f76; --faint:#9a948f;
-    --det:#3f6396; --det-bg:#eef3fa; --det-line:#c6d2e3;
-    --rule:#2e7373; --rule-bg:#f2f8f8; --rule-line:#c3d9d9;
-    --model:#a16b16; --model-bg:#fbf7ef; --model-line:#e0d0b2;
-    --human:#75589b; --human-bg:#faf7fd; --human-line:#d9cbe8;
+    --bg:#08090b; --chrome:#121417; --card:#1a1b22; --raised:#28292f;
+    --action:#1f6feb; --border:#3e3f47; --divider:#5c5d64;
+    --muted:#adafb7; --copy:#c8c8ca; --quiet:#8c8c8c; --link:#76b5fd;
+    --person:#854aca; --teal:#30d3b1;
+    /* settled-positive is the memo's own pill green, not a derived one */
+    --ok:#2e9144; --bad:#ff6568; --warn:#f99c00;
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--paper); color:var(--ink);
-         font-family:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif; font-size:13px; }
-  .mono { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; }
-  .wrap { max-width:1440px; margin:0 auto; padding:26px 30px 24px; display:flex; flex-direction:column; gap:14px; }
+  body { margin:0; background:var(--bg); color:#fff;
+         font-family:Inter,system-ui,sans-serif; font-size:13px; }
+  .mono { font-family:'JetBrains Mono',ui-monospace,Menlo,monospace; }
+  .wrap { max-width:1440px; margin:0 auto; padding:26px 34px 60px; display:flex; flex-direction:column; gap:22px; }
 
-  header { display:flex; align-items:baseline; justify-content:space-between; gap:14px;
-           border-bottom:2px solid var(--ink); padding-bottom:11px; flex-wrap:wrap; }
-  h1 { font-size:21px; font-weight:700; letter-spacing:-.01em; margin:0; }
-  .legend { display:flex; gap:13px; align-items:center; flex-wrap:wrap; }
-  .legend span.sw { width:9px; height:9px; border-radius:2px; display:inline-block; }
-  .legend .item { display:flex; gap:5px; align-items:center; font-size:10.5px; color:var(--body); }
+  .crumb { font-size:12px; color:var(--quiet); }
+  .crumb b { font-weight:400; color:var(--muted); }
+  header { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+  h1 { font-size:26px; font-weight:600; letter-spacing:-.02em; margin:6px 0 0; }
+  .lede { font-size:13px; color:var(--muted); margin-top:8px; max-width:660px; line-height:1.6; }
+  .metas { display:flex; gap:34px; }
+  .meta .k { font-size:11px; color:var(--quiet); margin-bottom:4px; }
+  .meta .v { font-size:14px; font-weight:500; }
+  input.rev { font:inherit; font-size:13px; border:1px solid var(--border); border-radius:6px;
+              padding:6px 10px; width:150px; background:var(--card); color:#fff; }
+  input.rev:focus { outline:0; border-color:var(--action); }
 
-  .kick { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.08em;
-          text-transform:uppercase; padding:2px 7px; border-radius:3px; color:#fff; }
-  .chip { display:inline-block; font-size:10px; font-weight:500; padding:2px 8px;
-          border-radius:3px; border:1px solid var(--line); color:var(--body);
-          background:#fff; cursor:pointer; }
-  .chip.on { background:var(--ink); border-color:var(--ink); color:#fff; }
-  .chip.flat { cursor:default; }
-  .colhead { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
-  .li { font-size:11.5px; line-height:1.5; color:var(--body); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:4px; }
-  .kbd { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:9px; color:var(--muted);
-         border:1px solid var(--line); border-radius:2px; padding:1px 4px; background:#fff; }
+  /* tabs with count badges, active marked by a blue underline */
+  .tabs { display:flex; gap:30px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .tab { display:flex; align-items:center; gap:9px; padding:0 0 13px; cursor:pointer;
+         font-size:15px; font-weight:500; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tab.on { color:#fff; border-bottom-color:var(--action); }
+  .tab .b { min-width:22px; height:21px; border-radius:4px; background:rgba(255,255,255,.07);
+            color:var(--muted); font-size:11px; display:flex; align-items:center;
+            justify-content:center; padding:0 6px; }
+  .tab.on .b { background:rgba(31,111,235,.18); color:#8ab4f8; }
 
-  .filters { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-  .filters .spacer { flex:1; }
-
-  .body { display:flex; gap:18px; align-items:flex-start; }
-  .queue { flex:1; display:flex; flex-direction:column; gap:11px; min-width:0; }
-  .rail { width:292px; flex-shrink:0; display:flex; flex-direction:column; gap:11px; position:sticky; top:20px; }
+  .body { display:flex; gap:26px; align-items:flex-start; }
+  .queue { flex:1; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .rail { width:300px; flex-shrink:0; display:flex; flex-direction:column; gap:14px; position:sticky; top:24px; }
   @media (max-width:1080px) { .body { flex-direction:column; } .rail { width:100%; position:static; } }
 
-  .row { padding:12px 14px; display:flex; flex-direction:column; gap:10px; scroll-margin-top:20px; }
-  .row.ref { border-left:3px solid var(--det); }
-  .row.term { border-left:3px solid var(--rule); }
-  .row.anomaly { border-left:3px solid var(--ink); }
-  .row.cursor { box-shadow:0 0 0 2px var(--human-bg), 0 0 0 3px var(--human-line); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; }
+
+  .sechead { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-top:18px; }
+  .sectitle { font-size:30px; font-weight:600; letter-spacing:-.02em; }
+  .note { font-size:13px; line-height:1.6; color:#8fd6a4; }
+  details.why { margin-top:2px; }
+  details.why > summary { cursor:pointer; font-size:12px; color:var(--muted); list-style:none;
+                          display:inline-flex; align-items:center; gap:6px; }
+  details.why > summary::-webkit-details-marker { display:none; }
+  details.why > summary::before { content:'+'; font-family:'JetBrains Mono',monospace; }
+  details.why[open] > summary::before { content:'\2013'; }
+  .whybox { margin-top:8px; padding-left:14px; border-left:2px solid var(--border);
+            display:flex; flex-direction:column; gap:6px; }
+  .count { font-size:11px; color:var(--quiet); }
+  .secsum { font-size:13px; line-height:1.65; color:var(--muted); max-width:820px; }
+  details.how > summary { cursor:pointer; font-size:12.5px; color:var(--link); list-style:none;
+                          display:inline-flex; align-items:center; gap:6px; padding:2px 0; }
+  details.how > summary::-webkit-details-marker { display:none; }
+  details.how > summary::before { content:'+'; font-family:'JetBrains Mono',monospace; }
+  details.how[open] > summary::before { content:'–'; }
+  .howbox { border:1px solid var(--border); background:var(--card); border-radius:10px;
+            padding:16px 20px; margin-top:10px; }
+  .howbox h4 { margin:0 0 9px; font-family:'JetBrains Mono',monospace; font-size:10px;
+               font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .howbox ol { margin:0; padding-left:18px; font-size:12.5px; line-height:1.8; color:var(--copy); }
+  .howbox .why { margin-top:10px; font-size:12.5px; line-height:1.6; color:var(--quiet); }
+
+  .row { padding:22px 24px; display:flex; flex-direction:column; gap:16px; scroll-margin-top:24px; }
+  .row.cursor { border-color:var(--action); }
   .row.done { opacity:.55; }
-  .rowhead { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .rowhead .path { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:11.5px; font-weight:500; }
-  .rowhead .where { font-size:11px; color:var(--muted); }
-  .rowhead .spacer { flex:1; }
+  .rowhead { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .cite { font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  .where { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--quiet); }
+  .state { font-size:11px; font-weight:500; padding:3px 10px; border-radius:999px; }
+  .state.open { color:var(--warn); background:rgba(249,156,0,.12); border:1px solid rgba(249,156,0,.4); }
+  .state.done { color:#8fd6a4; background:rgba(46,145,68,.18); border:1px solid rgba(46,145,68,.5); }
 
-  .split { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
-  .evidence { width:268px; flex-shrink:0; display:flex; flex-direction:column; gap:4px; }
-  .evidence .frame { border:1px solid var(--line); border-radius:3px; overflow:hidden; background:#fff; min-height:48px; }
+  .split { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+  .evidence { width:300px; flex-shrink:0; display:flex; flex-direction:column; gap:7px; }
+  .evidence .frame { border:1px solid var(--border); border-radius:10px; overflow:hidden;
+                     background:#fff; min-height:48px; }
   .evidence img { display:block; width:100%; cursor:zoom-in; }
-  .evidence img:hover { outline:2px solid var(--human-line); outline-offset:-2px; }
-  .evidence .meta { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:9.5px; color:var(--muted); word-break:break-all; }
-  .decide { flex:1; display:flex; flex-direction:column; gap:9px; min-width:240px; }
+  .evidence img:hover { opacity:.9; }
+  .evidence .cap { font-size:11px; color:var(--quiet); }
+  .decide { flex:1; display:flex; flex-direction:column; gap:14px; min-width:300px; }
 
-  .sentence { font-size:13px; line-height:1.6; }
-  .sentence mark { padding:1px 2px; background:var(--det-bg); border-bottom:2px solid var(--det); color:inherit; }
-  .term .sentence mark { background:var(--rule-bg); border-bottom-color:var(--rule); }
+  .situation { font-size:14px; line-height:1.65; color:#fff; }
+  .quote { font-size:13.5px; line-height:1.8; color:var(--copy);
+           border-left:2px solid var(--border); padding-left:16px; }
+  .quote mark { padding:1px 3px; border-radius:3px; background:rgba(31,111,235,.22);
+                color:#fff; font-weight:500; }
+  .explain { font-size:13px; line-height:1.65; color:var(--muted); }
+  .question { font-size:17px; font-weight:600; line-height:1.45; color:#fff; letter-spacing:-.01em; }
 
-  .cands { display:flex; flex-direction:column; gap:4px; }
-  .cand { display:flex; align-items:center; gap:8px; border:1px solid var(--line);
-          border-radius:3px; padding:5px 9px; background:#fff; cursor:pointer; }
-  .cand.on { border-color:var(--human); background:var(--human-bg); }
-  .cand .radio { width:11px; height:11px; border-radius:50%; border:1.5px solid var(--faint); flex-shrink:0; }
-  .cand.on .radio { border-color:var(--human); background:var(--human); box-shadow:inset 0 0 0 2px var(--human-bg); }
-  .cand .p { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:11px; color:var(--ink); }
-  .cand .why { font-size:11.5px; color:var(--muted); }
-  .cand .sc { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:11px; margin-left:auto; }
+  .defbox, .readbox { border:1px solid var(--border); background:rgba(255,255,255,.02);
+                      border-radius:10px; padding:13px 15px; }
+  .defbox .k { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.07em;
+               text-transform:uppercase; color:var(--teal); margin-bottom:6px; }
 
-  .actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-  button.act { font:inherit; font-size:11px; font-weight:600; border-radius:3px; padding:5px 13px; cursor:pointer; }
-  button.approve { background:var(--human); color:#fff; border:1px solid var(--human); }
-  button.reject { background:#fff; color:var(--human); border:1px solid var(--human); }
-  /* the abstention label the zero-tolerance gate feeds on, marked apart from
-     both the affirmations and the denials because it asserts something else:
-     that no correct target exists in the corpus at all */
-  button.abstain { background:var(--model-bg); color:var(--model); border:1px dashed var(--model); }
-  button.act:disabled { opacity:.4; cursor:not-allowed; }
-  .bkey { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:8.5px;
-          opacity:.65; margin-left:6px; }
-  select.termpick { font:inherit; font-size:11.5px; padding:4px 7px; border:1px solid var(--rule-line);
-                    background:var(--rule-bg); color:var(--ink); border-radius:3px; max-width:100%; }
-  .hint { font-size:11.5px; color:var(--muted); margin-left:auto; }
+  .answers { display:flex; gap:12px; flex-wrap:wrap; }
+  button.ans { font:inherit; text-align:left; cursor:pointer; flex:1; min-width:236px;
+               border-radius:10px; padding:14px 16px; background:var(--raised);
+               border:1px solid var(--border); display:flex; flex-direction:column; gap:4px; }
+  button.ans:hover { border-color:var(--action); }
+  button.ans .n { font-size:13.5px; font-weight:500; color:#fff; }
+  button.ans .s { font-size:12px; color:var(--muted); line-height:1.5; }
+  button.ans.candidate, button.ans.primary { background:rgba(31,111,235,.10); border-color:#2d5791; }
+  button.ans.candidate:hover, button.ans.primary:hover { border-color:var(--action); }
+  button.ans.abstain { background:rgba(249,156,0,.07); border:1px dashed rgba(249,156,0,.45); }
+  button.ans.abstain .n { color:var(--warn); }
+  button.ans:disabled { opacity:.4; cursor:not-allowed; }
+  .akey { font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--quiet); }
 
-  .note { border-radius:3px; padding:6px 9px; font-size:11.5px; line-height:1.5; }
-  .note.rule { border:1px solid var(--rule-line); background:var(--rule-bg); }
-  .note.model { border:1px solid var(--model-line); background:var(--model-bg); }
+  .foot { display:flex; align-items:center; gap:14px; border-top:1px solid rgba(255,255,255,.06);
+          padding-top:14px; flex-wrap:wrap; }
+  .foot .note { font-size:12.5px; color:var(--quiet); }
+  details.tech > summary { cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px;
+                           color:var(--quiet); list-style:none; display:inline-flex; gap:6px; }
+  details.tech > summary::-webkit-details-marker { display:none; }
+  details.tech > summary::before { content:'+'; }
+  details.tech[open] > summary::before { content:'–'; }
+  .techbox { margin-top:9px; background:var(--bg); border:1px solid var(--border); border-radius:8px;
+             padding:11px 13px; font-family:'JetBrains Mono',monospace; font-size:11px;
+             line-height:1.8; color:var(--copy); word-break:break-all; }
+  .techbox b { color:var(--quiet); font-weight:400; }
 
-  .jsonl { background:var(--sunk); border:1px solid var(--hair); border-radius:3px; padding:7px 8px;
-           font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:9px; line-height:1.6;
-           color:var(--body); word-break:break-all; }
-  .verdict { font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px;
-             border:1px solid var(--human); color:var(--human); background:var(--human-bg); }
-  .empty { padding:26px; text-align:center; color:var(--faint); }
-  input.rev { font:inherit; font-size:11px; border:1px solid var(--line); border-radius:3px;
-              padding:3px 7px; width:96px; background:#fff; color:var(--ink); }
+  select.termpick { font:inherit; font-size:13px; padding:8px 11px; border:1px solid var(--border);
+                    background:var(--raised); color:#fff; border-radius:8px; max-width:100%; }
+  .picklabel { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.07em;
+               text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+
+  .rail h3 { margin:0 0 8px; font-size:14px; font-weight:600; }
+  .rail .k { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.07em;
+             text-transform:uppercase; color:var(--muted); margin-bottom:11px; }
+  .tally { display:flex; align-items:center; gap:11px; }
+  .tally .v { font-size:16px; font-weight:600; }
+  .empty { padding:40px; text-align:center; color:var(--quiet); }
+  .kbdhint { font-size:11.5px; color:var(--quiet); line-height:1.7; }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="crumb"><b>RM6116</b> / Network Services 3 / Review queue</div>
   <header>
-    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
+    <div>
       <h1>Review queue</h1>
-      <span class="mono" style="font-size:11px;color:var(--muted)" id="src">loading…</span>
+      <div class="lede">Questions the system could not answer on its own. Your answers become the standard it is measured against — nothing you answer here changes the document itself.</div>
     </div>
-    <div class="legend">
-      <span class="item"><span class="sw" style="background:var(--det)"></span>deterministic</span>
-      <span class="item"><span class="sw" style="background:var(--rule)"></span>rule derived</span>
-      <span class="item"><span class="sw" style="background:var(--model)"></span>model derived</span>
-      <span class="item"><span class="sw" style="background:var(--human)"></span>human</span>
-      <span style="width:1px;height:15px;background:var(--line)"></span>
-      <span class="item">reviewer <input class="rev" id="reviewer" value="dan"></span>
+    <div class="metas">
+      <div class="meta"><div class="k">Answered today</div><div class="v" id="done">0 <span style="color:var(--quiet);font-weight:400" id="total">of 0</span></div></div>
+      <div class="meta"><div class="k">Reviewer</div><input class="rev" id="reviewer" value="dan"></div>
     </div>
   </header>
-
-  <div class="filters" id="filters"></div>
+  <div class="tabs" id="tabs"></div>
 
   <div class="body">
-    <div class="queue" id="queue"><div class="empty">Loading the queue…</div></div>
-
+    <div class="queue" id="queue"><div class="empty">Loading…</div></div>
     <div class="rail">
-      <div class="card" style="border-top:3px solid var(--human);padding:11px 12px;">
-        <span class="kick" style="background:var(--human)">Human loop</span>
-        <div style="font-size:13px;font-weight:600;margin:7px 0 4px;">Every decision is a label</div>
-        <div class="li">Each verdict appends one line to <span class="mono">golden/decisions.jsonl</span>, which stage 8 reads as ground truth. The eval set grows by operating the system.</div>
+      <div class="card" style="border-top:3px solid var(--human);padding:14px 15px;">
+        <h3>What happens to your answers</h3>
+        <div class="explain">Each answer is kept as a labelled example. The system is scored against them, so the parts it gets wrong are the parts that get fixed.</div>
       </div>
-
-      <div class="card" style="padding:11px 12px;display:flex;flex-direction:column;gap:7px;">
-        <div class="colhead">Appended</div>
-        <div id="recent"><div class="li" style="color:var(--faint)">Nothing yet.</div></div>
-        <div style="border-top:1px solid var(--hair);padding-top:8px;display:flex;justify-content:space-between;align-items:baseline;">
-          <span class="li">Decisions on file</span>
-          <span class="mono" id="dcount" style="font-size:15px;font-weight:600;color:var(--human)">0</span>
-        </div>
+      <div class="card" style="padding:14px 15px;">
+        <div class="k">Left to review</div>
+        <div id="tallies" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
-
-      <div class="card" style="background:var(--sunk);padding:11px 12px;">
-        <div class="colhead" style="margin-bottom:5px;">Crops are live</div>
-        <div class="li">Every crop is rendered server-side from the stored box by PyMuPDF at request time, so it is always the page as it is now.</div>
+      <div class="card" style="background:var(--sunk);padding:14px 15px;">
+        <div class="k">The page images are real</div>
+        <div class="explain">Each image is cut from the actual PDF when the row loads, at the coordinates the system recorded. If an image does not match the words beside it, that is itself worth flagging.</div>
       </div>
+      <div class="kbdhint" id="kbd"></div>
     </div>
   </div>
 </div>
@@ -164,96 +191,110 @@
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
-let ROWS = [], COUNTS = {}, CURSOR = 0, PICK = {}, TERMPICK = {};
-let FILTER = { kinds: ['ref', 'term', 'anomaly'], part: null };
+let ROWS = [], COUNTS = {}, GUIDE = {}, CURSOR = 0, TERMPICK = {}, ACTIVE = 'ref';
+const ORDER = ['ref', 'term', 'anomaly'];
+const TONE = { ref: 'det', term: 'rule', anomaly: 'ink' };
 
-const KICK = { ref: ['Ref', 'var(--det)'], term: ['Term', 'var(--rule)'], anomaly: ['Anomaly', 'var(--ink)'] };
-const STATUS_TONE = { ambiguous:'model', unresolved:'muted', sentence_initial:'model', heading:'model',
-                      typo_dense:'model', alias_collision:'model' };
-
-const reviewer = () => ($('#reviewer').value || 'unknown').trim();
+const reviewer = () => ($('#reviewer').value || '').trim();
 try { const s = localStorage.getItem('rm6116-reviewer'); if (s) $('#reviewer').value = s; } catch (e) {}
 $('#reviewer').addEventListener('change', () => { try { localStorage.setItem('rm6116-reviewer', reviewer()); } catch (e) {} });
 
-async function boot() {
-  const info = await (await fetch('/api/status')).json();
-  $('#src').textContent = `RM6116 · source: ${info.data_source} · ${info.parts.join(', ')}`
-    + (info.pdf_present ? '' : ' · PDF MISSING');
-  await load();
-}
+async function boot() { await load(); }
 
 async function load() {
-  const qs = new URLSearchParams({ kinds: FILTER.kinds.join(',') });
-  if (FILTER.part) qs.set('part', FILTER.part);
-  const data = await (await fetch('/api/queue?' + qs)).json();
-  ROWS = data.rows; COUNTS = data.counts;
-  renderFilters(); renderQueue(); refreshDecisions();
+  const d = await (await fetch('/api/queue')).json();
+  ROWS = d.rows; COUNTS = d.counts; GUIDE = d.guidelines || {};
+  render();
+  const s = await (await fetch('/api/decisions')).json();
+  $('#done').firstChild.textContent = s.count + ' ';
+  $('#total').textContent = 'of ' + (COUNTS.total || 0);
 }
 
-function renderFilters() {
-  const f = $('#filters'); f.replaceChildren();
-  const all = ['ref', 'term', 'anomaly'];
-  const mk = (label, on, fn) => { const c = el('span', 'chip' + (on ? ' on' : ''), label); c.onclick = fn; return c; };
-  f.append(mk(`All ${COUNTS.total || 0}`, FILTER.kinds.length === 3,
-    () => { FILTER.kinds = all.slice(); load(); }));
-  all.forEach(k => f.append(mk(`${KICK[k][0]}s ${COUNTS[k] || 0}`,
-    FILTER.kinds.length === 1 && FILTER.kinds[0] === k,
-    () => { FILTER.kinds = [k]; load(); })));
-  const rule = el('span');
-  rule.style.cssText = 'width:1px;height:15px;background:var(--line);margin:0 3px';
-  f.append(rule);
-  const parts = Object.keys(COUNTS.parts || {}).sort();
-  f.append(mk('all parts', !FILTER.part, () => { FILTER.part = null; load(); }));
-  parts.forEach(p => f.append(mk(`${p} ${COUNTS.parts[p]}`, FILTER.part === p,
-    () => { FILTER.part = FILTER.part === p ? null : p; load(); })));
-  const sp = el('span', 'spacer'); f.append(sp);
-  [['J', 'K'], ['A'], ['U'], ['N'], ['1-9']].forEach((keys, i) => {
-    keys.forEach(k => f.append(el('span', 'kbd', k)));
-    f.append(el('span', 'li',
-      ['move', 'affirm', 'unresolvable', 'negative', 'pick candidate'][i]));
+function render() {
+  const q = $('#queue'); q.replaceChildren();
+  if (!ROWS.length) { q.append(el('div', 'empty', 'Nothing left to review.')); return; }
+
+  // One review type at a time. Three kinds of judgement on one page was the
+  // thing that made this hard to read; the tabs make the switch explicit.
+  const present = ORDER.filter(k => ROWS.some(r => r.kind === k));
+  if (!present.includes(ACTIVE)) ACTIVE = present[0];
+
+  const tabs = $('#tabs'); tabs.replaceChildren();
+  present.forEach(kind => {
+    const rows = ROWS.filter(r => r.kind === kind);
+    const open = rows.filter(r => !r.decided).length;
+    const t = el('div', 'tab' + (kind === ACTIVE ? ' on' : ''));
+    t.append(document.createTextNode((GUIDE[kind] || {}).title || kind),
+             el('span', 'b', String(open)));
+    t.onclick = () => { ACTIVE = kind; CURSOR = 0; render(); window.scrollTo({ top: 0 }); };
+    tabs.append(t);
   });
+
+  const g = GUIDE[ACTIVE] || {};
+  const rows = ROWS.filter(r => r.kind === ACTIVE);
+  const open = rows.filter(r => !r.decided).length;
+
+  const head = el('div', 'sechead');
+  head.append(el('span', 'sectitle', g.title || ACTIVE),
+              el('span', 'count', open ? `${open} still to answer`
+                                       : `all ${rows.length} answered`));
+  q.append(head);
+  if (g.summary) q.append(el('div', 'secsum', g.summary));
+
+  if (g.how) {
+    const det = el('details', 'how');
+    det.append(el('summary', null, 'How to decide'));
+    const box = el('div', 'howbox');
+    const ol = el('ol');
+    g.how.forEach(h => ol.append(el('li', null, h)));
+    box.append(ol);
+    if (g.why) box.append(el('div', 'why', g.why));
+    det.append(box);
+    q.append(det);
+  }
+
+  rows.forEach((r, i) => q.append(rowCard(r, i)));
+
+  const tallies = $('#tallies'); tallies.replaceChildren();
+  present.forEach(kind => {
+    const n = ROWS.filter(r => r.kind === kind && !r.decided).length;
+    const t = el('div', 'tally');
+    const label = el('span', 'explain', (GUIDE[kind] || {}).title || kind);
+    label.style.flexGrow = '1';
+    t.append(label, el('span', 'v', String(n)));
+    if (kind !== ACTIVE) t.style.opacity = '.55';
+    t.style.cursor = 'pointer';
+    t.onclick = () => { ACTIVE = kind; CURSOR = 0; render(); window.scrollTo({ top: 0 }); };
+    tallies.append(t);
+  });
+
+  $('#kbd').textContent = 'J and K move · A accepts the first answer · N the last';
+  setCursor(Math.min(CURSOR, rows.length - 1), false);
 }
 
 function highlight(text, span) {
-  const box = el('div', 'sentence');
-  if (!text) { box.append(el('span', 'li', '(no text on this node)')); return box; }
-  if (!span) { box.textContent = text; return box; }
+  const box = el('div', 'quote');
+  if (!text) { box.append(el('span', 'explain', '(no text recorded on this node)')); return box; }
+  if (!span) { box.textContent = '“' + text + '”'; return box; }
   const [a, b] = span;
-  box.append(document.createTextNode(text.slice(0, a)));
+  box.append(document.createTextNode('“' + text.slice(0, a)));
   box.append(el('mark', null, text.slice(a, b)));
-  box.append(document.createTextNode(text.slice(b)));
+  box.append(document.createTextNode(text.slice(b) + '”'));
   return box;
 }
 
-function renderQueue() {
-  const q = $('#queue'); q.replaceChildren();
-  if (!ROWS.length) { q.append(el('div', 'empty', 'Nothing in the queue for this filter.')); return; }
-  ROWS.forEach((r, i) => q.append(rowCard(r, i)));
-  setCursor(Math.min(CURSOR, ROWS.length - 1), false);
-}
-
 function rowCard(r, i) {
-  const card = el('div', `card row ${r.kind}` + (r.decided ? ' done' : ''));
+  const cp = r.copy || {};
+  const card = el('div', 'card row' + (r.decided ? ' done' : ''));
   card.id = 'row-' + i;
   card.onclick = () => setCursor(i, false);
 
   const head = el('div', 'rowhead');
-  const k = el('span', 'kick', KICK[r.kind][0]); k.style.background = KICK[r.kind][1];
-  head.append(k, el('span', 'path', r.path));
-  head.append(el('span', 'where', `${r.label} · page ${r.page}`));
-  head.append(el('span', 'spacer'));
-  const st = el('span', 'chip flat', r.status);
-  if (STATUS_TONE[r.status] === 'model') { st.style.color = 'var(--model)'; st.style.borderColor = 'var(--model)'; st.style.background = 'var(--model-bg)'; }
-  else { st.style.color = 'var(--muted)'; st.style.background = 'var(--sunk)'; }
-  head.append(st);
-  if (r.kind === 'ref' && r.detail.resolver) {
-    const rs = el('span', 'chip flat', `resolver ${r.detail.resolver}` + (r.detail.confidence != null ? ` · ${r.detail.confidence}` : ''));
-    const tone = r.detail.resolver === 'llm' ? 'model' : 'det';
-    rs.style.color = `var(--${tone})`; rs.style.borderColor = `var(--${tone})`;
-    head.append(rs);
-  }
-  if (r.kind === 'term') { head.append(el('span', 'chip flat', r.detail.method)); }
-  if (r.decided) { head.append(el('span', 'verdict', `${r.decided.verdict} · ${r.decided.reviewer}`)); }
+  head.append(el('span', 'cite', r.citation || r.path), el('span', 'where', 'page ' + r.page));
+  const sp = el('span'); sp.style.flexGrow = '1'; head.append(sp);
+  head.append(r.decided
+    ? el('span', 'state done', `answered by ${r.decided.reviewer}`)
+    : el('span', 'state open', 'Awaiting review'));
   card.append(head);
 
   const split = el('div', 'split');
@@ -262,132 +303,130 @@ function rowCard(r, i) {
   const frame = el('div', 'frame');
   if (r.crop) {
     const img = new Image(); img.loading = 'lazy';
-    img.alt = `page ${r.crop.page} crop, box drawn at ${r.crop.bbox.join(', ')}`;
-    img.title = 'open the full-size crop';
-    img.onerror = () => frame.replaceChildren(el('div', 'li', 'crop unavailable'));
-    img.onclick = ev2 => { ev2.stopPropagation(); window.open(r.crop.url, '_blank', 'noopener'); };
+    img.alt = `the page around ${r.citation}`;
+    img.title = 'open the full-size page image';
+    img.onerror = () => frame.replaceChildren(el('div', 'explain', 'page image unavailable'));
+    img.onclick = e => { e.stopPropagation(); window.open(r.crop.url, '_blank', 'noopener'); };
     img.src = r.crop.url;
     frame.append(img);
-    ev.append(frame, el('div', 'meta', `GET ${r.crop.url}`));
+    ev.append(frame, el('div', 'cap', 'The page itself, with the words boxed'));
   } else {
-    frame.append(el('div', 'li', 'no box on this node'));
+    frame.append(el('div', 'explain', 'no page image recorded'));
     ev.append(frame);
   }
   split.append(ev);
 
   const dec = el('div', 'decide');
-  dec.append(el('div', 'colhead', r.kind === 'anomaly' ? 'Text as printed, kept verbatim' : 'Source sentence'));
   dec.append(highlight(r.sentence.text, r.sentence.span));
 
-  if (r.kind === 'ref') {
-    dec.append(el('div', 'colhead', `Pointing words: ${r.detail.pointing_words}`));
-  }
   if (r.kind === 'term' && r.detail.governing_text) {
-    dec.append(el('div', 'colhead', `Governing definition · scope ${r.detail.governing_scope}`));
-    const n = el('div', 'note rule');
-    n.append(document.createTextNode(r.detail.governing_text));
-    const src = el('span', 'mono'); src.style.cssText = 'font-size:10px;color:var(--rule)';
-    src.textContent = ` — ${r.detail.governing_path}`;
-    n.append(src);
-    dec.append(n);
+    const box = el('div', 'defbox');
+    box.append(el('div', 'k', 'The definition that would apply here'));
+    box.append(el('div', 'explain', '“' + r.detail.governing_text + '”'));
+    const scope = r.detail.governing_scope === 'document'
+      ? 'applies across the whole agreement'
+      : 'applies inside this part only';
+    box.append(el('div', 'cap', `from ${r.detail.governing_citation || ''} — ${scope}`));
+    dec.append(box);
   }
-  if (r.kind === 'term') {
-    // The governing term may not be the matched one: an alias collision is
-    // exactly the case where the reviewer names a different term. Whatever is
-    // selected here goes to the harness as chosen_candidate.
-    dec.append(el('div', 'colhead', 'Governing term recorded with the verdict'));
+
+  if (cp.question) dec.append(el('div', 'question', cp.question));
+  if (cp.note) dec.append(el('div', 'note', cp.note));
+
+  // The reasoning is one click away rather than on the page: the question and
+  // the answers are what a reviewer needs, the rest is why they were asked.
+  if (cp.situation || cp.explain) {
+    const why = el('details', 'why');
+    why.append(el('summary', null, 'Why am I being asked?'));
+    const box = el('div', 'whybox');
+    if (cp.situation) box.append(el('div', 'explain', cp.situation));
+    if (cp.explain) box.append(el('div', 'explain', cp.explain));
+    if (cp.confidence_words) box.append(el('div', 'explain', cp.confidence_words));
+    why.append(box);
+    dec.append(why);
+  }
+
+  if (r.kind === 'term' && (r.detail.term_options || []).length > 1) {
+    const wrap = el('div');
+    wrap.append(el('div', 'picklabel', 'The term this is a use of'));
     const sel = el('select', 'termpick');
-    const opts = r.detail.term_options && r.detail.term_options.length
-      ? r.detail.term_options : [r.detail.term];
-    opts.forEach(t => {
-      const o = el('option', null, t + (t === r.detail.term ? '  (matched)' : ''));
+    r.detail.term_options.forEach(t => {
+      const o = el('option', null, t + (t === r.detail.term ? '  (the one found here)' : ''));
       o.value = t;
       if (t === (TERMPICK[r.id] || r.detail.term)) o.selected = true;
       sel.append(o);
     });
-    sel.onclick = ev2 => ev2.stopPropagation();
-    sel.onchange = () => { TERMPICK[r.id] = sel.value; };
-    dec.append(sel);
-  }
-  if (r.kind === 'anomaly') {
-    if (r.detail.proposed) {
-      dec.append(el('div', 'colhead', 'Proposed reading · interpretation, stored beside the raw text'));
-      const n = el('div', 'note model');
-      n.append(el('span', 'mono', r.detail.proposed), document.createTextNode(`  ${r.detail.detail || ''}`));
-      dec.append(n);
-    } else {
-      dec.append(el('div', 'note model', r.anomaly));
-    }
+    sel.onclick = e => e.stopPropagation();
+    sel.onchange = () => { TERMPICK[r.id] = sel.value; render(); };
+    wrap.append(sel);
+    dec.append(wrap);
   }
 
-  if (r.candidates.length) {
-    dec.append(el('div', 'colhead', 'Candidates'));
-    const list = el('div', 'cands');
-    r.candidates.forEach((c, ci) => {
-      const row = el('div', 'cand' + (PICK[r.id] === c.path ? ' on' : ''));
-      row.append(el('span', 'kbd', String(ci + 1)), el('span', 'radio'),
-                 el('span', 'p', c.path), el('span', 'why', c.reason || ''),
-                 el('span', 'sc', c.score != null ? c.score.toFixed(2) : ''));
-      row.onclick = ev2 => { ev2.stopPropagation(); PICK[r.id] = PICK[r.id] === c.path ? null : c.path; setCursor(i, false); renderQueue(); };
-      list.append(row);
-    });
-    dec.append(list);
-  }
+  const answers = el('div', 'answers');
+  (cp.answers || []).forEach((a, ai) => {
+    const b = el('button', 'ans ' + (a.kind === 'candidate' ? 'candidate'
+      : a.kind === 'primary' ? 'primary'
+      : a.verdict === 'unresolvable' ? 'abstain' : 'other'));
+    const n = el('span', 'n');
+    n.append(document.createTextNode(
+      a.verdict === 'use' ? `Yes, it means “${TERMPICK[r.id] || r.detail.term}”` : a.label));
+    if (a.kind === 'candidate') { const k = el('span', 'akey', '  ' + (ai + 1)); n.append(k); }
+    b.append(n);
+    if (a.sublabel) b.append(el('span', 's', a.sublabel));
+    b.onclick = e => {
+      e.stopPropagation();
+      const chosen = a.verdict === 'use' ? (TERMPICK[r.id] || r.detail.term) : a.chosen_candidate;
+      decide(r, a.verdict, chosen);
+    };
+    answers.append(b);
+  });
+  dec.append(answers);
 
-  const acts = el('div', 'actions');
-  const mkBtn = (cls, label, key, enabled, fn, title) => {
-    const b = el('button', 'act ' + cls);
-    b.append(document.createTextNode(label));
-    if (key) { const k = el('span', 'bkey', key); b.append(k); }
-    b.disabled = !enabled;
-    if (title) b.title = title;
-    b.onclick = ev2 => { ev2.stopPropagation(); fn(); };
-    return b;
-  };
-
-  if (r.kind === 'ref') {
-    // Four distinct verdicts. `target` twice, because confirming the pipeline's
-    // own target and choosing a candidate are different reviewer acts that
-    // happen to share a verdict; `unresolvable` is the abstention label the
-    // zero-tolerance gate feeds on, so it has its own control.
-    const tp = r.detail.target_path;
-    acts.append(
-      mkBtn('approve', 'Confirm target', 'A', !!tp,
-        () => decide(r, 'target', tp),
-        tp ? `accept ${tp}` : 'the pipeline resolved no target for this ref'),
-      mkBtn('approve', 'Pick candidate', '1-9', !!PICK[r.id],
-        () => decide(r, 'target', PICK[r.id]),
-        PICK[r.id] ? `accept ${PICK[r.id]}` : 'select a candidate above first'),
-      mkBtn('abstain', 'Unresolvable', 'U', true,
-        () => decide(r, 'unresolvable'),
-        'a real citation with no correct target in the corpus'),
-      mkBtn('reject', 'Not a reference', 'N', true,
-        () => decide(r, 'not_a_reference'),
-        'the span is not a citation at all'),
-    );
-  } else if (r.kind === 'term') {
-    acts.append(
-      mkBtn('approve', 'Real use', 'A', true,
-        () => decide(r, 'use', TERMPICK[r.id] || r.detail.term),
-        'the span is a use of the governing term selected above'),
-      mkBtn('reject', 'Not a use', 'N', true,
-        () => decide(r, 'not_a_use'),
-        'capitalised, but not a use of a defined term'),
-    );
-  } else {
-    acts.append(
-      mkBtn('approve', 'Confirm', 'A', true, () => decide(r, 'confirmed'),
-        r.detail.proposed ? 'the proposed reading is right' : 'the anomaly is correctly recorded'),
-      mkBtn('reject', 'Reject', 'N', true, () => decide(r, 'rejected'),
-        'the anomaly or its proposed reading is wrong'),
-    );
-  }
-  acts.append(el('span', 'hint', `writes one ${r.kind} line to decisions.jsonl`));
-  dec.append(acts);
+  const foot = el('div', 'foot');
+  if (cp.other_terms_hint) foot.append(el('span', 'note', cp.other_terms_hint));
+  const sp2 = el('span'); sp2.style.flexGrow = '1'; foot.append(sp2);
+  foot.append(techDetails(r));
+  dec.append(foot);
 
   split.append(dec);
   card.append(split);
   return card;
+}
+
+function techDetails(r) {
+  const d = el('details', 'tech');
+  d.append(el('summary', null, 'Technical details'));
+  const box = el('div', 'techbox');
+  const line = (k, v) => { if (v == null || v === '') return;
+    const p = el('div'); p.append(el('b', null, k + ' '), document.createTextNode(String(v))); box.append(p); };
+  line('path', r.path);
+  if (r.node_id) line('node_id', r.node_id);
+  if (r.char_span) line('char_span', JSON.stringify(r.char_span));
+  if (r.kind === 'ref') {
+    line('pointing words', r.detail.pointing_words);
+    line('reference kind', r.detail.ref_kind);
+    line('scope rule', r.detail.scope_rule);
+    line('resolver', r.detail.resolver);
+    line('resolver confidence', r.detail.confidence);
+    line('pipeline target', r.detail.target_path || 'none — not resolved');
+    (r.candidates || []).forEach(c => line('candidate', `${c.path}  score ${c.score}  ${c.reason || ''}`));
+  }
+  if (r.kind === 'term') {
+    line('term', r.detail.term);
+    line('ambiguity kind', r.detail.ambiguity_kind);
+    line('match method', r.detail.method);
+    line('governing scope', r.detail.governing_scope);
+    line('governing definition', r.detail.governing_path);
+  }
+  if (r.kind === 'anomaly') {
+    line('anomaly', r.anomaly);
+    line('anomaly_index', r.anomaly_index);
+    line('code', r.detail.code);
+  }
+  if (r.crop) line('page image', r.crop.url);
+  if (r.decided) line('recorded', JSON.stringify(r.decided));
+  d.append(box);
+  return d;
 }
 
 function setCursor(i, scroll = true) {
@@ -398,58 +437,38 @@ function setCursor(i, scroll = true) {
 }
 
 async function decide(r, verdict, chosen) {
-  // The vocabulary and the placement of chosen_candidate are the harness's,
-  // not ours: pipeline/eval/GOLDEN_FORMAT.md.
+  if (!reviewer()) { alert('Please put your name in the Reviewer box first — every answer is recorded against a person.'); $('#reviewer').focus(); return; }
   const d = { kind: r.kind, verdict, reviewer: reviewer() };
   if (chosen) d.chosen_candidate = chosen;
-  if (r.kind === 'ref') {
-    d.path = r.path;
-  } else if (r.kind === 'term') {
-    d.node_id = r.node_id; d.char_span = r.char_span; d.path = r.path;
-  } else {
-    d.node_id = r.node_id; d.anomaly = r.anomaly;
-    d.anomaly_index = r.anomaly_index;      // part of the subject, not bookkeeping
-    d.path = r.path;
-  }
+  if (r.kind === 'ref') d.path = r.path;
+  else if (r.kind === 'term') { d.node_id = r.node_id; d.char_span = r.char_span; d.path = r.path; }
+  else { d.node_id = r.node_id; d.anomaly = r.anomaly; d.anomaly_index = r.anomaly_index; d.path = r.path; }
 
   const res = await fetch('/api/decisions', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d)
-  });
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
   if (!res.ok) { alert('Not recorded: ' + (await res.text())); return; }
-  const out = await res.json();
-  r.decided = out.stored;
-  renderQueue(); refreshDecisions();
-}
-
-async function refreshDecisions() {
+  r.decided = (await res.json()).stored;
+  render();
   const s = await (await fetch('/api/decisions')).json();
-  $('#dcount').textContent = s.count;
-  const box = $('#recent'); box.replaceChildren();
-  if (!s.recent.length) { box.append(el('div', 'li', 'Nothing yet.')); return; }
-  s.recent.forEach(d => box.append(el('div', 'jsonl', JSON.stringify(d))));
+  $('#done').firstChild.textContent = s.count + ' ';
 }
 
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   const r = ROWS[CURSOR];
+  const answers = (r && r.copy && r.copy.answers) || [];
   if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setCursor(CURSOR + 1); }
   else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setCursor(CURSOR - 1); }
-  else if (e.key === 'a' && r) {
-    e.preventDefault();
-    if (r.kind === 'ref') {
-      const chosen = PICK[r.id] || r.detail.target_path;
-      if (chosen) decide(r, 'target', chosen);
-    } else if (r.kind === 'term') decide(r, 'use', TERMPICK[r.id] || r.detail.term);
-    else decide(r, 'confirmed');
-  }
-  else if (e.key === 'u' && r && r.kind === 'ref') { e.preventDefault(); decide(r, 'unresolvable'); }
-  else if ((e.key === 'n' || e.key === 'x') && r) {
-    e.preventDefault();
-    decide(r, r.kind === 'ref' ? 'not_a_reference' : r.kind === 'term' ? 'not_a_use' : 'rejected');
-  }
-  else if (/^[1-9]$/.test(e.key) && r && r.candidates.length) {
-    const c = r.candidates[Number(e.key) - 1];
-    if (c) { PICK[r.id] = PICK[r.id] === c.path ? null : c.path; renderQueue(); }
+  else if (e.key === 'a' && answers.length) {
+    e.preventDefault(); const a = answers[0];
+    decide(r, a.verdict, a.verdict === 'use' ? (TERMPICK[r.id] || r.detail.term) : a.chosen_candidate);
+  } else if (e.key === 'n' && answers.length) {
+    e.preventDefault(); const a = answers[answers.length - 1];
+    decide(r, a.verdict, a.chosen_candidate);
+  } else if (/^[1-9]$/.test(e.key) && answers.length) {
+    const a = answers[Number(e.key) - 1];
+    if (a) { e.preventDefault();
+      decide(r, a.verdict, a.verdict === 'use' ? (TERMPICK[r.id] || r.detail.term) : a.chosen_candidate); }
   }
 });
 
