@@ -111,8 +111,8 @@
     <div class="node" style="left: 197px; top: 15px; width: 256px; height: 271px;">
       <div class="roleband" style="background: #3c3dcc;"></div>
       <div class="steprow"><div class="stepnum">02</div><div class="nt">Profile it, and decide whether we understand it</div></div>
-      <div class="nb">Pick the rulebook for this document family, the unit names, numbering grammar and citation habits. Then five checks that the rulebook truly fits, the interpretation clause names units we know, the numbering matches the grammar, almost no text is left homeless, depth is in range, and indentation agrees with numbering. Each page is also routed up an extraction ladder, read the text layer where one exists, layout OCR for scans, vision models only where cheaper rungs disagree.</div>
-      <div class="ex"><span class="exk">example</span>A document opening "In this Agreement, Article means..." fails check one. Wrong rulebook, stop.</div>
+      <div class="nb">Pick the rulebook for this document family, the unit names, numbering grammar and citation habits. Then checks that the rulebook truly fits (e.g. that it names terms we know, that the numbering system matches, that no text is left homeless). Each page is also routed up an extraction ladder. If a text layer exists, it's read, otherwise OCR methods are used, with triaging to more expensive fallbacks like vision models if disagreements arise between methods during sampling.</div>
+      <div class="ex"><span class="exk">example</span>A document opens with a string/prose phrase rather than numbering, failing a rulebook check. Thus, the system stops.</div>
     </div>
 
     <!-- Step 03: parse -->
@@ -180,8 +180,8 @@
     <!-- Quarantine -->
     <div class="node" style="left: 197px; top: 688px; width: 256px; height: 131px; border-color: #bfe3d2; background: #f4faf7;">
       <div class="roleband" style="background: #00874c;"></div>
-      <div class="steprow"><div class="nt" style="color: #00593a;">Quarantine, a person decides</div></div>
-      <div class="nb">The document stops with the failing check and examples attached. A wrong tree would corrupt every citation built on it, so the pipeline refuses rather than guesses. With the right rulebook chosen, it re-enters at step 02.</div>
+      <div class="steprow"><div class="nt" style="color: #00593a;">Quarantine, a person decides</div></div><div class="nb">The document stops, because&nbsp;a wrong tree would corrupt every citation built on it. The pipeline never guesses. A human chooses, and step 02 retries.</div>
+      
     </div>
 
     <!-- Evaluate -->
