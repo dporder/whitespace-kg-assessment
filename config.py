@@ -6,11 +6,23 @@ that no threshold is buried in code.
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-PDF = ROOT.parent / "technical-assignment-provided-by-whitespace" / "document" / \
-      "RM6116 - Network Services 3 - Framework Agreement.pdf"
+
+# Workers run in isolated git worktrees, where paths relative to the checkout's
+# parent do not exist. Resolve the read-only assignment PDF and the gitignored
+# .env against the worktree first, then the canonical checkout.
+_CANONICAL = Path("/Users/testdan/Projects/whitespace-technical-assessment/solution")
+_PDF_NAME = "RM6116 - Network Services 3 - Framework Agreement.pdf"
+_pdf_candidates = [
+    ROOT.parent / "technical-assignment-provided-by-whitespace" / "document" / _PDF_NAME,
+    _CANONICAL.parent / "technical-assignment-provided-by-whitespace" / "document" / _PDF_NAME,
+]
+PDF = next((p for p in _pdf_candidates if p.exists()), _pdf_candidates[0])
+
 OUTPUT = ROOT / "output"
 GOLDEN = ROOT / "golden"
-ENV_FILE = ROOT / ".env"   # gitignored; keys may also come from the process environment
+_env_candidates = [ROOT / ".env", _CANONICAL / ".env"]
+ENV_FILE = next((p for p in _env_candidates if p.exists()), _env_candidates[0])
+# gitignored; keys may also come from the process environment
 
 DOCUMENT_ID = "rm6116"
 
