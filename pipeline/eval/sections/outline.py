@@ -145,6 +145,33 @@ def triage(ctx: Context, part: str) -> dict[str, Any]:
             "agreements": agreements, "disagreements": disagreements}
 
 
+def whole_document(ctx: Context, per_part: list[dict[str, Any]]) -> dict[str, Any]:
+    """What `--full` claims: the whole outline accounted for, not just the parts
+    this run has trees for. Everything outside an in-scope window is outline the
+    pipeline has not been compared against at all, which is a different fact
+    from a disagreement and is counted as its own number."""
+    covered: set[int] = set()
+    for p in per_part:
+        if p.get("status") != "measured":
+            continue
+        first, last = p["window"]
+        covered.update(e.index for e in ctx.outline.in_pages(first, last))
+    uncompared = [e for e in ctx.outline.entries if e.index not in covered]
+    by_part: dict[str, int] = {}
+    for e in uncompared:
+        row = next((r for r in ctx.page_map.rows
+                    if r.pages[0] <= e.page <= r.pages[1]), None)
+        by_part[row.part_id if row else "outside every provided row"] = \
+            by_part.get(row.part_id if row else "outside every provided row", 0) + 1
+    return {
+        "outline_entries_total": len(ctx.outline.entries),
+        "compared_against_a_derived_tree": Rate(len(covered),
+                                                len(ctx.outline.entries)).as_dict(),
+        "not_compared_because_the_part_has_no_derived_tree": len(uncompared),
+        "not_compared_by_part": dict(sorted(by_part.items())),
+    }
+
+
 def build(ctx: Context) -> Section:
     s = Section("outline_vs_provided")
     s.data["outline"] = {"state": ctx.outline.state, "source_file": ctx.outline.source_file,
@@ -225,6 +252,8 @@ def build(ctx: Context) -> Section:
     s.data["triage_sample"] = sample.as_dict()
     s.data["triage_queue"] = cap(queue, LIST_CAP)[0]
     s.data["triage_queue_not_listed"] = cap(queue, LIST_CAP)[1]
+    if ctx.full:
+        s.data["whole_document"] = whole_document(ctx, per_part)
 
     s.line(f"Embedded outline: **{len(ctx.outline.entries)}** entries "
            f"({len(ctx.outline.level1())} top level) from `{ctx.outline.source_file}`.")
@@ -260,4 +289,14 @@ def build(ctx: Context) -> Section:
     s.bullet("a verdict is recorded by appending "
              '`{"kind": "anomaly", "path": "<queue id>", "verdict": '
              '"parser_wrong|outline_wrong|both_differ|agree", ...}` to golden/decisions.jsonl')
+    if ctx.full:
+        wd = s.data["whole_document"]
+        r = wd["compared_against_a_derived_tree"]
+        s.line()
+        s.line(f"**Whole document** (`--full`): "
+               f"**{Rate(r['count'], r['of'])}** outline entries were compared against a "
+               f"derived tree. The rest belong to parts this run has no tree for, which "
+               f"is not a disagreement.")
+        s.table(["part the entry falls in", "entries not compared"],
+                [[k, v] for k, v in wd["not_compared_by_part"].items()][:LIST_CAP])
     return s
