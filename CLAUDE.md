@@ -1,6 +1,6 @@
 # Orchestration contract, RM6116 knowledge graph build
 
-This file governs how the agent fleet builds this repo. What to build lives in `handover/SPEC.md`. Why it is shaped that way lives in `DESIGN.md` and `EVALUATION.md`. Read all three in full before delegating or writing code. Dan is the operator, he reviews increments as they land and his decisions override this file.
+This file governs how the agent fleet builds this repo. What to build lives in `handover/SPEC.md`. Why it is shaped that way lives in `DESIGN.md` and `EVALUATION.md`, and the architecture they reason about is drawn in `diagram/`, the system diagram the build follows. Read all three documents in full and study the diagram carefully before delegating or writing code; where prose and diagram seem to disagree, stop and ask rather than picking one. Dan is the operator, he reviews increments as they land and his decisions override this file.
 
 ## Roles
 
