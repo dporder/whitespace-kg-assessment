@@ -30,6 +30,3 @@ not the agent's, and the memo caught it.
 a real inconsistency in the document worth designing around. See the memo's verification section
 and the named resolver case in `SPEC.md`.
 
-**Process note.** The agent asked whether the no em dash convention applied in this repository,
-since the convention lives in a different project's instructions. It does, because this document is
-going to a hiring manager.
