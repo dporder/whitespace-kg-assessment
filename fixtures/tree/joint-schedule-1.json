@@ -15,7 +15,7 @@
         72.0,
         110.0,
         500.0,
-        260.0
+        280.0
       ]
     }
   ],
@@ -51,7 +51,7 @@
             72.0,
             110.0,
             500.0,
-            260.0
+            280.0
           ]
         }
       ],
@@ -72,7 +72,7 @@
                 72.0,
                 140.0,
                 500.0,
-                260.0
+                280.0
               ]
             }
           ],
@@ -389,10 +389,88 @@
               "col": 1,
               "cell_role": "value",
               "role_confidence": 0.99
+            },
+            {
+              "id": "fc2c8b54bf374d552780a2a7cad0cd7680d61633",
+              "lineage_key": "93096a782cd35993ffb01d165de116bb75cd5bc6",
+              "content_hash": "add85a27fc4e065654f5a0cefb08d6937c42a379",
+              "path": "joint-schedule-1/2/table/4/0",
+              "kind": "cell",
+              "text": "\"Outputs\"",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    265.0,
+                    200.0,
+                    280.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    72.0,
+                    265.0,
+                    200.0,
+                    280.0
+                  ]
+                }
+              ],
+              "order": 11,
+              "batch_id": "B2",
+              "row": 4,
+              "col": 0,
+              "cell_role": "label",
+              "role_confidence": 0.99
+            },
+            {
+              "id": "ed4e9abbf5369c1941ff3c096b482bdf7d6cfe47",
+              "lineage_key": "63e8d57fa8eeb6dadd04a924abb392c8757b8382",
+              "content_hash": "c7f47f069101381bae28221cbde18deba75cf398",
+              "path": "joint-schedule-1/2/table/4/1",
+              "kind": "cell",
+              "text": "the goods and services supplied under a Contract;",
+              "page_start": 1,
+              "page_end": 1,
+              "printed_page": "1",
+              "bboxes_own": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    265.0,
+                    500.0,
+                    280.0
+                  ]
+                }
+              ],
+              "bboxes_extent": [
+                {
+                  "page": 1,
+                  "bbox": [
+                    210.0,
+                    265.0,
+                    500.0,
+                    280.0
+                  ]
+                }
+              ],
+              "order": 12,
+              "batch_id": "B2",
+              "row": 4,
+              "col": 1,
+              "cell_role": "value",
+              "role_confidence": 0.99
             }
           ],
           "batch_id": "B2",
-          "n_rows": 4,
+          "n_rows": 5,
           "n_cols": 2
         }
       ],
