@@ -35,7 +35,7 @@ from pipeline.schemas import Legislation, Node, RefsFile
 from . import nearmiss, residue
 from .build import Identity, infer_identity, ref_node, span_intact
 from .corpus import Corpus
-from .detect import PartDetection, detect_part
+from .detect import PartDetection, Pointer, detect_part
 from .resolve import resolve_pointer
 
 REFERENCES_DEFAULTS = {
@@ -254,6 +254,12 @@ def status_counts(refs: list[Node]) -> dict:
                                          for a in r.anomalies))}
 
 
+def walk_tree(node: Node):
+    yield node
+    for child in node.children:
+        yield from walk_tree(child)
+
+
 def write_json(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str) + "\n")
@@ -310,6 +316,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     contexts: dict[str, dict] = {}
     statutes: list[Legislation] = []
     detections: dict[str, PartDetection] = {}
+    span_reports: dict[str, dict] = {}
     previous: dict[str, str] = {}
 
     for part in scope:
@@ -327,6 +334,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                     violations.append({"kind": "previous_refs_unreadable", "part": part,
                                        "error": f"{type(exc).__name__}: {exc}"})
         detection = detect_part(part, root, max_range=int(cfg["max_range_expansion"]))
+        # Rung three of the ladder: a model sees the orphan sentences and
+        # nothing else, and only spans that reproduce their own characters are
+        # kept (SPEC 2.2).
+        node_text = {n.path: (n.text or "") for n in walk_tree(root)}
+        extracted, span_report = residue.extract_spans(
+            detection.llm_sentences, node_text, no_llm=args.no_llm)
+        span_reports[part] = span_report
+        for item in extracted:
+            detection.pointers.append(Pointer(
+                parent_path=item["node_path"], part=part, span=item["span"],
+                text=item["text"], ref_kind=item["ref_kind"], unit=item["ref_kind"],
+                method="llm", sentence=item["sentence"],
+                notes=[f"llm_span_extraction: the grammar and the orphan scan did not "
+                       f"cover these characters"]))
         detections[part] = detection
         refs, part_statutes, part_contexts, part_violations = resolve_part(
             part, detection, corpus, identity, batch_of.get(part) or root.batch_id)
@@ -407,6 +428,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                     "precision of its class from stage 8, never a number it made up",
         },
         "residue": {k: v for k, v in residue_report.items() if k != "queue"},
+        "span_extraction": {"note": "rung three of the fallback ladder: a model sees "
+                                    "orphan sentences only, and a span it returns is "
+                                    "kept only if its characters are really there",
+                            "per_part": span_reports},
         "legislation": {"distinct_keys": len(unique_statutes),
                         "mentions": len(statutes),
                         "near_miss": {k: v for k, v in near_miss.items() if k != "pairs"}},

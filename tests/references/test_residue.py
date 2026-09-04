@@ -203,3 +203,70 @@ def test_every_residue_call_is_logged(core_terms, identity, fake_llm, answer_jso
     residue.run(refs, contexts, corpus)
     logged = list((llm.log_dir() / residue.TASK).glob("*.json"))
     assert len(logged) == 1
+
+
+# --------------------------------------------------------------------------
+# rung three of the ladder: LLM span extraction, orphan sentences only
+# --------------------------------------------------------------------------
+def orphan_sentences(core_terms):
+    found = detect_part("core-terms", core_terms)
+    node_text = {}
+    stack = [core_terms]
+    while stack:
+        node = stack.pop()
+        node_text[node.path] = node.text or ""
+        stack.extend(node.children)
+    return found.llm_sentences, node_text
+
+
+def span_reply(text, kind="unknown", confidence=0.6):
+    import json
+    return json.dumps({"considered": "weighed it", "confidence": confidence,
+                       "answer": [{"text": text, "kind": kind}]})
+
+
+def test_only_orphan_sentences_are_sent(core_terms, fake_llm):
+    """The grammar's hits are never re-asked: rung three sees the residue only."""
+    sentences, node_text = orphan_sentences(core_terms)
+    assert sentences, "the fixture tree should leave at least one orphan keyword"
+    client = fake_llm([span_reply("Table 2", "unknown")] * len(sentences))
+    found, report = residue.extract_spans(sentences, node_text)
+    assert report["called"] == len(sentences)
+    assert len(client.messages.calls) == len(sentences)
+    for call in client.messages.calls:
+        prompt = call["messages"][0]["content"]
+        assert "found nothing" in prompt
+
+
+def test_an_extracted_span_must_reproduce_its_own_characters(core_terms, fake_llm):
+    sentences, node_text = orphan_sentences(core_terms)
+    fake_llm([span_reply("Table 2", "unknown")] * len(sentences))
+    found, report = residue.extract_spans(sentences, node_text)
+    assert report["spans_accepted"] >= 1
+    item = found[0]
+    start, end = item["span"]
+    assert node_text[item["node_path"]][start:end] == item["text"] == "Table 2"
+
+
+def test_a_span_the_model_invented_is_rejected_with_a_reason(core_terms, fake_llm):
+    sentences, node_text = orphan_sentences(core_terms)
+    fake_llm([span_reply("Clause 42 of the Nonexistent Act")] * len(sentences))
+    found, report = residue.extract_spans(sentences, node_text)
+    assert found == []
+    assert report["spans_rejected"] >= 1
+    assert "not in the sentence" in report["rejections"][0]["reason"]
+
+
+def test_no_llm_queues_the_orphan_sentences(core_terms, fake_llm):
+    sentences, node_text = orphan_sentences(core_terms)
+    client = fake_llm([span_reply("Table 2")])
+    found, report = residue.extract_spans(sentences, node_text, no_llm=True)
+    assert found == [] and report["queued"] == len(sentences)
+    assert client.messages.calls == []
+
+
+def test_the_span_prompt_asks_for_confidence_first_and_allows_nothing_found():
+    prompt = residue.build_span_prompt("The Supplier shall play its part.", ["part"])
+    assert prompt.index('"confidence"') < prompt.index('"answer"')
+    assert "empty list" in prompt
+    assert "character for character" in prompt

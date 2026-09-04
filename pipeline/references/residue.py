@@ -209,6 +209,125 @@ def run(refs: list[Node], contexts: dict[str, dict], corpus: Corpus, *,
     return report
 
 
+# --------------------------------------------------------------------------
+# the third rung of the ladder: LLM span extraction, orphan sentences only
+# --------------------------------------------------------------------------
+SPAN_TASK = TASK
+SPAN_PROMPT_VERSION = llm.PROMPT_VERSIONS["reference_spans"]
+SPAN_SYSTEM = ("You find citations in UK public-sector contract prose. You quote the "
+               "pointing words exactly as they appear and never paraphrase them. "
+               "Most sentences you are shown contain no citation at all, and an "
+               "empty list is the right answer for those.")
+
+SPAN_UNITS = ("clause", "schedule", "paragraph", "annex", "part", "legislation",
+              "unknown")
+
+
+def build_span_prompt(sentence: str, keywords: list[str]) -> str:
+    return f"""A citation grammar has already run over this sentence and found nothing.
+The words {sorted(set(keywords))} appear in it and might be citations the grammar
+missed, or might be ordinary prose.
+
+SENTENCE:
+{sentence}
+
+Return only citations: places where this sentence points at another provision,
+schedule, annex, part or statute. Ordinary use of a word like "part" or "act" is
+not a citation. Quote the pointing words character for character as they appear
+in the sentence above.
+
+Score your confidence before you commit to an answer.
+
+Reply with one JSON object with exactly these keys, in this order:
+  "considered": "<what you weighed>",
+  "confidence": <number between 0 and 1>,
+  "answer": [{{"text": "<the pointing words, exactly as written>",
+              "kind": "one of {list(SPAN_UNITS)}"}}]
+An empty list for "answer" is a normal, expected result.
+"""
+
+
+def extract_spans(sentences: list[dict], node_text: dict[str, str], *,
+                  no_llm: bool = False) -> tuple[list[dict], dict]:
+    """Rung three: ask a model about orphan sentences and nothing else.
+
+    A returned span is accepted only if its exact characters are found in the
+    sentence it came from. Anything the model paraphrased, invented or moved is
+    dropped with a reason: a span that does not reproduce its own words would
+    break the one invariant every ref has to hold.
+    """
+    report = {"task": SPAN_TASK, "prompt_version": SPAN_PROMPT_VERSION,
+              "sentences": len(sentences), "called": 0, "spans_returned": 0,
+              "spans_accepted": 0, "spans_rejected": 0, "queued": 0, "reason": None,
+              "rejections": []}
+    found: list[dict] = []
+    if not sentences:
+        return found, report
+    if no_llm:
+        report["reason"] = "--no-llm: orphan sentences were not sent to a model"
+    elif not llm.available():
+        report["reason"] = llm.unavailable_reason() or "llm unavailable"
+    if report["reason"]:
+        report["queued"] = len(sentences)
+        return found, report
+
+    spend_before = llm.stats()
+    for row in sentences:
+        text = node_text.get(row["node_path"]) or ""
+        start, end = row["sentence_span"]
+        sentence = text[start:end]
+        if not sentence.strip():
+            continue
+        try:
+            raw = llm.structured(SPAN_TASK, build_span_prompt(sentence, row["keywords"]),
+                                 system=SPAN_SYSTEM, prompt_version=SPAN_PROMPT_VERSION)
+        except llm.LLMUnavailable as exc:
+            report["reason"] = str(exc)
+            report["queued"] = len(sentences) - report["called"]
+            break
+        except llm.LLMResponseError as exc:
+            report["rejections"].append({"node_path": row["node_path"],
+                                         "reason": f"unparseable response: {exc}"})
+            continue
+        report["called"] += 1
+        confidence = None
+        answers = []
+        if isinstance(raw, dict):
+            answers = raw.get("answer") or []
+            try:
+                confidence = round(float(raw.get("confidence")), 3)
+            except (TypeError, ValueError):
+                confidence = None
+        if not isinstance(answers, list):
+            answers = []
+        for item in answers:
+            report["spans_returned"] += 1
+            surface = (item or {}).get("text") if isinstance(item, dict) else None
+            if not isinstance(surface, str) or not surface.strip():
+                report["spans_rejected"] += 1
+                report["rejections"].append({"node_path": row["node_path"],
+                                             "reason": "no text on the returned span"})
+                continue
+            offset = sentence.find(surface)
+            if offset < 0:
+                report["spans_rejected"] += 1
+                report["rejections"].append(
+                    {"node_path": row["node_path"], "surface": surface,
+                     "reason": "the quoted words are not in the sentence, so the span "
+                               "would not reproduce its own text"})
+                continue
+            kind = (item.get("kind") or "unknown").lower()
+            found.append({"node_path": row["node_path"],
+                          "span": (start + offset, start + offset + len(surface)),
+                          "text": surface,
+                          "ref_kind": kind if kind in SPAN_UNITS else "unknown",
+                          "confidence": confidence,
+                          "sentence": sentence})
+            report["spans_accepted"] += 1
+    report["spend"] = llm.stats_since(spend_before)
+    return found, report
+
+
 def _is_hard(ref: Node) -> bool:
     """The named hard case gets the bigger model on the first call (DESIGN 10)."""
     return any(a.startswith("mislabelled_cross_reference") for a in ref.anomalies)
