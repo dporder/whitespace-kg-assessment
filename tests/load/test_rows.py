@@ -230,3 +230,28 @@ def test_an_edge_endpoint_with_no_node_row_is_reported(small_tree, small_refs,
     rows = build(small_tree, small_refs)
     found = dangling_endpoints(rows)
     assert [d["key"] for d in found] == [statute_key]
+
+
+def test_a_resolved_ref_into_another_part_still_becomes_an_edge(small_tree, small_refs):
+    """Addressed by path, because the target's id cannot be computed from a part
+    this load does not hold. It is deferred at write time, never dropped."""
+    small_refs[0].target_path = "some-other-part/3/3.1"
+    rows = build(small_tree, small_refs)
+    resolves = [e for e in edges_of(rows, "RESOLVES_TO")
+                if e.props.get("target_is_path")]
+    assert len(resolves) == 1
+    assert resolves[0].dst == "some-other-part/3/3.1"
+    assert any(n["kind"] == "resolved_target_in_another_part" for n in rows.notes)
+
+
+def test_the_by_path_bucket_matches_on_path_not_id():
+    from pipeline.load.neo4j_loader import ENDPOINTS, edge_bucket, edge_merge
+    from pipeline.schemas import GraphEdge
+
+    e = GraphEdge(type="RESOLVES_TO", src="a", dst="part/1",
+                  props={"target_is_path": True}, batch_id="T1")
+    assert edge_bucket(e) == "RESOLVES_TO_BY_PATH"
+    assert ENDPOINTS["RESOLVES_TO_BY_PATH"] == ("Node", "id", "Node", "path")
+    assert "MATCH (b:Node {path: row.dst})" in edge_merge("RESOLVES_TO_BY_PATH", False)
+    plain = GraphEdge(type="RESOLVES_TO", src="a", dst="b", props={}, batch_id="T1")
+    assert edge_bucket(plain) == "RESOLVES_TO"

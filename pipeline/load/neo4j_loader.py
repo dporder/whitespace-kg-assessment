@@ -37,7 +37,7 @@ EDGE_TYPES = ("CONTAINS", "NEXT", "RESOLVES_TO", "CANDIDATE", "USES_TERM",
               "DEFINED_IN", "ABOUT", "DEFINED_USING", "CONCEPT_REL",
               "ASSOCIATED_TERM", "SUPERSEDES")
 ALLOWED_LABELS = {"Node", *KIND_LABELS.values(), *REFERENT_LABELS}
-KEY_FIELDS = {"id", "name", "key"}
+KEY_FIELDS = {"id", "name", "key", "path"}
 _SAFE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 CONSTRAINTS = [
@@ -244,6 +244,11 @@ ENDPOINTS = {
     "SUPERSEDES": ("Node", "id", "Node", "id"),
     "RESOLVES_TO": ("Node", "id", "Node", "id"),
     "RESOLVES_TO_LEGISLATION": ("Node", "id", "Legislation", "key"),
+    # A ref resolving into a part this load does not hold: the target's id
+    # cannot be computed here, because ids are minted per part under that
+    # part's own template version, so the edge is addressed by the target's
+    # path instead and written as soon as that part is in the graph.
+    "RESOLVES_TO_BY_PATH": ("Node", "id", "Node", "path"),
     "USES_TERM": ("Node", "id", "Term", "name"),
     "DEFINED_IN": ("Term", "name", "Node", "id"),
     "DEFINED_USING": ("Term", "name", "Term", "name"),
@@ -255,14 +260,17 @@ ENDPOINTS = {
 
 def edge_bucket(e: GraphEdge) -> str:
     """The ENDPOINTS bucket an edge belongs to."""
-    if e.type == "RESOLVES_TO" and str(e.dst).startswith("legislation/"):
-        return "RESOLVES_TO_LEGISLATION"
+    if e.type == "RESOLVES_TO":
+        if str(e.dst).startswith("legislation/"):
+            return "RESOLVES_TO_LEGISLATION"
+        if e.props.get("target_is_path"):
+            return "RESOLVES_TO_BY_PATH"
     return e.type
 
 
 def edge_merge(bucket: str, discriminated: bool) -> str:
     """MERGE with an explicit key: a rerun updates, it never grows a twin."""
-    rel = _type("RESOLVES_TO" if bucket == "RESOLVES_TO_LEGISLATION" else bucket)
+    rel = _type("RESOLVES_TO" if bucket.startswith("RESOLVES_TO") else bucket)
     src_label, src_key, dst_label, dst_key = ENDPOINTS[bucket]
     key = (" {char_span: row.char_span}" if discriminated else "")
     return (f"UNWIND $rows AS row\n"

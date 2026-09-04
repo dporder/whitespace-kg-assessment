@@ -194,8 +194,23 @@ def tree_rows(trees: dict[str, Node], refs: dict[str, list[Node]], *, batch_id: 
                                            scope_rule=ref.scope_rule,
                                            resolver=ref.resolver))
                 else:
-                    rows.notes.append({"kind": "resolved_target_missing",
-                                       "path": ref.path, "target": ref.target_path})
+                    # The target is a provision in a part this load does not
+                    # hold. Its id cannot be computed here, because ids are
+                    # minted per part under that part's own template version,
+                    # so the edge is addressed by path instead. If the part is
+                    # already in the graph the edge is written now; if it is
+                    # not, the load defers it and the next load of this batch
+                    # writes it. Dropping it, as this did before, meant a ref
+                    # that resolved across a part boundary never became an edge
+                    # at all, which is the whole point of batched arrival.
+                    rows.edges.append(edge("RESOLVES_TO", ref.id, ref.target_path,
+                                           batch_id, scope_rule=ref.scope_rule,
+                                           resolver=ref.resolver,
+                                           target_is_path=True))
+                    rows.notes.append({"kind": "resolved_target_in_another_part",
+                                       "path": ref.path, "target": ref.target_path,
+                                       "detail": "edge addressed by path; written when "
+                                                 "that part is in the graph"})
             elif ref.target_path and ref.status == "external":
                 rows.edges.append(edge("RESOLVES_TO", ref.id, ref.target_path, batch_id,
                                        scope_rule=ref.scope_rule,

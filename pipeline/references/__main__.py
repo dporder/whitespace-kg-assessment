@@ -341,13 +341,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         extracted, span_report = residue.extract_spans(
             detection.llm_sentences, node_text, no_llm=args.no_llm)
         span_reports[part] = span_report
+        # The model is shown a whole sentence, so it can quote a citation the
+        # grammar already found sitting elsewhere in that sentence. Those are
+        # dropped rather than minted: two refs on one span would collide on one
+        # path and one id, and the graph would silently keep whichever landed
+        # second.
+        taken = {p.parent_path: [] for p in detection.pointers}
+        for p in detection.pointers:
+            taken[p.parent_path].append(p.span)
         for item in extracted:
+            start, end = item["span"]
+            if any(start < b and a < end
+                   for a, b in taken.get(item["node_path"], ())):
+                span_report.setdefault("overlapped_existing", []).append(
+                    {"node_path": item["node_path"], "text": item["text"],
+                     "reason": "the grammar had already detected these characters"})
+                continue
+            taken.setdefault(item["node_path"], []).append((start, end))
             detection.pointers.append(Pointer(
                 parent_path=item["node_path"], part=part, span=item["span"],
                 text=item["text"], ref_kind=item["ref_kind"], unit=item["ref_kind"],
                 method="llm", sentence=item["sentence"],
-                notes=[f"llm_span_extraction: the grammar and the orphan scan did not "
-                       f"cover these characters"]))
+                notes=["llm_span_extraction: the grammar and the orphan scan did not "
+                       "cover these characters"]))
         detections[part] = detection
         refs, part_statutes, part_contexts, part_violations = resolve_part(
             part, detection, corpus, identity, batch_of.get(part) or root.batch_id)

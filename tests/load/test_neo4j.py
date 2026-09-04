@@ -432,3 +432,42 @@ def test_salience_from_the_graph_covers_batches_loaded_earlier(graph, small_tree
                        id=target.id)[0]["s"]
     assert after == pytest.approx(2 * math.log(3)), "breadth did not grow with the batch"
     assert after > before
+
+
+def test_an_edge_into_a_part_that_has_not_arrived_defers_then_lands(graph, small_tree,
+                                                                    small_refs,
+                                                                    throwaway_batch,
+                                                                    part_id):
+    """The batch-arrival story, which is the point of refs being nodes.
+
+    A ref that resolves into another part cannot carry that part's node id,
+    because ids are minted per part under that part's own template version. The
+    edge is addressed by path, deferred while the part is absent, and written by
+    the next load of its batch once the part is there. Dropping it, which is
+    what happened before, meant the edge never existed at all.
+    """
+    from pipeline.schemas import GraphEdge
+
+    other_part = f"{part_id}-later"
+    rows = load(graph, small_tree, small_refs, throwaway_batch)
+    citing = small_tree.children[0].children[1]
+    edge = GraphEdge(type="RESOLVES_TO", src=citing.id, dst=f"{other_part}/1",
+                     props={"target_is_path": True}, batch_id=throwaway_batch)
+
+    writable, deferred = graph.partition_edges([edge], {r.key_value for r in rows.nodes})
+    assert writable == [] and len(deferred) == 1
+    assert deferred[0]["missing"] == ["dst"]
+
+    # the part arrives in a later batch
+    later = f"{throwaway_batch}-later"
+    graph.also_rollback(later)
+    graph.run("CREATE (n:Node {id: $id, path: $path, kind: 'clause', batch_id: $b})",
+              id=f"{later}-node", path=f"{other_part}/1", b=later)
+
+    writable, deferred = graph.partition_edges([edge], {r.key_value for r in rows.nodes})
+    assert len(writable) == 1 and deferred == []
+    result = graph.merge_edges(writable, load_id=rows.load_id)
+    assert result == {"submitted": 1, "written": 1}
+    landed = graph.read("MATCH (:Node {id: $id})-[:RESOLVES_TO]->(t:Node) "
+                        "RETURN t.path AS path", id=citing.id)
+    assert f"{other_part}/1" in [r["path"] for r in landed]
