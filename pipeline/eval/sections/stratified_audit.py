@@ -249,11 +249,14 @@ def _run_checker(items: list[dict[str, Any]],
         try:
             raw = _call_llm(llm, _prompt_for(batch, start), budget)
             parsed = parse(raw)
-            # A lone verdict object is a one-item list. Worth accepting on its
-            # own merits, and it also absorbs a parser that looks for an object
-            # before an array: llm.py's parse_json returns the inner dict for a
-            # single-element array wrapped in prose, which would otherwise lose
-            # the last batch of every sample whose size is not a round multiple.
+            # A lone verdict object is a one-item list. A model asked for an
+            # array of one item sometimes answers with the object itself, and a
+            # parser is right to return a dict for that, so this is about what
+            # the model sent rather than how it was parsed. It also covered an
+            # llm.py parse_json that tried `{` before `[` and so returned the
+            # inner dict of a single-element array; that is fixed upstream
+            # (f794bfe), and tests assert the fixed shape rather than relying on
+            # this to paper over a regression.
             if isinstance(parsed, dict) and "agree" in parsed:
                 parsed = [parsed]
             if not isinstance(parsed, list):

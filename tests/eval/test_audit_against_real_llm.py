@@ -139,19 +139,61 @@ def test_the_log_lands_under_the_run_being_reported_on(real_llm, tmp_path):
     assert list(llm.log_dir().glob("**/*.json")), "logged under the reported run"
 
 
-def test_a_single_element_array_in_prose_still_scores(real_llm, tmp_path):
-    """llm.py's parse_json looks for an object before an array, so a
-    one-element array wrapped in prose comes back as the inner dict. Every
-    sample whose size is not a round multiple of the batch ends in a batch like
-    this, so losing it would silently drop the tail of most audits."""
-    assert isinstance(llm.parse_json(
-        'Prose.\n```json\n[{"i": 0, "agree": true, "why": "ok"}]\n```\nMore prose.'),
-        dict), "pinning the upstream behaviour this tolerates"
+SHORT_LIST_IN_PROSE = 'Prose.\n```json\n[{"i": 0, "agree": true, "why": "ok"}]\n```\nMore.'
+
+
+def _parse_json_fix_landed() -> bool:
+    """f794bfe made parse_json try the openers in the order they appear.
+
+    Probed rather than assumed from a version string, and the two branches
+    merge in either order, so this test asserts the fixed shape where the fix
+    is present and says why it is waiting where it is not.
+    """
+    try:
+        return isinstance(llm.parse_json(SHORT_LIST_IN_PROSE), list)
+    except Exception:                                     # noqa: BLE001
+        return False
+
+
+def test_a_single_element_array_in_prose_parses_as_a_list(real_llm, tmp_path):
+    """Every sample whose size is not a round multiple of the batch ends in a
+    batch like this, so the tail of most audits depends on it.
+
+    parse_json used to try `{` before `[` and returned the inner dict, which
+    the runner absorbed. Asserted rather than assumed, because the runner's own
+    tolerance would otherwise hide a regression.
+    """
+    if not _parse_json_fix_landed():
+        pytest.skip("this llm.py predates f794bfe (openers in text order); the "
+                    "runner tolerates the dict it returns, see the bare-object test")
+    assert llm.parse_json(SHORT_LIST_IN_PROSE) == [{"i": 0, "agree": True, "why": "ok"}]
 
     llm.set_client(FakeSDK(answering(lambda body: f"Prose.\n```json\n{body}\n```\nMore.")))
     verdicts, note, _diag = _run_checker(items(1), tmp_path / "eval")
     assert verdicts is not None, note
     assert len(verdicts) == 1
+
+
+def test_a_one_item_batch_scores_either_way(real_llm, tmp_path):
+    """The behaviour that actually matters, and it holds on both versions: the
+    tail batch of an odd-sized sample is not lost."""
+    llm.set_client(FakeSDK(answering(lambda body: f"Prose.\n```json\n{body}\n```\nMore.")))
+    verdicts, note, _diag = _run_checker(items(1), tmp_path / "eval")
+    assert verdicts is not None, note
+    assert len(verdicts) == 1
+
+
+def test_a_bare_verdict_object_is_still_accepted_as_one_verdict(real_llm, tmp_path):
+    """Why the runner's tolerance stays. A model asked for an array of one
+    sometimes answers with the object itself, and parse_json correctly returns
+    a dict for that: it is a dict. The tolerance is about what the model sent,
+    not about the parser, so the upstream fix does not retire it."""
+    assert isinstance(llm.parse_json('```json\n{"i": 0, "agree": true}\n```'), dict)
+
+    llm.set_client(FakeSDK(lambda payload: '{"i": 0, "agree": true, "why": "ok"}'))
+    verdicts, note, _diag = _run_checker(items(1), tmp_path / "eval")
+    assert verdicts is not None, note
+    assert verdicts == [{"i": 0, "agree": True, "why": "ok"}]
 
 
 def test_the_task_selects_the_judge_model_from_config(real_llm, tmp_path):
