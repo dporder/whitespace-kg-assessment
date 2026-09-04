@@ -10,7 +10,7 @@ PDF = ROOT.parent / "technical-assignment-provided-by-whitespace" / "document" /
       "RM6116 - Network Services 3 - Framework Agreement.pdf"
 OUTPUT = ROOT / "output"
 GOLDEN = ROOT / "golden"
-ENV_FILE = ROOT.parent / "my-work" / ".env"
+ENV_FILE = ROOT / ".env"   # gitignored; keys may also come from the process environment
 
 DOCUMENT_ID = "rm6116"
 
@@ -60,20 +60,37 @@ QUARANTINE_THRESHOLDS = {
 }
 
 MODELS = {
-    "reference_residue": "claude-haiku-4-5-20251001",
+    "reference_residue": "claude-haiku-4-5",
     "reference_hard":    "claude-sonnet-5",
     "concepts":          "claude-sonnet-5",
-    "summaries":         "claude-haiku-4-5-20251001",
-    "eval_judge":        "claude-haiku-4-5-20251001",
+    "summaries":         "claude-haiku-4-5",
+    "eval_judge":        "claude-haiku-4-5",
     "chat_agent":        "claude-opus-5",
+    "chat_gate":         "claude-haiku-4-5",
+    "chat_plan":         "claude-opus-5",
 }
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"   # local, nothing leaves the boundary
+EMBEDDING_MODEL = "text-embedding-3-large"   # OpenAI, via OPENAI_API_KEY; swap for an in-boundary
+# model in sovereign deployments, vectors live outside the graph so that swap is a re-embed
 SUBTREE_EMBED_TOKEN_BUDGET = 512
+LEAF_WINDOW_EMBEDDING = False        # A/B variant: embed leaf with prev+next sibling; replaces leaf_text
+CONCEPT_MERGE_COSINE = 0.80          # near-duplicate concept resolution threshold
+
+SALIENCE = {                          # salience = breadth * log(1 + frequency); boost = w * log(1 + salience)
+    "retrieval_boost_weight": 0.02,
+}
+
+ERROR_COSTS = {                       # placeholders for a domain expert; used in the cost-weighted
+    "term_false_positive": 1.0,       # confusion summary, not in matching itself
+    "term_false_negative": 3.0,
+}
+TYPO_DENSITY_THRESHOLD = 0.02        # share of misspelled tokens per section that triggers typo_dense routing
 
 GATES = {
     "reference_precision_min": 0.90,     # on golden resolved references
     "wrongly_resolved_unresolvables_max": 0,   # abstention is scored
     "structural_violations_unexplained_max": 0,
+    "detection_recall_min": 0.95,
+    "stratified_audit_agreement_min": 0.90,
 }
 
 AUDIT = {

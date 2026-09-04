@@ -49,7 +49,7 @@ Citation per [OSCOLA 4th edn](https://www.law.ox.ac.uk/sites/default/files/migra
 ## Implications for the RM6116 model
 
 1. Use one `Provision` node with a `level_kind` label (Document, Clause, Schedule, Part, Paragraph, Sub-paragraph) rather than 27 AKN classes; `hcontainer` concedes a fixed ladder does not survive real documents.
-2. Draw that vocabulary from Joint Schedule 1 clauses 1.3.8–1.3.9, defensible as the parties' own stipulation, extended only for the lettered and roman items it leaves unnamed.
+2. Draw that vocabulary from Joint Schedule 1 clauses 1.3.8 and 1.3.9, defensible as the parties' own stipulation, extended only for the lettered and roman items it leaves unnamed.
 3. Adopt AKN's branch/leaf split: a node holds either children plus optional `intro`/`wrapUp`, or leaf `content`. Same shape as the OPC "sandwich", so doubly attested.
 4. Key nodes on the citation path (`Core Terms cl 9.1.3.2`, `Joint Sch 11 para 4.2`), mirroring legislation.gov.uk URIs, since numbering is what practitioners cite.
 5. **Do not make sentences nodes.** No standard defines them and no UK citation form numbers them; *Al Mana* shows litigants inventing identifiers ad hoc. Store sentence offsets on the leaf.
