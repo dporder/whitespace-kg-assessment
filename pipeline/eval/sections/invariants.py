@@ -15,15 +15,18 @@ violation, and does not contradict what was observed. `AnomalyLedger` holds
 those three rules. They matter: without them one recorded gap amnesties every
 later gap in the same sibling group, which turns the gate into decoration.
 
-Boxes are compared with GEOMETRY_EPS points of slack, because PDF coordinates
-carry rounding noise and a half-point is far below the smallest real indent in
-this document family.
+Geometry tolerances come from `config.PARSE_GEOMETRY`, not from this module,
+for every check that has a stage 2 counterpart. SPEC 2.1: "one number, two
+readers, or the two reports count different violations over the same ink". The
+harness's own GEOMETRY_EPS survives only for `extent_covers_own` and
+`one_box_per_page`, which stage 2 does not check.
 """
 from __future__ import annotations
 
 import re
 from typing import Any, Iterable, Optional
 
+import config
 from pipeline.eval.context import (BOX_ROUNDTRIP_AGREE, Context, GEOMETRY_EPS,
                                    LIST_CAP)
 from pipeline.eval.inputs import walk
@@ -34,7 +37,8 @@ CHECKS: dict[str, str] = {
     # geometric, SPEC 2.1
     "child_left_edge": "a child's left edge is at or right of its parent's",
     "own_box_above_first_child": "a node's own box sits at or above its first child's",
-    "siblings_ascend": "siblings ascend in reading order without vertical overlap",
+    "siblings_ascend": "siblings appear in reading order",
+    "sibling_overlap": "siblings that stack do not overlap vertically",
     "extent_nests": "a node's extent stays inside its parent's extent",
     "extent_covers_own": "a node's extent covers its own box",
     # structural, EVALUATION.md layer 1
@@ -237,6 +241,43 @@ def _inside(inner: tuple, outer: tuple, eps: float = GEOMETRY_EPS) -> bool:
             and inner[2] <= outer[2] + eps and inner[3] <= outer[3] + eps)
 
 
+# Geometry tolerances, SPEC 2.1: "one number, two readers, or the two reports
+# count different violations over the same ink". Stage 2 and stage 8 check the
+# same invariants over the same trees, so the slack comes from the same place,
+# `config.PARSE_GEOMETRY`, and from the canonical map pinned beside it:
+#
+#   child_left_edge, extent_nests              -> indent_tolerance   (2.0)
+#   own_box_above_first_child, siblings_ascend -> vertical_tolerance (1.0)
+#   sibling_overlap -> max(vertical_tolerance,
+#                          sibling_overlap_share * min(box heights))
+#
+# `indent_tolerance` is horizontal glyph jitter (3.1 sits at x=27.0 and its
+# child 3.1.1 at 26.4). `vertical_tolerance` is baseline jitter, a different and
+# smaller number: reusing the horizontal one here was a guess, and it was wrong.
+# `sibling_overlap_share` is proportional because a line box spans ascent plus
+# descent, so consecutive lines overlap by 0.8 to 2.9pt purely by construction
+# and the amount scales with the line.
+INDENT_TOLERANCE = float(config.PARSE_GEOMETRY["indent_tolerance"])
+VERTICAL_TOLERANCE = float(config.PARSE_GEOMETRY["vertical_tolerance"])
+SIBLING_OVERLAP_SHARE = float(config.PARSE_GEOMETRY["sibling_overlap_share"])
+
+
+def sibling_overlap_tolerance(prev_box: tuple, next_box: tuple) -> float:
+    """Points of vertical overlap two stacked siblings may show before it counts.
+
+    A share of the *smaller* of the two line boxes, floored at
+    `vertical_tolerance`. The share settles the ordinary case: on the preserved
+    parser output the worst tolerated pair, award-form/row-2 against its
+    sibling, overlaps 3.38pt on a 17.18pt box, 0.197 of it, just inside the
+    configured 0.2. The floor covers the case the share cannot, a box short
+    enough that a proportional allowance falls below plain baseline jitter: it
+    binds only below a height of
+    `vertical_tolerance / sibling_overlap_share` = 5pt.
+    """
+    heights = (prev_box[3] - prev_box[1], next_box[3] - next_box[1])
+    return max(VERTICAL_TOLERANCE, SIBLING_OVERLAP_SHARE * min(heights))
+
+
 def check_tree(part: str, root: Node,
                ledger: Optional[AnomalyLedger] = None
                ) -> tuple[list[Violation], dict[str, int], dict[str, int]]:
@@ -349,7 +390,7 @@ def check_tree(part: str, root: Node,
             if shared:
                 checked["child_left_edge"] += 1
                 page = shared[0]
-                if child_box[page][0] < own[page][0] - GEOMETRY_EPS:
+                if child_box[page][0] < own[page][0] - INDENT_TOLERANCE:
                     add("child_left_edge", child,
                         f"left edge {child_box[page][0]:.1f} is left of parent's "
                         f"{own[page][0]:.1f} on page {page}", node)
@@ -363,7 +404,7 @@ def check_tree(part: str, root: Node,
                     if page not in node_extent:
                         add("extent_nests", child,
                             f"extent touches page {page}, outside the parent's extent", node)
-                    elif not _inside(box, node_extent[page]):
+                    elif not _inside(box, node_extent[page], INDENT_TOLERANCE):
                         add("extent_nests", child,
                             f"extent {box} on page {page} escapes parent extent "
                             f"{node_extent[page]}", node)
@@ -383,18 +424,23 @@ def check_tree(part: str, root: Node,
                         f"first child starts on page {child_first_page}, before the "
                         f"node's own page {own_first_page}", first)
                 elif child_first_page == own_first_page and \
-                        first_box[child_first_page][1] < own[own_first_page][1] - GEOMETRY_EPS:
+                        first_box[child_first_page][1] < own[own_first_page][1] - VERTICAL_TOLERANCE:
                     add("own_box_above_first_child", node,
                         f"own box top {own[own_first_page][1]:.1f} is below first child's "
                         f"{first_box[child_first_page][1]:.1f}", first)
             else:
                 skipped["own_box_above_first_child"] += 1
 
-        # -- siblings ascend -----------------------------------------------------
+        # -- sibling reading order and overlap -----------------------------------
+        # Two checks, not one: SPEC 2.1 pins `siblings_ascend` (a sibling out of
+        # reading order) and `sibling_overlap` (stacked siblings whose boxes
+        # collide) as separate ids, because they are different faults with
+        # different causes and stage 2 reports them apart.
         for prev, nxt in zip(anatomy, anatomy[1:]):
             pb, nb = boxes_by_page(prev), boxes_by_page(nxt)
             if not pb or not nb:
                 skipped["siblings_ascend"] += 1
+                skipped["sibling_overlap"] += 1
                 continue
             checked["siblings_ascend"] += 1
             p_page, n_page = max(pb), min(nb)
@@ -406,18 +452,27 @@ def check_tree(part: str, root: Node,
             if n_page > p_page:
                 continue                                   # different pages, order is by page
             p, n = pb[p_page], nb[n_page]
-            if n[3] <= p[1] + GEOMETRY_EPS:
+            # Reading order is baseline jitter, vertical_tolerance. Overlap is
+            # the proportional line-box allowance. Two different numbers for two
+            # different questions, per the canonical map in config.
+            if n[3] <= p[1] + VERTICAL_TOLERANCE:
                 add("siblings_ascend", nxt,
                     f"sits entirely above sibling {prev.label or prev.path} on page {p_page}",
                     prev)
-            elif n[1] >= p[3] - GEOMETRY_EPS:
-                pass                                       # ascending, no overlap
-            elif n[0] >= p[2] - GEOMETRY_EPS:
-                pass                                       # side by side on one visual line
-            else:
-                add("siblings_ascend", nxt,
-                    f"overlaps sibling {prev.label or prev.path} vertically on page "
-                    f"{p_page}: {p} then {n}", prev)
+                continue
+            checked["sibling_overlap"] += 1
+            tol = sibling_overlap_tolerance(p, n)
+            if n[1] >= p[3] - tol:
+                continue                                   # ascending, overlap within tolerance
+            if n[0] >= p[2] - INDENT_TOLERANCE:
+                continue                                   # side by side on one visual line
+            overlap = p[3] - n[1]
+            add("sibling_overlap", nxt,
+                f"overlaps sibling {prev.label or prev.path} vertically on page "
+                f"{p_page} by {overlap:.2f}pt, more than the {tol:.2f}pt allowed by "
+                f"max(vertical_tolerance={VERTICAL_TOLERANCE}, "
+                f"sibling_overlap_share={SIBLING_OVERLAP_SHARE} x smaller box): "
+                f"{p} then {n}", prev)
 
         # -- numbering gaps -------------------------------------------------------
         labelled = [c for c in anatomy if c.label]
@@ -547,7 +602,6 @@ def box_roundtrip(ctx: Context) -> dict[str, Any]:
         from rapidfuzz import fuzz
     except Exception as exc:                              # noqa: BLE001
         return {"status": "skipped", "reason": f"dependency unavailable: {exc}"}
-    import config
     if not config.PDF.exists():
         return {"status": "skipped", "reason": "PDF not found at config.PDF"}
 
@@ -668,7 +722,23 @@ def build(ctx: Context) -> Section:
         s.reason = f"{len(ctx.inputs.failures())} input file(s) failed to load"
     s.data = {
         "parts_checked": sorted(ctx.inputs.trees),
-        "geometry_slack_points": GEOMETRY_EPS,
+        "geometry_tolerances": {
+            "source": "config.PARSE_GEOMETRY and the canonical map pinned beside it, "
+                      "read identically by stage 2 and stage 8, so both count the same "
+                      "violations over the same ink (SPEC 2.1)",
+            "map": {
+                "child_left_edge": f"indent_tolerance = {INDENT_TOLERANCE}",
+                "extent_nests": f"indent_tolerance = {INDENT_TOLERANCE}",
+                "own_box_above_first_child": f"vertical_tolerance = {VERTICAL_TOLERANCE}",
+                "siblings_ascend": f"vertical_tolerance = {VERTICAL_TOLERANCE}",
+                "sibling_overlap": f"max(vertical_tolerance = {VERTICAL_TOLERANCE}, "
+                                   f"sibling_overlap_share = {SIBLING_OVERLAP_SHARE} "
+                                   f"x smaller box height)",
+            },
+            "eval_only_slack_points": GEOMETRY_EPS,
+            "eval_only_checks": ["extent_covers_own", "one_box_per_page"],
+            "stage_8_only_checks": ["label_nesting", "ref_span_integrity"],
+        },
         "totals": {
             "nodes": sum(1 for _ in ctx.inputs.nodes()),
             "violations": len(all_violations),

@@ -84,7 +84,7 @@ def test_sibling_vertical_overlap_is_caught(workspace):
         bboxes_extent=[{"page": 2, "bbox": [86.0, 130.0, 490.0, 250.0]}])
     run = workspace.run()
     violations = {v["check"] for v in run.section("invariants")["violations"]}
-    assert "siblings_ascend" in violations
+    assert "sibling_overlap" in violations
     assert run.code == 2
 
 

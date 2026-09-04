@@ -158,6 +158,53 @@ def test_absent_and_failed_inputs_are_different_states(workspace):
                                                                "joint-schedule-1"}
 
 
+# ------------------------------- non-part files in tree/, defensive enumeration
+
+def test_a_manifest_in_tree_is_skipped_not_treated_as_a_broken_part(workspace):
+    """The parser's violations.json landing in tree/ produced "1 input file(s)
+    failed to load" and degraded the whole invariants section. A manifest is
+    not a broken part, and SPEC 2.1 now puts it at the run root anyway; the
+    loader should survive either way."""
+    (workspace.fixtures / "tree" / "violations.json").write_text(
+        json.dumps({"run": "current", "total_violations": 3, "parts": []}))
+    run = workspace.run()
+
+    assert run.code == 0, run.failed_gates()
+    assert run.report["input_source"]["failed"] == []
+    skipped = run.report["input_source"]["skipped_not_a_part"]
+    assert [s["key"] for s in skipped] == ["violations"]
+    assert "known manifest name" in skipped[0]["error"]
+    assert "violations" not in run.report["scope"]["parts"]
+    assert run.section("invariants")["status"] == "measured"
+    assert "violations" not in run.section("invariants")["parts_checked"]
+
+
+def test_an_unrecognised_non_part_file_is_skipped_by_shape(workspace):
+    """Not just by name: anything without a kind and a path is not a part."""
+    (workspace.fixtures / "tree" / "some_index.json").write_text(
+        json.dumps({"generated": "by something else", "entries": [1, 2, 3]}))
+    run = workspace.run()
+
+    skipped = run.report["input_source"]["skipped_not_a_part"]
+    assert [s["key"] for s in skipped] == ["some_index"]
+    assert "no kind/path" in skipped[0]["error"]
+    assert run.report["input_source"]["failed"] == []
+    assert run.code == 0
+
+
+def test_a_genuinely_broken_part_still_fails_rather_than_being_skipped(workspace):
+    """The distinction has to cut both ways: a corrupt part that got quietly
+    skipped would hide a whole part from every section."""
+    (workspace.fixtures / "tree" / "core-terms.json").write_text("{ not json")
+    run = workspace.run()
+
+    failed = run.report["input_source"]["failed"]
+    assert [f["key"] for f in failed] == ["core-terms"]
+    assert "JSONDecodeError" in failed[0]["error"]
+    assert run.report["input_source"]["skipped_not_a_part"] == []
+    assert run.section("invariants")["status"] == "partial"
+
+
 def test_scope_flags(workspace):
     """SPEC 2.6: the default covers the parts touched by the batch. The fixtures
     carry three batches at once, so no single batch applies and the mode says
