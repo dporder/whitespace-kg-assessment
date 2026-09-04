@@ -75,7 +75,8 @@
   .ask button:disabled { background:var(--faint); cursor:default; }
 
   .cropbox { border:1px solid var(--line); border-radius:3px; overflow:hidden; background:#fff; min-height:60px; }
-  .cropbox img { display:block; width:100%; }
+  .cropbox img { display:block; width:100%; cursor:zoom-in; }
+  .cropbox img:hover { outline:2px solid var(--human-line); outline-offset:-2px; }
   .empty { padding:18px 12px; text-align:center; }
 
   .trace { display:flex; flex-direction:column; gap:3px; border-left:2px solid var(--det-line); padding-left:9px; }
@@ -194,10 +195,13 @@ function showCrop(path, page, chip) {
   $('#citemeta').textContent = `page ${page} · rendered from the stored box`;
   const box = $('#cropbox');
   box.replaceChildren();
+  const url = `/api/crop?path=${encodeURIComponent(path)}`;
   const img = new Image();
   img.alt = `page crop for ${path}`;
+  img.title = 'open the full-size crop';
   img.onerror = () => { box.replaceChildren(el('div', 'empty li', 'No crop: this node carries no box.')); };
-  img.src = `/api/crop?path=${encodeURIComponent(path)}`;
+  img.onclick = () => window.open(url, '_blank', 'noopener');
+  img.src = url;
   box.append(img);
 }
 

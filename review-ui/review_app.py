@@ -84,7 +84,8 @@ def crop(
     page: int = Query(..., ge=1),
     bbox: str = Query(..., description="x0,y0,x1,y1 in PyMuPDF points"),
     colour: str = crops.DEFAULT_COLOUR,
-    zoom: float = Query(3.0, ge=0.5, le=8.0),
+    width: int = Query(crops.TARGET_WIDTH, ge=120, le=2400),
+    zoom: float | None = Query(None, ge=0.5, le=8.0),
 ) -> Response:
     try:
         box = [float(v) for v in bbox.split(",")]
@@ -93,7 +94,7 @@ def crop(
     if len(box) != 4:
         raise HTTPException(400, "bbox must be four comma-separated numbers")
     try:
-        png = crops.render_crop(page, box, colour=colour, zoom=zoom)
+        png = crops.render_crop(page, box, colour=colour, width=width, zoom=zoom)
     except IndexError as exc:
         raise HTTPException(404, str(exc))
     except (ValueError, FileNotFoundError) as exc:

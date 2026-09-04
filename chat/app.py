@@ -112,7 +112,8 @@ def crop(
     page: int | None = None,
     bbox: str | None = None,
     colour: str = crops.DEFAULT_COLOUR,
-    zoom: float = Query(3.0, ge=0.5, le=8.0),
+    width: int = Query(crops.TARGET_WIDTH, ge=120, le=2400),
+    zoom: float | None = Query(None, ge=0.5, le=8.0),
 ) -> Response:
     """By node path, or by explicit page and bbox. Rendered at request time."""
     if path:
@@ -130,7 +131,7 @@ def crop(
     if len(box) != 4:
         raise HTTPException(400, "bbox must be four comma-separated numbers")
     try:
-        return _png(crops.render_crop(page, box, colour=colour, zoom=zoom))
+        return _png(crops.render_crop(page, box, colour=colour, width=width, zoom=zoom))
     except IndexError as exc:
         raise HTTPException(404, str(exc))
     except (ValueError, FileNotFoundError) as exc:

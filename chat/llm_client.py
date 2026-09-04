@@ -85,19 +85,22 @@ def _log_call(task: str, model: str, payload: dict, response: Any, error: str | 
 # INTERIM PATH: anthropic SDK
 # --------------------------------------------------------------------------
 _client = None
+_CREATE_PARAMS: set[str] | None = None
 
 
-def _api_key() -> str | None:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
+def _secret(name: str) -> str | None:
+    """Environment first, then the gitignored .env. Never logged or returned
+    anywhere a caller could print it by accident."""
+    val = os.environ.get(name)
+    if val:
+        return val
     try:
         from dotenv import dotenv_values
     except ImportError:
         return None
     env_file = ui_config.pipeline_config.ENV_FILE
     if env_file.exists():
-        return dotenv_values(env_file).get("ANTHROPIC_API_KEY")
+        return dotenv_values(env_file).get(name)
     return None
 
 
@@ -108,16 +111,54 @@ def _sdk_client():
             import anthropic
         except ImportError as exc:
             raise LLMUnavailable("anthropic SDK not installed") from exc
-        key = _api_key()
+        key = _secret("ANTHROPIC_API_KEY")
         if not key:
             raise LLMUnavailable(
                 "ANTHROPIC_API_KEY not in the environment or the .env at config.ENV_FILE"
             )
-        _client = anthropic.Anthropic(api_key=key)
+        kwargs: dict[str, Any] = {"api_key": key}
+        # An identity-linked key is rejected without the workspace it acts in.
+        # Supply ANTHROPIC_WORKSPACE_ID in the environment or .env and this
+        # starts working with no code change.
+        workspace = _secret("ANTHROPIC_WORKSPACE_ID")
+        if workspace:
+            kwargs["default_headers"] = {"anthropic-workspace-id": workspace}
+        _client = anthropic.Anthropic(**kwargs)
     return _client
 
 
+def _create_params() -> set[str]:
+    """Which keyword arguments this SDK version's messages.create accepts.
+
+    anthropic 1.3.0 dropped `temperature`, so anything optional is filtered
+    against the live signature rather than assumed.
+    """
+    global _CREATE_PARAMS
+    if _CREATE_PARAMS is None:
+        import inspect
+
+        try:
+            _CREATE_PARAMS = set(
+                inspect.signature(_sdk_client().messages.create).parameters
+            )
+        except Exception:
+            _CREATE_PARAMS = set()
+    return _CREATE_PARAMS
+
+
+def _for_sdk(payload: dict) -> dict:
+    supported = _create_params()
+    if not supported:
+        return dict(payload)
+    return {k: v for k, v in payload.items() if k in supported}
+
+
 def available() -> bool:
+    """A key is present and, if the key needs one, a workspace id too.
+
+    This does not prove the upstream will accept a call; a request that is
+    refused surfaces as LLMUnavailable at call time and the gate fails open.
+    """
     if _pipeline_llm() is not None:
         return True
     try:
@@ -197,7 +238,7 @@ def complete(
             return adapted
 
     try:
-        msg = _sdk_client().messages.create(**payload)
+        msg = _sdk_client().messages.create(**_for_sdk(payload))
     except LLMUnavailable:
         raise
     except Exception as exc:
@@ -245,7 +286,7 @@ def stream(
     except LLMUnavailable:
         raise
     try:
-        with client.messages.stream(**payload) as s:
+        with client.messages.stream(**_for_sdk(payload)) as s:
             for delta in s.text_stream:
                 yield ("text", delta)
             final = s.get_final_message()

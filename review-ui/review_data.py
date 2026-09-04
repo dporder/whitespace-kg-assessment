@@ -89,13 +89,33 @@ def _unit(node, c=None) -> str:
     return " ".join(bits)
 
 
-def parse_anomaly(text: str) -> dict:
+def parse_anomaly(text: str, anchor: str | None = None) -> dict:
+    """Split `<code>: <detail>` and, where the detail names a correction,
+    derive the reading a reviewer would be accepting.
+
+    `found_token` and `proposed_token` are quoted verbatim from the anomaly.
+    `proposed` is the node's own text with that one substitution applied, which
+    is what the reviewer actually judges. It is an interpretation, shown beside
+    the raw text and never replacing it; the substitution is only offered when
+    the token really occurs in the text, so nothing is invented.
+    """
     code, _, detail = text.partition(":")
-    out = {"raw": text, "code": code.strip(), "detail": detail.strip() or None, "proposed": None}
+    out = {
+        "raw": text,
+        "code": code.strip(),
+        "detail": detail.strip() or None,
+        "found_token": None,
+        "proposed_token": None,
+        "proposed": None,
+    }
     m = _PROPOSED.search(text)
     if m:
-        out["proposed"] = m.group("proposed")
-        out["found"] = m.group("found")
+        found, proposed = m.group("found"), m.group("proposed")
+        out["found_token"], out["proposed_token"] = found, proposed
+        if anchor and found in anchor:
+            out["proposed"] = anchor.replace(found, proposed, 1)
+        elif not anchor:
+            out["proposed"] = proposed
     return out
 
 
@@ -193,7 +213,7 @@ def anomaly_rows(c) -> list[dict]:
             continue
         anchor = c.anchor_text(node)
         for i, raw in enumerate(node.anomalies):
-            parsed = parse_anomaly(raw)
+            parsed = parse_anomaly(raw, anchor)
             rows.append(
                 {
                     "id": f"{node.id}#{i}",

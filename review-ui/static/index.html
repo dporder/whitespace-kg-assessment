@@ -66,7 +66,8 @@
   .split { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
   .evidence { width:268px; flex-shrink:0; display:flex; flex-direction:column; gap:4px; }
   .evidence .frame { border:1px solid var(--line); border-radius:3px; overflow:hidden; background:#fff; min-height:48px; }
-  .evidence img { display:block; width:100%; }
+  .evidence img { display:block; width:100%; cursor:zoom-in; }
+  .evidence img:hover { outline:2px solid var(--human-line); outline-offset:-2px; }
   .evidence .meta { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:9.5px; color:var(--muted); word-break:break-all; }
   .decide { flex:1; display:flex; flex-direction:column; gap:9px; min-width:240px; }
 
@@ -190,7 +191,9 @@ function renderFilters() {
   all.forEach(k => f.append(mk(`${KICK[k][0]}s ${COUNTS[k] || 0}`,
     FILTER.kinds.length === 1 && FILTER.kinds[0] === k,
     () => { FILTER.kinds = [k]; load(); })));
-  f.append(el('span', null, '')).lastChild.style.cssText = 'width:1px;height:15px;background:var(--line);margin:0 3px';
+  const rule = el('span');
+  rule.style.cssText = 'width:1px;height:15px;background:var(--line);margin:0 3px';
+  f.append(rule);
   const parts = Object.keys(COUNTS.parts || {}).sort();
   f.append(mk('all parts', !FILTER.part, () => { FILTER.part = null; load(); }));
   parts.forEach(p => f.append(mk(`${p} ${COUNTS.parts[p]}`, FILTER.part === p,
@@ -249,8 +252,11 @@ function rowCard(r, i) {
   const ev = el('div', 'evidence');
   const frame = el('div', 'frame');
   if (r.crop) {
-    const img = new Image(); img.loading = 'lazy'; img.alt = `page ${r.crop.page} crop`;
+    const img = new Image(); img.loading = 'lazy';
+    img.alt = `page ${r.crop.page} crop, box drawn at ${r.crop.bbox.join(', ')}`;
+    img.title = 'open the full-size crop';
     img.onerror = () => frame.replaceChildren(el('div', 'li', 'crop unavailable'));
+    img.onclick = ev2 => { ev2.stopPropagation(); window.open(r.crop.url, '_blank', 'noopener'); };
     img.src = r.crop.url;
     frame.append(img);
     ev.append(frame, el('div', 'meta', `GET ${r.crop.url}`));

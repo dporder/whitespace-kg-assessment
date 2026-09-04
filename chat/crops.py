@@ -45,11 +45,19 @@ def page_count() -> int:
         return _document().page_count
 
 
+MIN_ZOOM, MAX_ZOOM = 1.0, 8.0
+# Crops render well above their display width so a wide box (a whole clause,
+# 400pt across) is still legible when the reviewer enlarges it. Both UIs show
+# them in a ~270px column and open the full-size image on click.
+TARGET_WIDTH = 900
+
+
 def render_crop(
     page: int,
     bbox: tuple[float, float, float, float] | list[float],
     *,
-    zoom: float = 3.0,
+    zoom: float | None = None,
+    width: int | None = TARGET_WIDTH,
     margin: float = 20.0,
     colour: str = DEFAULT_COLOUR,
     draw_box: bool = True,
@@ -57,8 +65,11 @@ def render_crop(
     """PNG bytes for `bbox` on 1-based `page`, with the box drawn and a little
     surrounding ink for context.
 
-    Raises IndexError for a page outside the document and ValueError for a
-    bbox that does not intersect the page.
+    Scale is chosen so the crop comes out near `width` pixels across, because
+    boxes vary hugely: a five-word citation and a whole clause would otherwise
+    arrive at wildly different legibility in the same column. Pass `zoom` to
+    override. Raises IndexError for a page outside the document and ValueError
+    for a bbox that does not intersect the page.
     """
     with _lock:
         doc = _document()
@@ -80,7 +91,12 @@ def render_crop(
                             stroke_opacity=0.95, fill_opacity=0.10)
 
             clip = (rect + (-margin, -margin, margin, margin)) & p.rect
-            pix = p.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=clip)
+            scale = zoom
+            if scale is None:
+                target = width or TARGET_WIDTH
+                scale = target / clip.width if clip.width > 0 else MIN_ZOOM
+            scale = max(MIN_ZOOM, min(MAX_ZOOM, scale))
+            pix = p.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip)
             return pix.tobytes("png")
         finally:
             one.close()
