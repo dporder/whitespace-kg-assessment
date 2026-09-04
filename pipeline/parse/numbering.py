@@ -37,9 +37,15 @@ INDENT_SENTINEL = " "
 # A line that opens with something number-shaped. Used only to measure how much
 # numbering the rulebook fails to cover (quarantine check 2); it never assigns
 # a level of its own.
+# A bare integer followed by a space is prose far more often than numbering:
+# "15 Working Days of the notification", "7 (Call-Off Award Procedure) and must
+# state ...". Counting those as numbering the rulebook failed to cover would
+# measure the wrapping, not the grammar, so a token has to carry a separator to
+# count: a dot between components, or a trailing dot or bracket.
 NUMBER_SHAPED = re.compile(
     r"^\s{0,8}("
-    r"\d{1,3}(?:\.\d{1,3}){0,4}\.?"          # 3 / 3.1 / 3.1.2 / 3.1.2.4
+    r"\d{1,3}(?:\.\d{1,3}){1,4}\.?"          # 3.1 / 3.1.2 / 3.1.2.4 / 1.1.
+    r"|\d{1,3}[.)]"                          # 3. / 3)
     r"|\(?[a-zA-Z]{1,3}\)"                   # (a) / (iv) / a)
     r"|[ivxlIVXL]{1,6}[.)]"                  # roman with a dot or bracket
     r")\s"

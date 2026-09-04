@@ -65,19 +65,38 @@ def _band(line: SourceLine, height: float) -> Optional[str]:
     return None
 
 
-def count_repetitions(pages: dict[int, list[SourceLine]], heights: dict[int, float]) -> dict[str, int]:
-    """How many distinct pages each normalised in-band line form appears on."""
+# Furniture repeats in two different ways and both are needed.
+#
+# Some of it repeats as text: "Crown Copyright 2018" is the same words on 475
+# pages. Some of it repeats only as a *position*: the running header title says
+# "Core Terms" on 22 pages and "Call-Off Schedule 4 (Call-Off Tender)" on one,
+# so counting words alone leaves every short schedule with no header at all and
+# silently folds it into the part before it. What is constant is the slot: the
+# top-left corner of the header band is occupied on nearly every page of the
+# pack. So a candidate is furniture if its words repeat or its slot repeats.
+SLOT_GRID = 6.0
+
+
+def slot_key(line: SourceLine, band: str) -> str:
+    return f"{band}:{int(line.bbox[0] // SLOT_GRID)}:{int(line.bbox[1] // SLOT_GRID)}"
+
+
+def count_repetitions(
+    pages: dict[int, list[SourceLine]], heights: dict[int, float]
+) -> dict[str, int]:
+    """How many distinct pages each in-band text form and each slot appears on."""
     counts: dict[str, set[int]] = {}
-    for page_no, lines in pages.items():
+    for page_no, lines in sorted(pages.items()):
         height = heights[page_no]
         seen: set[str] = set()
         for line in lines:
-            if _band(line, height) is None:
+            band = _band(line, height)
+            if band is None:
                 continue
             key = normalise_for_repetition(line.text)
-            if not key:
-                continue
-            seen.add(key)
+            if key:
+                seen.add(key)
+                seen.add(slot_key(line, band))
         for key in seen:
             counts.setdefault(key, set()).add(page_no)
     return {k: len(v) for k, v in sorted(counts.items())}
@@ -90,10 +109,33 @@ def split_page(
     repetitions: dict[str, int],
 ) -> PageFurniture:
     out = PageFurniture(page=page_no)
+    # Slot repetition is only trustworthy on a page that is running furniture at
+    # all. Pages 462 to 471 of this pack carry no running header or footer of
+    # any kind, and their body text starts high enough to sit in the slot other
+    # pages use for their title; without this gate "Number:" would be stripped
+    # as a header and would then open a part of its own.
+    has_running_text = any(
+        _band(l, height) is not None
+        and repetitions.get(normalise_for_repetition(l.text), 0) >= MIN_REPETITIONS
+        for l in lines
+    )
     for line in lines:
         band = _band(line, height)
-        key = normalise_for_repetition(line.text)
-        if band is not None and repetitions.get(key, 0) >= MIN_REPETITIONS:
+        repeats = False
+        if band is not None:
+            repeats = repetitions.get(normalise_for_repetition(line.text), 0) >= MIN_REPETITIONS or (
+                # Slot repetition applies to the header band only. A header's
+                # title is the one piece of furniture whose words change from
+                # part to part, while a footer's labels ("Framework Ref:",
+                # "Model Version: v3.1") and its page counter all repeat as
+                # text once digits are collapsed. Extending the slot rule to
+                # the footer would strip the footnote continuations that run
+                # along the bottom of pages 468 and 469, which are content.
+                band == "header"
+                and has_running_text
+                and repetitions.get(slot_key(line, band), 0) >= MIN_REPETITIONS
+            )
+        if repeats:
             out.stripped.append(line)
         else:
             out.body.append(line)
@@ -129,16 +171,19 @@ _BOILER = re.compile(
 
 
 def _pick_title(stripped: list[SourceLine], height: float) -> Optional[str]:
-    """The part's own name: the first non-boilerplate furniture line, header
-    band preferred, reading top to bottom then left to right."""
-    for band in ("header", "footer"):
-        candidates = [l for l in stripped if _band(l, height) == band]
-        candidates.sort(key=lambda l: (round(l.bbox[1], 2), round(l.bbox[0], 2)))
-        for line in candidates:
-            text = line.text.strip()
-            if not text or _BOILER.match(text):
-                continue
-            return text
+    """The part's own name: the first non-boilerplate line of the running header.
+
+    Header band only. Every part in this pack names itself at the top of the
+    page, and a footer fallback would promote the footnote continuation running
+    along the bottom of page 468 into a part title of its own.
+    """
+    candidates = [l for l in stripped if _band(l, height) == "header"]
+    candidates.sort(key=lambda l: (round(l.bbox[1], 2), round(l.bbox[0], 2)))
+    for line in candidates:
+        text = line.text.strip()
+        if not text or _BOILER.match(text):
+            continue
+        return text
     return None
 
 

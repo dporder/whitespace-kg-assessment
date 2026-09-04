@@ -34,14 +34,22 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def resolve_profile(name: str | None) -> Rulebook:
+def load_profile() -> dict:
+    """Stage 1 reads the profile stage 0 wrote. Stage 0 is not optional: a part
+    that failed its fit checks is not parsed, and without the profile there is
+    no verdict to honour."""
+    profile_path = config.OUTPUT / "profile.json"
+    if not profile_path.exists():
+        raise SystemExit(
+            f"parse: {profile_path.relative_to(config.ROOT)} is missing; "
+            "run `python -m pipeline.profile` first"
+        )
+    return json.loads(profile_path.read_text(encoding="utf-8"))
+
+
+def resolve_profile(name: str | None, profile_data: dict) -> Rulebook:
     if name is None:
-        profile_path = config.OUTPUT / "profile.json"
-        if profile_path.exists():
-            data = json.loads(profile_path.read_text(encoding="utf-8"))
-            name = data.get("profile", {}).get("assigned") or config.DEFAULT_PROFILE
-        else:
-            name = config.DEFAULT_PROFILE
+        name = profile_data.get("profile", {}).get("assigned") or config.DEFAULT_PROFILE
     if name not in config.HIERARCHY_PROFILES:
         raise SystemExit(f"unknown hierarchy profile {name!r}")
     return Rulebook(name, config.HIERARCHY_PROFILES[name])
@@ -66,7 +74,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.parts and not args.full_structural:
         parser.error("give --parts or --full-structural")
 
-    rulebook = resolve_profile(args.profile)
+    profile_data = load_profile()
+    rulebook = resolve_profile(args.profile, profile_data)
     page_range = config.FULL_STRUCTURAL_PAGES if args.full_structural else None
     document = scan(config.PDF, config.BATCHES, page_range=page_range)
 
@@ -81,6 +90,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"parse: no such part(s): {', '.join(missing)}", file=sys.stderr)
         print(f"parse: derived parts are: {known}", file=sys.stderr)
         return 1
+
+    # A part stage 0 quarantined is not parsed. There is no override: the whole
+    # point of the fit checks is that a confidently wrong hierarchy is worse
+    # than no hierarchy, so a refusal here is the designed outcome, not a
+    # failure to handle.
+    fit = profile_data.get("fit_by_part", {})
+    refused = [
+        (w, fit[w]["alarms"][0]["detail"] if fit[w]["alarms"] else "quarantined")
+        for w in wanted
+        if w in fit and not fit[w]["passed"]
+    ]
+    wanted = [w for w in wanted if w not in {r[0] for r in refused}]
+    for part_id, reason in refused:
+        print(f"parse: REFUSED {part_id}: {reason}", file=sys.stderr)
+    if not wanted:
+        print("parse: every requested part is quarantined, nothing written", file=sys.stderr)
+        return 2
 
     out_dir = config.OUTPUT / args.run / "layout"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -126,12 +152,18 @@ def main(argv: list[str] | None = None) -> int:
                 "source_sha256": document.sha256,
                 "derived_part_count": len(document.parts),
                 "parts_written": index,
+                "parts_refused_as_quarantined": [
+                    {"part": part_id, "reason": reason} for part_id, reason in refused
+                ],
             }
         ),
         encoding="utf-8",
     )
-    print(f"parse: {len(wanted)} part(s) written, index at {index_path.relative_to(config.ROOT)}")
-    return 0
+    print(
+        f"parse: {len(wanted)} part(s) written, {len(refused)} refused as quarantined, "
+        f"index at {index_path.relative_to(config.ROOT)}"
+    )
+    return 2 if refused else 0
 
 
 if __name__ == "__main__":

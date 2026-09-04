@@ -1,0 +1,596 @@
+"""Stage 0: profile the document, assign a rulebook, and check the shoe fits.
+
+    python -m pipeline.profile
+    python -m pipeline.profile --pages 1 22
+
+Writes `output/profile.json` always. On any alarm it also writes
+`output/quarantine.json` naming the signal with examples and page numbers, and
+exits 2 having loaded nothing. There is deliberately no parse-anyway fallback:
+a confidently wrong hierarchy corrupts every citation built on top of it.
+
+The five checks are SPEC 2.7's, with thresholds from
+`config.QUARANTINE_THRESHOLDS`.
+
+1. No interpretation clause, or one naming units the rulebook has never heard
+   of. Wrong rulebook.
+2. Too much numbering the rulebook's grammar does not cover.
+3. Too much homeless text: what share of the body attached to no node.
+4. Depth outside the rulebook's range.
+5. Indentation disagreeing with numbering.
+
+Check 5 abstains where it has nothing to measure, and says so rather than
+passing quietly. Core Terms sets its top-level headings at x=30.4, its clauses
+at x=27.0 and its subclauses at x=26.4, so within four points the dotted levels
+carry no indentation signal at all; a check that pretended otherwise would fire
+on all 146 clauses of a perfectly good parse. Where a part does indent its
+levels, as Call-Off Schedule 9 does at 72, 86 and 119, the check runs.
+
+The outline is reported as a flag only. Its 498 entries are a stage 8
+cross-check input and reading them here would be a spec violation.
+"""
+from __future__ import annotations
+
+import argparse
+import math
+import re
+import sys
+from pathlib import Path
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import config
+from pipeline.assemble.tree import build_part
+from pipeline.parse.blocks import PageInput, build_blocks, collect_page, modal_size
+from pipeline.parse.document import DocumentScan, scan
+from pipeline.parse.geometry import INDENT_TOLERANCE, MIN_INDENT_STEP, median
+from pipeline.parse.layout import build_layout
+from pipeline.parse.model import dump_json
+from pipeline.parse.numbering import Rulebook
+from pipeline.parse.words import font_size_histogram
+
+# Unit words a document may name in its interpretation clause. A word here that
+# the assigned rulebook does not declare is check 1 firing.
+UNIT_WORDS = (
+    "Clause", "Clauses", "Schedule", "Schedules", "Part", "Parts",
+    "Paragraph", "Paragraphs", "Annex", "Annexes", "Table", "Tables",
+    "Article", "Articles", "Section", "Sections", "Recital", "Recitals",
+    "Regulation", "Regulations", "Rule", "Rules", "Item", "Items",
+)
+_QUOTED_UNIT = re.compile(r"[\"“]([A-Z][a-z]+)[\"”]")
+
+
+def _singular(word: str) -> str:
+    if word.endswith("es") and word[:-2] in ("Annex", "Class"):
+        return word[:-2]
+    return word[:-1] if word.endswith("s") else word
+
+
+def profile_pages(document: DocumentScan) -> list[dict]:
+    out = []
+    for page_no in sorted(document.pages):
+        page = document.pages[page_no]
+        out.append(
+            {
+                "page": page_no,
+                "width": round(page.width, 2),
+                "height": round(page.height, 2),
+                "has_text_layer": page.has_text_layer,
+                "chars": sum(len(l.text) for l in page.lines),
+                "body_chars": page.body_chars,
+                "furniture_lines": len(page.furniture.stripped),
+                "printed_page": page.furniture.printed_page,
+                "images": page.n_images,
+                "image_area_fraction": round(page.image_area, 4),
+                "drawings": page.n_drawings,
+                "font_sizes": font_size_histogram(page.lines),
+                "route": "text_layer" if page.has_text_layer else "layout_ocr",
+            }
+        )
+    return out
+
+
+def assign_rulebook(document: DocumentScan, profiles: dict) -> tuple[str, dict]:
+    """Score every rulebook in config and take the best.
+
+    Only one family ships today, and the machinery still scores rather than
+    assumes, because the point of the design is that a new family is a config
+    entry rather than a parser change.
+    """
+    body = [
+        line
+        for page in document.pages.values()
+        for line in page.furniture.body
+        if line.text.strip()
+    ]
+    scores: dict[str, dict] = {}
+    for name in sorted(profiles):
+        rulebook = Rulebook(name, profiles[name])
+        matched = sum(1 for l in body if rulebook.match(l.text))
+        numbered = sum(1 for l in body if rulebook.looks_numbered(l.text))
+        cues = sum(
+            1 for l in body for cue in rulebook.interpretation_cues if cue.search(l.text)
+        )
+        scores[name] = {
+            "lines_matching_grammar": matched,
+            "lines_looking_numbered": numbered,
+            "interpretation_cue_hits": cues,
+            "coverage": round(matched / numbered, 4) if numbered else 0.0,
+        }
+    best = sorted(
+        scores,
+        key=lambda n: (
+            -scores[n]["coverage"],
+            -scores[n]["lines_matching_grammar"],
+            0 if n == config.DEFAULT_PROFILE else 1,
+            n,
+        ),
+    )[0]
+    return best, scores
+
+
+def find_interpretation(document: DocumentScan, rulebook: Rulebook) -> dict:
+    """Check 1: locate the interpretation clause and the units it names."""
+    hits: list[dict] = []
+    named: dict[str, list[int]] = {}
+    for page_no in sorted(document.pages):
+        for line in document.pages[page_no].furniture.body:
+            text = line.text
+            for cue in rulebook.interpretation_cues:
+                if cue.search(text):
+                    if len(hits) < 12:
+                        hits.append({"page": page_no, "cue": cue.pattern, "text": text.strip()[:220]})
+                    for quoted in _QUOTED_UNIT.findall(text):
+                        singular = _singular(quoted)
+                        if singular in (_singular(w) for w in UNIT_WORDS):
+                            named.setdefault(singular, []).append(page_no)
+                    break
+    known = {_singular(w) for w in rulebook.units_from_document}
+    unknown = sorted(u for u in named if u not in known)
+    return {
+        "found": bool(hits),
+        "cue_hits": len(hits),
+        "examples": hits,
+        "units_named_by_document": {k: sorted(set(v))[:5] for k, v in sorted(named.items())},
+        "units_unknown_to_rulebook": unknown,
+    }
+
+
+def numbering_coverage(
+    document: DocumentScan, rulebook: Rulebook, pdf_path: Path
+) -> dict:
+    """Check 2: numbering the rulebook's grammar does not cover.
+
+    Lines inside a ruled grid are excluded. A form row printed "3. rFramework"
+    and a table's row counters are numbering of a table, not of the provision
+    ladder, and scoring the rulebook's clause grammar against them measures the
+    wrong thing.
+    """
+    import pymupdf
+    from pipeline.parse.tables import page_grids
+
+    doc = pymupdf.open(pdf_path)
+    total = 0
+    count = 0
+    unmatched: list[dict] = []
+    by_part: dict[str, int] = {}
+    numbered_by_part: dict[str, int] = {}
+    part_of = {
+        page: part.slug
+        for part in document.parts
+        for page in range(part.page_start, part.page_end + 1)
+    }
+    for page_no in sorted(document.pages):
+        grids = page_grids(doc[page_no - 1], page_no)
+        for line in document.pages[page_no].furniture.body:
+            text = line.text
+            if not rulebook.looks_numbered(text):
+                continue
+            if any(grid.locate(line.bbox) is not None for grid in grids):
+                continue
+            total += 1
+            part = part_of.get(page_no, "?")
+            numbered_by_part[part] = numbered_by_part.get(part, 0) + 1
+            if rulebook.match(text) is None:
+                count += 1
+                by_part[part] = by_part.get(part, 0) + 1
+                if len(unmatched) < 40:
+                    unmatched.append({"page": page_no, "part": part, "text": text.strip()[:150]})
+    doc.close()
+    return {
+        "numbered_lines": total,
+        "unmatched_lines": count,
+        "rate": round(count / total, 4) if total else 0.0,
+        "numbered_by_part": dict(sorted(numbered_by_part.items())),
+        "unmatched_by_part": dict(sorted(by_part.items(), key=lambda kv: (-kv[1], kv[0]))),
+        "examples": unmatched,
+    }
+
+
+def probe_parts(pdf_path: Path, document: DocumentScan, rulebook: Rulebook) -> dict:
+    """Checks 3, 4 and 5, which need a tree to measure against.
+
+    Stage 0 runs the same deterministic machinery stages 1 and 2 use rather
+    than a second approximation of it, so what it reports is what the pipeline
+    would actually produce.
+    """
+    import pymupdf
+
+    doc = pymupdf.open(pdf_path)
+    orphan_chars = 0
+    body_chars = 0
+    max_dotted = 0
+    max_tree_depth = 0
+    deep_examples: list[dict] = []
+    geometry = {"tested": 0, "disagreements": 0, "abstained_parts": [], "measured_parts": []}
+    disagreement_examples: list[dict] = []
+    orphan_examples: list[dict] = []
+
+    for part in document.parts:
+        inputs: list[PageInput] = []
+        for page_no in range(part.page_start, part.page_end + 1):
+            page_scan = document.pages[page_no]
+            inputs.append(collect_page(doc[page_no - 1], page_no, page_scan.furniture.body))
+            body_chars += page_scan.body_chars
+        blocks = build_blocks(inputs, rulebook)
+
+        placed = sum(
+            len(b.text) for b in blocks if b.block_kind in ("numbered", "prose", "part_title")
+        )
+        placed += sum(len(c.text) for b in blocks for c in b.cells)
+        part_body = sum(document.pages[p].body_chars for p in range(part.page_start, part.page_end + 1))
+        missing = max(0, part_body - placed)
+        orphan_chars += missing
+        if missing and len(orphan_examples) < 15:
+            orphan_examples.append(
+                {"part": part.slug, "pages": [part.page_start, part.page_end], "chars": missing}
+            )
+
+        for block in blocks:
+            if block.block_kind == "numbered" and block.number:
+                dots = block.number.count(".") + 1 if block.number[0].isdigit() else 0
+                if dots > max_dotted:
+                    max_dotted = dots
+                    deep_examples = [{"part": part.slug, "page": block.page_start, "number": block.number}]
+                elif dots == max_dotted and len(deep_examples) < 6:
+                    deep_examples.append(
+                        {"part": part.slug, "page": block.page_start, "number": block.number}
+                    )
+            max_tree_depth = max(max_tree_depth, block.depth or 0)
+
+        _measure_geometry(part.slug, blocks, geometry, disagreement_examples)
+
+    doc.close()
+    return {
+        "orphan": {
+            "body_chars": body_chars,
+            "unattached_chars": orphan_chars,
+            "rate": round(orphan_chars / body_chars, 4) if body_chars else 0.0,
+            "examples": orphan_examples,
+        },
+        "depth": {
+            "max_dotted_depth": max_dotted,
+            "rulebook_max_dotted_depth": rulebook.max_dotted_depth,
+            "max_numbered_depth": max_tree_depth,
+            "rulebook_levels": len(rulebook.numbered_levels),
+            "examples": deep_examples,
+        },
+        "geometry": {
+            "pairs_tested": geometry["tested"],
+            "disagreements": geometry["disagreements"],
+            "rate": round(geometry["disagreements"] / geometry["tested"], 4)
+            if geometry["tested"]
+            else 0.0,
+            "parts_measured": geometry["measured_parts"],
+            "parts_abstained": geometry["abstained_parts"],
+            "examples": disagreement_examples,
+        },
+    }
+
+
+def _measure_geometry(
+    part_id: str, blocks: list, geometry: dict, examples: list[dict]
+) -> None:
+    """Check 5, per part, abstaining where indentation carries no signal."""
+    lefts: dict[int, list[float]] = {}
+    for block in blocks:
+        if block.block_kind == "numbered" and block.depth and block.left is not None:
+            lefts.setdefault(block.depth, []).append(block.left)
+    depths = sorted(lefts)
+    if len(depths) < 2:
+        geometry["abstained_parts"].append({"part": part_id, "reason": "fewer than two numbered depths"})
+        return
+    medians = {d: median(lefts[d]) for d in depths}
+
+    # Abstain per level pair, not per part. Core Terms sets its headings at
+    # x=30.4, its clauses at 27.0 and its subclauses at 26.4, so heading to
+    # clause and clause to subclause carry no indentation signal at all, while
+    # subclause to lettered item steps 29 points and does. Measuring only the
+    # pairs that separate is the difference between reporting one real signal
+    # and reporting 146 false ones.
+    measurable = {
+        d
+        for d in depths
+        if d - 1 in medians and medians[d] - medians[d - 1] >= MIN_INDENT_STEP
+    }
+    abstained = {
+        str(d): round(medians[d] - medians[d - 1], 1)
+        for d in depths
+        if d - 1 in medians and d not in measurable
+    }
+    if not measurable:
+        geometry["abstained_parts"].append(
+            {
+                "part": part_id,
+                "reason": "no level pair is separated by indentation",
+                "level_medians": {str(d): round(medians[d], 1) for d in depths},
+                "steps": abstained,
+            }
+        )
+        return
+    geometry["measured_parts"].append(
+        {
+            "part": part_id,
+            "level_medians": {str(d): round(medians[d], 1) for d in depths},
+            "levels_measured": sorted(measurable),
+            "level_steps_too_small_to_measure": abstained,
+        }
+    )
+    for block in blocks:
+        if block.block_kind != "numbered" or not block.depth or block.left is None:
+            continue
+        parent_depth = block.depth - 1
+        if parent_depth not in medians or block.depth not in measurable:
+            continue
+        geometry["tested"] += 1
+        if block.left < medians[parent_depth] - INDENT_TOLERANCE:
+            geometry["disagreements"] += 1
+            if len(examples) < 20:
+                examples.append(
+                    {
+                        "part": part_id,
+                        "page": block.page_start,
+                        "number": block.number,
+                        "left": round(block.left, 1),
+                        "parent_level_median_left": round(medians[parent_depth], 1),
+                    }
+                )
+
+
+def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds: dict) -> dict:
+    """The same fit checks, scoped to each part.
+
+    The pack is not one document, it is roughly fifty separately versioned
+    templates bound into one file, and they do not share a numbering house
+    style: Framework Schedule 1 numbers its paragraphs "1.1." with a trailing
+    period, which the rulebook's clause pattern does not cover, while Core
+    Terms fits it exactly. Reporting one verdict for the whole binding would
+    either quarantine parts that parse cleanly or wave through parts that do
+    not, so the document-level verdict from SPEC 2.7 is kept exactly as
+    specified and this sits beside it, saying which parts it was that failed.
+    """
+    unmatched = numbering.get("unmatched_by_part", {})
+    orphan_by_part = {e["part"]: e["chars"] for e in probe["orphan"].get("examples", [])}
+    geometry_by_part: dict[str, int] = {}
+    for example in probe["geometry"].get("examples", []):
+        geometry_by_part[example["part"]] = geometry_by_part.get(example["part"], 0) + 1
+
+    out: dict[str, dict] = {}
+    limit = thresholds["max_unmatched_numbering_rate"]
+    for part in document.parts:
+        counts = numbering.get("numbered_by_part", {}).get(part.slug, 0)
+        bad = unmatched.get(part.slug, 0)
+        rate = round(bad / counts, 4) if counts else 0.0
+        alarms = []
+        if rate > limit:
+            alarms.append(
+                {
+                    "check": "unmatched_numbering",
+                    "detail": f"{bad} of {counts} numbered lines in this part match no "
+                    f"rulebook pattern, rate {rate} > {limit}",
+                    "examples": [
+                        e for e in numbering.get("examples", []) if e.get("part") == part.slug
+                    ][:5],
+                }
+            )
+        out[part.slug] = {
+            "pages": [part.page_start, part.page_end],
+            "numbered_lines": counts,
+            "unmatched_lines": bad,
+            "unmatched_rate": rate,
+            "orphan_chars": orphan_by_part.get(part.slug, 0),
+            "geometry_disagreements": geometry_by_part.get(part.slug, 0),
+            "alarms": alarms,
+            "passed": not alarms,
+        }
+    return out
+
+
+def evaluate_fit(interpretation: dict, numbering: dict, probe: dict, thresholds: dict) -> dict:
+    alarms: list[dict] = []
+
+    if thresholds.get("require_interpretation_clause") and not interpretation["found"]:
+        alarms.append(
+            {
+                "check": "interpretation_clause_missing",
+                "detail": "no interpretation cue from the rulebook appears anywhere in the body",
+                "examples": [],
+            }
+        )
+    if interpretation["units_unknown_to_rulebook"]:
+        alarms.append(
+            {
+                "check": "interpretation_names_unknown_units",
+                "detail": "the document names units the rulebook does not declare: "
+                + ", ".join(interpretation["units_unknown_to_rulebook"]),
+                "examples": interpretation["examples"][:5],
+            }
+        )
+    limit = thresholds["max_unmatched_numbering_rate"]
+    if numbering["rate"] > limit:
+        alarms.append(
+            {
+                "check": "unmatched_numbering",
+                "detail": f"{numbering['unmatched_lines']} of {numbering['numbered_lines']} "
+                f"numbered lines match no rulebook pattern, rate {numbering['rate']} > {limit}",
+                "examples": numbering["examples"][:10],
+            }
+        )
+    limit = thresholds["max_orphan_block_rate"]
+    if probe["orphan"]["rate"] > limit:
+        alarms.append(
+            {
+                "check": "orphan_text",
+                "detail": f"{probe['orphan']['unattached_chars']} of {probe['orphan']['body_chars']} "
+                f"body characters attached to no node, rate {probe['orphan']['rate']} > {limit}",
+                "examples": probe["orphan"]["examples"][:10],
+            }
+        )
+    depth = probe["depth"]
+    if depth["max_dotted_depth"] > depth["rulebook_max_dotted_depth"]:
+        alarms.append(
+            {
+                "check": "depth_out_of_range",
+                "detail": f"numbering reaches {depth['max_dotted_depth']} dotted levels, "
+                f"the rulebook allows {depth['rulebook_max_dotted_depth']}",
+                "examples": depth["examples"][:10],
+            }
+        )
+    limit = thresholds["max_geometry_disagreement"]
+    geometry = probe["geometry"]
+    if geometry["pairs_tested"] and geometry["rate"] > limit:
+        alarms.append(
+            {
+                "check": "geometry_disagrees_with_numbering",
+                "detail": f"{geometry['disagreements']} of {geometry['pairs_tested']} numbered "
+                f"lines sit left of their level's parent, rate {geometry['rate']} > {limit}",
+                "examples": geometry["examples"][:10],
+            }
+        )
+    return {
+        "interpretation_clause": interpretation,
+        "numbering": numbering,
+        "orphan_text": probe["orphan"],
+        "depth": depth,
+        "geometry": geometry,
+        "alarms": alarms,
+        "passed": not alarms,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m pipeline.profile")
+    parser.add_argument("--pages", nargs=2, type=int, default=None, metavar=("FIRST", "LAST"))
+    args = parser.parse_args(argv)
+
+    page_range = tuple(args.pages) if args.pages else None
+    document = scan(config.PDF, config.BATCHES, page_range=page_range)
+    assigned, scores = assign_rulebook(document, config.HIERARCHY_PROFILES)
+    rulebook = Rulebook(assigned, config.HIERARCHY_PROFILES[assigned])
+
+    interpretation = find_interpretation(document, rulebook)
+    numbering = numbering_coverage(document, rulebook, config.PDF)
+    probe = probe_parts(config.PDF, document, rulebook)
+    fit = evaluate_fit(interpretation, numbering, probe, config.QUARANTINE_THRESHOLDS)
+    per_part = fit_by_part(numbering, probe, document, config.QUARANTINE_THRESHOLDS)
+
+    pages = profile_pages(document)
+    report = {
+        "document": {
+            "id": config.DOCUMENT_ID,
+            "source_file": config.PDF.name,
+            "source_sha256": document.sha256,
+            "page_count": document.page_count,
+            "pages_profiled": [min(document.pages), max(document.pages)],
+            "file_author": document.metadata.get("author") or None,
+            "file_created": document.metadata.get("creationDate") or None,
+            "producer": document.metadata.get("producer") or None,
+            "tagged": document.tagged,
+            # Existence only; the outline's contents belong to stage 8.
+            "has_outline": document.has_outline,
+            "pages_with_text_layer": sum(1 for p in pages if p["has_text_layer"]),
+            "pages_without_text_layer": sum(1 for p in pages if not p["has_text_layer"]),
+            "font_size_histogram": document.font_histogram(),
+        },
+        "profile": {
+            "assigned": assigned,
+            "candidates": scores,
+            "levels": rulebook.levels,
+            "max_dotted_depth": rulebook.max_dotted_depth,
+        },
+        "parts": [
+            {
+                "id": part.slug,
+                "title": part.title,
+                "family": part.family,
+                "page_start": part.page_start,
+                "page_end": part.page_end,
+                "template_version_raw": part.model_version_raw or part.header_version_raw,
+                "version_source": part.version_source,
+                "anomalies": part.anomalies,
+            }
+            for part in document.parts
+        ],
+        "derived_part_count": len(document.parts),
+        "fit": fit,
+        "fit_by_part": per_part,
+        "pages": pages,
+    }
+
+    config.OUTPUT.mkdir(parents=True, exist_ok=True)
+    profile_path = config.OUTPUT / "profile.json"
+    profile_path.write_text(dump_json(report), encoding="utf-8")
+    quarantine_path = config.OUTPUT / "quarantine.json"
+
+    print(f"profile: {document.page_count} pages, {len(document.parts)} parts derived")
+    print(f"profile: rulebook {assigned!r} assigned, "
+          f"grammar covers {scores[assigned]['coverage']:.1%} of numbered lines")
+    print(f"profile: interpretation clause found={fit['interpretation_clause']['found']} "
+          f"({fit['interpretation_clause']['cue_hits']} cue hits), "
+          f"units named {sorted(fit['interpretation_clause']['units_named_by_document'])}")
+    print(f"profile: unmatched numbering {numbering['unmatched_lines']}/{numbering['numbered_lines']} "
+          f"= {numbering['rate']:.4f} (limit {config.QUARANTINE_THRESHOLDS['max_unmatched_numbering_rate']})")
+    print(f"profile: orphan text {probe['orphan']['unattached_chars']}/{probe['orphan']['body_chars']} "
+          f"= {probe['orphan']['rate']:.4f} (limit {config.QUARANTINE_THRESHOLDS['max_orphan_block_rate']})")
+    print(f"profile: max dotted depth {probe['depth']['max_dotted_depth']} "
+          f"(rulebook allows {probe['depth']['rulebook_max_dotted_depth']})")
+    print(f"profile: geometry {probe['geometry']['disagreements']}/{probe['geometry']['pairs_tested']} "
+          f"= {probe['geometry']['rate']:.4f} (limit {config.QUARANTINE_THRESHOLDS['max_geometry_disagreement']}), "
+          f"{len(probe['geometry']['parts_measured'])} parts measured, "
+          f"{len(probe['geometry']['parts_abstained'])} abstained")
+    print(f"profile: written to {profile_path.relative_to(config.ROOT)}")
+
+    failed_parts = sorted(p for p, v in per_part.items() if not v["passed"])
+    passed_parts = sorted(p for p, v in per_part.items() if v["passed"])
+    print(f"profile: per-part fit, {len(passed_parts)} parts pass, {len(failed_parts)} quarantined"
+          + (f": {', '.join(failed_parts)}" if failed_parts else ""))
+
+    if fit["alarms"]:
+        quarantine_path.write_text(
+            dump_json(
+                {
+                    "document": config.DOCUMENT_ID,
+                    "source_sha256": document.sha256,
+                    "profile_considered": assigned,
+                    "alarms": fit["alarms"],
+                    "parts_quarantined": {p: per_part[p] for p in failed_parts},
+                    "parts_passing": passed_parts,
+                    "action": "quarantined, nothing loaded; a person decides which rulebook this needs",
+                }
+            ),
+            encoding="utf-8",
+        )
+        for alarm in fit["alarms"]:
+            print(f"profile: ALARM {alarm['check']}: {alarm['detail']}", file=sys.stderr)
+        print(f"profile: quarantined, {quarantine_path.relative_to(config.ROOT)} written, "
+              f"nothing loaded", file=sys.stderr)
+        return 2
+
+    if quarantine_path.exists():
+        quarantine_path.unlink()
+    print("profile: all five fit checks pass, not quarantined")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

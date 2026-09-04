@@ -169,7 +169,20 @@ def page_grids(page: pymupdf.Page, page_number: int) -> list[Grid]:
 import re
 
 _ROW_NUMBER = re.compile(r"^\s*(\d{1,3})\.?\s*$")
+
+# A defined term printed with its closing quotation mark and no opening one.
+# Restricted to short label cells because a long value cell ending on a quote
+# is ordinary prose. Checked against the rendered page: the ink itself is
+# missing the opening mark, and in the wrapped case the first letter with it,
+# so "Additional Insurances" prints as "Additional" then 'nsurances"'.
 _UNPAIRED_CLOSE = re.compile(r'^[^"“”]*[”"]\s*$')
+UNPAIRED_MAX_LEN = 80
+
+# A word that starts lower case and immediately turns upper case, which is what
+# a stray keystroke in front of a capitalised label looks like: the Award Form
+# prints "rFramework Contract" where it means "Framework Contract". Flagged as a
+# signal, never corrected.
+_STRAY_LEADING_CHAR = re.compile(r"^[a-z][A-Z][a-z]")
 
 
 def fill_cells(
@@ -215,10 +228,20 @@ def fill_cells(
                 row, col, grid, text, header_row=header_row, number_col=number_col
             )
             anomalies: list[str] = []
-            if text and _UNPAIRED_CLOSE.match(text):
+            if (
+                text
+                and role == "label"
+                and len(text) <= UNPAIRED_MAX_LEN
+                and _UNPAIRED_CLOSE.match(text)
+            ):
                 anomalies.append(
-                    "unpaired_closing_quote_in_cell: the text layer carries the "
-                    "closing quotation mark but no opening one; recorded verbatim"
+                    "unpaired_closing_quote_in_cell: the page carries the closing "
+                    "quotation mark but no opening one; recorded verbatim"
+                )
+            if text and role == "label" and _STRAY_LEADING_CHAR.match(text):
+                anomalies.append(
+                    f"stray_character_in_label: {text.split()[0]!r} opens lower case "
+                    "then capitalises, which reads as a stray keystroke; recorded verbatim"
                 )
             cells.append(
                 Cell(
