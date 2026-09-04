@@ -136,6 +136,29 @@ ASSOCIATED_TERM_MIN_SHARE = 0.25     # min share of a concept's provisions using
 
 SALIENCE = {                          # salience = breadth * log(1 + frequency); boost = w * log(1 + salience)
     "retrieval_boost_weight": 0.02,
+    "furniture_min_repeats": 3,       # identical own text on this many nodes...
+    "furniture_min_parts": 2,         # ...spanning this many parts is furniture, excluded from counts
+    "outlier_sigma": 4.0,             # frequency this far above its kind's mean is flagged for eyes
+}
+
+LLM = {                               # shared client behaviour, pipeline/llm.py
+    "max_attempts": 4,                # total attempts per call, including the first
+    "backoff_base_seconds": 1.0,      # attempt n sleeps base * 2**(n-1), jittered
+    "backoff_max_seconds": 20.0,
+    "max_tokens": 1024,
+    "timeout_seconds": 60.0,
+}
+
+REFERENCES = {
+    "max_range_expansion": 60,        # inclusive members a single range may mint
+    "residue_top_candidates": 5,      # SPEC 2.2 pins 5
+}
+
+LEGISLATION_NEAR_MISS = {
+    "char_overlap_min": 0.86,         # rapidfuzz ratio over normalised titles, 0..1
+    "llm_confidence_min": 0.75,       # below this the pair still goes to a human
+    "embedding_enabled": False,       # the second routing arm, off by default
+    "embedding_cosine_min": 0.92,
 }
 
 ERROR_COSTS = {                       # placeholders for a domain expert; used in the cost-weighted
