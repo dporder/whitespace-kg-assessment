@@ -67,9 +67,37 @@ def newest_run(output_root: Path) -> Optional[str]:
     return sorted(runs, key=lambda d: (d.stat().st_mtime, d.name))[-1].name
 
 
-def discover_parts(source_root: Path) -> list[str]:
+# Files that sit beside part files in tree/ and are not parts.
+MANIFEST_NAMES = frozenset({"violations.json", "manifest.json", "profile.json",
+                            "index.json", "quarantine.json"})
+
+
+def discover_parts(source_root: Path) -> tuple[list[str], list[dict]]:
+    """Part ids in the input source, and the files skipped for not being parts.
+
+    A stage 2 part file is a Node: it has a kind and a path. Anything else in
+    `tree/` is a manifest, not a broken part, and saying so is the difference
+    between a tidy run and a spurious violation.
+    """
     tree_dir = source_root / "tree"
-    return sorted(p.stem for p in tree_dir.glob("*.json")) if tree_dir.is_dir() else []
+    if not tree_dir.is_dir():
+        return [], []
+    parts, skipped = [], []
+    for path in sorted(tree_dir.glob("*.json")):
+        if path.name in MANIFEST_NAMES:
+            skipped.append({"path": str(path), "reason": "a known manifest name"})
+            continue
+        try:
+            payload = json.loads(path.read_text())
+        except Exception as exc:                          # noqa: BLE001
+            parts.append(path.stem)      # a file that will not parse is a broken
+            continue                     # part, reported by the loader, not skipped
+        if not (isinstance(payload, dict) and "kind" in payload and "path" in payload):
+            skipped.append({"path": str(path),
+                            "reason": "no kind/path at the top level, so not a part file"})
+            continue
+        parts.append(path.stem)
+    return parts, skipped
 
 
 def load_part_registry(run_dir: Path, output_root: Path) -> tuple[dict, str]:
@@ -241,7 +269,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         source = "output" if has_trees(run_dir) else "fixtures"
     source_root = run_dir if source == "output" else args.fixtures_dir
 
-    present = discover_parts(source_root)
+    present, not_parts = discover_parts(source_root)
     if not present:
         print(f"no trees under {source_root / 'tree'}; nothing to do", file=sys.stderr)
         return 1
@@ -353,6 +381,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "run": run,
         "input": {"source": source, "root": str(source_root),
                   "parts_present": present, "parts_in_scope": scope,
+                  "skipped_not_parts": not_parts,
                   "part_registry": {"source": registry_source or None,
                                     "parts_known_but_not_ingested":
                                         sorted(set(registry) - set(trees))}},

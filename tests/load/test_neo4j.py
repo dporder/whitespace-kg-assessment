@@ -182,3 +182,21 @@ def test_the_loader_counts_reconcile_with_what_the_database_holds(graph, small_t
     counted = graph.counts(throwaway_batch)
     assert counted["nodes_in_batch"] == len(rows.nodes)
     assert counted["relationships_in_batch"] == len(rows.edges)
+
+
+def test_the_batch_that_created_a_node_survives_a_later_reassertion(graph, small_tree,
+                                                                    small_refs,
+                                                                    throwaway_batch):
+    """`batch_id` is the last batch to assert a row, which is what the sweep
+    needs. `first_batch_id` is the batch that introduced it, so "created" and
+    "confirmed" stay distinguishable."""
+    first, second = f"{throwaway_batch}-c1", f"{throwaway_batch}-c2"
+    graph.also_rollback(first)
+    graph.also_rollback(second)
+    load(graph, small_tree, small_refs, first)
+    load(graph, small_tree, small_refs, second)
+    row = graph.read("MATCH (n:Node {id: $id}) "
+                     "RETURN n.batch_id AS last, n.first_batch_id AS first",
+                     id=small_tree.id)[0]
+    assert row["last"] == second
+    assert row["first"] == first

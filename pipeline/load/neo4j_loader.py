@@ -144,8 +144,14 @@ def node_merge(labels: list[str], key_field: str) -> str:
     # `SET n:Extra, n += props` when there is a secondary label, `SET n += props`
     # when there is not: `SET n, n += props` is a syntax error.
     setter = f"SET n{extra}, n += row.props" if extra else "SET n += row.props"
+    # `batch_id` is the batch that last asserted the row, which is what the
+    # sweep needs: a node still wearing an older tag was not re-asserted.
+    # `first_batch_id` is the batch that introduced it, written once, so the
+    # difference between "this batch created it" and "this batch confirmed it"
+    # survives. See the handover note on rollback semantics.
     return (f"UNWIND $rows AS row\n"
             f"MERGE (n:{head} {{{field}: row.key}})\n"
+            f"ON CREATE SET n.first_batch_id = row.props.batch_id\n"
             f"{setter}\n"
             f"RETURN count(*) AS n")
 
@@ -158,6 +164,7 @@ def edge_merge(type_: str, discriminated: bool) -> str:
             f"MATCH (a) WHERE a.id = row.src OR a.name = row.src OR a.key = row.src\n"
             f"MATCH (b) WHERE b.id = row.dst OR b.name = row.dst OR b.key = row.dst\n"
             f"MERGE (a)-[r:{rel}{key}]->(b)\n"
+            f"ON CREATE SET r.first_batch_id = row.batch_id\n"
             f"SET r += row.props, r.batch_id = row.batch_id\n"
             f"RETURN count(*) AS n")
 

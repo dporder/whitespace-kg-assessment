@@ -219,7 +219,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                   else inputs_mod.FIXTURES_SOURCE)
     source_root = run_dir if source == inputs_mod.OUTPUT_SOURCE else args.fixtures_dir
 
-    present = inputs_mod.discover_parts(source_root)
+    # `discover_parts` returns the part files and the non-part files it skipped
+    # (a manifest in tree/ is not a broken part). Both are reported.
+    present, not_parts = inputs_mod.discover_parts(source_root)
     parts = present
     if args.batch in config.BATCHES:
         parts = [p for p in present if p == config.BATCHES[args.batch]["part"]]
@@ -227,7 +229,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         wanted = {p.strip() for p in args.parts.split(",") if p.strip()}
         parts = [p for p in present if p in wanted]
 
-    inputs = inputs_mod.load(source, source_root, run, parts, run_dir=run_dir)
+    inputs = inputs_mod.load(source, source_root, run, parts, run_dir=run_dir,
+                             skipped=not_parts)
     batch_id = args.batch or _infer_batch(inputs) or "B0"
     audit = Audit(graph_dir / "audit.jsonl", run=run, batch_id=batch_id)
 
@@ -295,7 +298,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         "batch_id": batch_id,
         "input": {"source": source, "root": str(source_root), "parts": parts,
                   "failures": [r.as_dict() for r in inputs.failures()],
-                  "absent": [r.as_dict() for r in inputs.absences()]},
+                  "absent": [r.as_dict() for r in inputs.absences()],
+                  "skipped_not_parts": [r.as_dict() for r in inputs.skipped()]},
         "reconciliation": reconcile(inputs, rows, document),
         "associated_term": associated.summary(rows.edges),
         "salience": scores.report,
