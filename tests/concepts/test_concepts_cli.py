@@ -94,6 +94,31 @@ def test_a_label_that_is_a_declared_term_is_logged_not_minted(tmp_path, monkeypa
     assert resolution["collisions"][0]["collides_with_term"] == "Good Working Practice"
 
 
+def test_concepts_json_carries_the_scope_inline_and_still_loads(tmp_path,
+                                                                monkeypatch):
+    """A reader of concepts.json alone must see that the run was sampled. The
+    file has to stay a bare list, because SPEC 3 names it and the stage 8 loader
+    validates every element as a Concept, so the scope rides on each record
+    where the frozen model ignores it as an unknown field."""
+    from pipeline.eval import inputs as eval_inputs
+    install_llm(monkeypatch, FakeClaude(fixture_reply))
+    code = main(["--input", "fixtures", "--fixtures-dir", str(FIXTURES),
+                 "--output-dir", str(tmp_path), "--run", "t", "--quiet",
+                 "--no-embed", "--parts", "core-terms"])
+    assert code == 0
+    raw = json.loads((tmp_path / "t" / "concepts.json").read_text())
+    assert isinstance(raw, list)
+    assert all(r["scanned_parts"] == ["core-terms"] for r in raw)
+    assert all(set(r["skipped_parts"]) == {"award-form", "joint-schedule-1"}
+               for r in raw)
+    # The frozen loader still reads it, and the extra keys do not become fields.
+    loaded = eval_inputs.load("output", tmp_path / "t", "t", [])
+    record = {r.kind: r for r in loaded.records}["concepts"]
+    assert record.state == "loaded", record.error
+    assert loaded.concepts
+    assert not hasattr(loaded.concepts[0], "scanned_parts")
+
+
 def test_a_sampled_scan_records_which_parts_it_skipped(tmp_path, monkeypatch):
     """The scan is the pipeline's spend bottleneck, so a run may deliberately
     sample it. That makes "this part has no concepts" ambiguous between *not
@@ -190,15 +215,18 @@ def test_without_llm_py_the_run_is_honest_about_scanning_nothing(tmp_path,
     assert all(u["prompt"] for u in scan["units"]), "prompts are built and stored"
 
 
-def test_a_rerun_replays_and_calls_nothing(tmp_path, monkeypatch):
+def test_a_rerun_delegates_and_reports_it(tmp_path, monkeypatch):
+    """pipeline.llm owns the replay cache, so a rerun is free at that layer, not
+    this one, and the summary says `delegated` rather than claiming a local
+    replay it did not perform."""
     fake = FakeClaude(fixture_reply)
     install_llm(monkeypatch, fake)
     run(tmp_path)
     calls = len(fake.prompts)
     _code, run_dir = run(tmp_path)
-    assert len(fake.prompts) == calls
+    assert len(fake.prompts) == calls * 2
     summary = json.loads((run_dir / "concepts" / "summary.json").read_text())
-    assert set(summary["scan"]["by_state"]) == {llmio.REPLAYED}
+    assert set(summary["scan"]["by_state"]) == {llmio.DELEGATED}
 
 
 def test_the_scan_covers_every_unit_and_reports_the_empty_ones(tmp_path, monkeypatch):

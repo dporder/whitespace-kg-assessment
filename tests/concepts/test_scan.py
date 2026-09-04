@@ -175,12 +175,15 @@ def test_without_llm_py_every_unit_is_queued_with_its_prompt(two_part_trees, tmp
     assert all(r.proposed == [] for r in results)
 
 
-def test_a_second_run_replays_from_the_cache(two_part_trees, tmp_path, monkeypatch):
+def test_a_second_run_delegates_again_and_pipeline_llm_owns_the_cache(
+        two_part_trees, tmp_path, monkeypatch):
+    """One LLM path: pipeline.llm serves its own replay cache, so this seam
+    calls it every time rather than shadowing it with a second cache."""
     fake = FakeClaude(reply(concept("termination triggers", 0.8, ["clauses/1/1.1"])))
     install_llm(monkeypatch, fake)
     scan_mod.scan(two_part_trees, runner(tmp_path))
     calls = len(fake.prompts)
     results = scan_mod.scan(two_part_trees, runner(tmp_path))
-    assert len(fake.prompts) == calls, "the replay cache must serve the rerun"
-    assert all(r.state == llmio.REPLAYED for r in results)
+    assert len(fake.prompts) == calls * 2
+    assert all(r.state == llmio.DELEGATED for r in results)
     assert [c for r in results for c in r.proposed]

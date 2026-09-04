@@ -19,12 +19,10 @@ Confidence is elicited in the same structured response as the verdict and, per
 EVALUATION.md layer 5, before it: each object states `confidence` ahead of
 `verdict`, so the score is not a defence of a conclusion already committed to.
 
-Model choice is a gap in `config.py`, recorded rather than papered over.
-`config.MODELS` has no vocabulary entry, and DESIGN's model table lists stage 4
-as deterministic because the routed checks were costed with the reference
-residue. This module therefore uses `reference_residue` (Claude Haiku 4.5,
-"bounded choice among presented candidates"), which is exactly the shape of
-these questions, and the run summary says so.
+The model is `config.MODELS["vocabulary_routing"]` (Claude Haiku 4.5). These are
+bounded choices over a candidate the matcher already found, which is why a small
+model is the right one; DESIGN's model table lists stage 4 as deterministic
+because everything except this routed residue is.
 """
 from __future__ import annotations
 
@@ -35,11 +33,9 @@ from typing import Callable, Optional
 from pipeline.vocabulary.llmio import Runner, strip_fence
 from pipeline.vocabulary.matching import Match
 
-# config.MODELS has no key for stage 4's routed checks. See the module docstring.
-TASK = "reference_residue"
-TASK_NOTE = ("config.MODELS has no vocabulary/term-disambiguation entry; stage 4's "
-             "routed checks use the reference_residue model, which is the same "
-             "bounded-choice shape. Flagged for the orchestrator.")
+TASK = "vocabulary_routing"
+TASK_NOTE = ("stage 4's routed ambiguity checks; the model comes from "
+             "config.MODELS[\"vocabulary_routing\"]")
 PROMPT_VERSION = "vocab-routing-v1"
 BATCH_SIZE = 20
 SENTENCE_CLIP = 600
@@ -240,7 +236,7 @@ def route(matches: list[Match], runner: Runner,
             queue.batches.append(record)
         states = {b["call"]["state"] for b in queue.batches}
         parse_errors = [b for b in queue.batches if b.get("parse_error")]
-        if states <= {"replayed", "called"}:
+        if states <= {"replayed", "called", "delegated"}:
             # A batch whose reply would not parse was called but not checked;
             # calling that "checked" would report an agreement nobody measured.
             queue.state = "checked_with_parse_errors" if parse_errors else "checked"

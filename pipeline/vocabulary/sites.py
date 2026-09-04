@@ -151,6 +151,7 @@ class Surface:
     is_alias: bool
     definition_used: str               # the governing site's scope string
     collides_with: list[str] = field(default_factory=list)
+    is_inflected: bool = False         # reached through JS1 1.3.1, not printed
 
 
 @dataclass
@@ -158,10 +159,34 @@ class PartVocabulary:
     part: str
     surfaces: dict[str, Surface]
     suppressed_out_of_scope: list[str] = field(default_factory=list)
+    inflection_collisions: list[dict] = field(default_factory=list)
 
     def ordered(self) -> list[Surface]:
         """Longest first, then alphabetical: the longest-match rule's order."""
         return sorted(self.surfaces.values(), key=lambda s: (-len(s.surface), s.surface))
+
+
+# Simple s/es inflection, both directions, per Joint Schedule 1 paragraph 1.3.1:
+# "the singular includes the plural and vice versa". This is the document's own
+# stipulation, in the same interpretation clause the reference resolver takes
+# 1.3.8 and 1.3.9 from, so it is derived rather than assumed. A multi-word term
+# inflects on its last word, which is where the surface ends, so appending to
+# the whole surface is the same operation.
+def inflections(surface: str) -> list[str]:
+    out: list[str] = []
+    if not surface or len(surface) < 3:
+        return out
+    out.append(surface + "s")
+    out.append(surface + "es")
+    if surface.endswith("y") and surface[-2:-1].lower() not in "aeiou":
+        out.append(surface[:-1] + "ies")            # Party -> Parties
+    if surface.endswith("ies") and len(surface) > 4:
+        out.append(surface[:-3] + "y")              # Parties -> Party
+    if surface.endswith("es") and len(surface) > 4:
+        out.append(surface[:-2])
+    if surface.endswith("s") and not surface.endswith("ss") and len(surface) > 3:
+        out.append(surface[:-1])
+    return [v for v in dict.fromkeys(out) if v != surface]
 
 
 def vocabulary_for(part: str, sites: list[MergedSite]) -> PartVocabulary:
@@ -206,5 +231,38 @@ def vocabulary_for(part: str, sites: list[MergedSite]) -> PartVocabulary:
             is_alias=alias_only.get(surface, True) and surface not in terms,
             definition_used=governing[primary],
             collides_with=ordered_terms if len(ordered_terms) > 1 else [])
+
+    # JS1 1.3.1, the inflected surfaces. Added after the printed ones so a
+    # printed surface always wins its own string: `Services` is a defined term
+    # in its own right and also the plural of `Service`, and the term the
+    # drafters actually wrote outranks one reached by a rule. Where that happens
+    # the pair is recorded and the match is routed as an alias collision, since
+    # deciding which term a shared string means is exactly that question.
+    collisions: list[dict] = []
+    inflected: dict[str, set[str]] = defaultdict(set)
+    for surface, terms in binding.items():
+        for variant in inflections(surface):
+            inflected[variant] |= terms
+    for variant, terms in inflected.items():
+        exact = surfaces.get(variant)
+        if exact is not None:
+            extra = sorted(terms - set(exact.collides_with or [exact.term]))
+            if extra:
+                merged_terms = sorted(set(extra) | {exact.term}
+                                      | set(exact.collides_with))
+                collisions.append({
+                    "surface": variant, "printed_term": exact.term,
+                    "also_an_inflection_of": extra,
+                    "ruling": "the printed surface governs; the match is routed "
+                              "as alias_collision so a checker picks the term"})
+                exact.collides_with = merged_terms
+            continue
+        ordered_terms = sorted(terms)
+        surfaces[variant] = Surface(
+            surface=variant, term=ordered_terms[0], is_alias=False,
+            definition_used=governing[ordered_terms[0]],
+            collides_with=ordered_terms if len(ordered_terms) > 1 else [],
+            is_inflected=True)
     return PartVocabulary(part=part, surfaces=surfaces,
-                          suppressed_out_of_scope=suppressed)
+                          suppressed_out_of_scope=suppressed,
+                          inflection_collisions=collisions)

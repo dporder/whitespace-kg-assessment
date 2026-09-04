@@ -135,3 +135,80 @@ def test_uses_inside_a_definition_text_are_kept(document_definitions_part):
     definition_nodes = {s.raw.definition_node_id for s in merged}
     inside = [m for m in matches if m.node_id in definition_nodes]
     assert {m.term for m in inside} >= {"Widget"}
+
+
+# ------------------------------------------------------------- inflection
+
+
+def _site(term: str):
+    from pipeline.vocabulary import sites as s
+    return s.MergedSite(raw=declared.RawSite(
+        term=term, definition_node_id="d", scope="document", part="p"),
+        source="declared")
+
+
+def test_inflected_surfaces_match_and_carry_the_canonical_term():
+    """JS1 1.3.1: "the singular includes the plural and vice versa". The record
+    carries the printed term with the inflected surface's span, exactly as an
+    alias does."""
+    from pipeline.vocabulary import sites as s
+    from tests.vocabulary.conftest import mk
+    node = mk("p/1/1.1", "clause", order=2, label="1.1",
+              text="Each Working Day the Supplier reviews all Working Days.")
+    part = mk("p", "part", order=0, title="Part", part_family="core",
+              children=[node])
+    site = _site("Working Day")
+    vocab = s.vocabulary_for("p", [site])
+    assert vocab.surfaces["Working Days"].is_inflected is True
+    assert vocab.surfaces["Working Day"].is_inflected is False
+    ms = matching.match_part(part, vocab, [site], lambda _n: False,
+                             treeio.section_of(part))
+    assert [m.term for m in ms] == ["Working Day", "Working Day"]
+    inflected = [m for m in ms if m.is_inflected]
+    assert len(inflected) == 1
+    assert node.text[inflected[0].span[0]:inflected[0].span[1]] == "Working Days"
+
+
+def test_the_inflection_rule_runs_both_ways():
+    from pipeline.vocabulary.sites import inflections
+    assert "Contracts" in inflections("Contract")
+    assert "Parties" in inflections("Party")
+    assert "Party" in inflections("Parties")
+    assert "Contract" in inflections("Contracts")
+    assert "Contract" not in inflections("Contract")
+
+
+def test_longest_match_still_wins_over_the_expanded_surface_set():
+    """`Call-Off Contracts` must beat the inflected `Contracts`, or the
+    expansion would quietly break the rule it sits under."""
+    from pipeline.vocabulary import sites as s
+    sites_list = [_site("Contract"), _site("Call-Off Contract")]
+    vocab = s.vocabulary_for("p", sites_list)
+    got = spans("Each Call-Off Contracts clause binds the Contracts.", vocab)
+    assert got[0][2] == "Call-Off Contract"
+    assert got[0][:2] == (5, 23)
+    assert got[1][2] == "Contract"
+
+
+def test_a_printed_surface_beats_an_inflection_of_another_term():
+    """The collision class the plural rule introduces: `Parties` is a defined
+    term in its own right and also the plural of `Party`. The string the
+    drafters printed governs, and the pair is routed as an alias collision so a
+    checker decides rather than the matcher guessing."""
+    from pipeline.vocabulary import sites as s
+    from tests.vocabulary.conftest import mk
+    sites_list = [_site("Party"), _site("Parties")]
+    vocab = s.vocabulary_for("p", sites_list)
+    assert vocab.surfaces["Parties"].term == "Parties", "the printed term governs"
+    assert vocab.surfaces["Parties"].is_inflected is False
+    assert "Party" in vocab.surfaces["Parties"].collides_with
+    assert any(c["surface"] == "Parties" for c in vocab.inflection_collisions)
+
+    node = mk("p/1/1.1", "clause", order=2, label="1.1",
+              text="The Parties agree that each Party shall comply.")
+    part = mk("p", "part", order=0, title="Part", part_family="core",
+              children=[node])
+    ms = matching.match_part(part, vocab, sites_list, lambda _n: False,
+                             treeio.section_of(part))
+    assert {m.ambiguity_kind for m in ms} == {"alias_collision"}
+    assert all(m.status == "ambiguous" for m in ms)

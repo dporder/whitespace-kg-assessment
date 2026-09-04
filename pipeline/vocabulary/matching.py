@@ -14,12 +14,12 @@ SPEC 2.3's three rules plus the typed ambiguity that comes out of them:
   the alias's span (SPEC 2.3, DESIGN tier 2).
 
 Word boundaries are required on both sides, so `Contract` does not match inside
-`Contracts`. That is the strict reading of "exact match" and it has a measured
-cost: Joint Schedule 1 paragraph 1.3.1 stipulates that "the singular includes
-the plural and vice versa", so exact matching under-counts. The matcher does not
-silently adopt an inflection rule the spec did not authorise; it measures the gap
-instead (`inflection_gap` in the run summary) and leaves the decision where
-DESIGN puts it, with the person who owns the spec.
+`Contracts`. The plural is reached instead through the document's own
+stipulation: Joint Schedule 1 paragraph 1.3.1 says "the singular includes the
+plural and vice versa", so `sites.inflections` expands every printed surface
+with its simple s/es forms and `Contracts` matches as a surface of its own,
+carrying the canonical term with the inflected span exactly as an alias does.
+A printed surface always outranks an inflected one for the same string.
 
 Ambiguity is typed, and when more than one kind applies the record keeps the one
 that most changes what a checker would have to decide, in this order:
@@ -74,6 +74,7 @@ class Match:
     kinds: list[str] = field(default_factory=list)
     definition_used: Optional[str] = None
     is_alias: bool = False
+    is_inflected: bool = False
     collides_with: list[str] = field(default_factory=list)
     order: int = 0
     page_start: int = 0
@@ -95,6 +96,7 @@ class Match:
             "char_span": list(self.span), "status": self.status,
             "ambiguity_kind": self.ambiguity_kind, "ambiguity_kinds": self.kinds,
             "definition_used": self.definition_used, "matched_alias": self.is_alias,
+            "matched_inflection": self.is_inflected,
             "collides_with": self.collides_with, "order": self.order,
             "page_start": self.page_start, "method": self.method,
             "sentence": self.sentence,
@@ -172,69 +174,8 @@ def match_part(part: Node, vocab: PartVocabulary, sites: list[MergedSite],
                     status="ambiguous" if kinds else "confident",
                     ambiguity_kind=kind, kinds=kinds,
                     definition_used=surface.definition_used,
-                    is_alias=surface.is_alias,
+                    is_alias=surface.is_alias, is_inflected=surface.is_inflected,
                     collides_with=surface.collides_with, order=node.order,
                     page_start=node.page_start, sentence=value))
     out.sort(key=lambda m: (m.order, m.field_name, m.span[0], m.term))
     return out
-
-
-# ------------------------------------------------------- inflection gap
-
-
-PLURAL_SUFFIXES = ("s", "es")
-
-
-def inflection_gap(trees: treeio.Trees, vocabularies: dict[str, PartVocabulary],
-                   matches: list[Match]) -> dict:
-    """How many uses strict exact matching misses, given JS1 paragraph 1.3.1.
-
-    Measured, reported, and deliberately **not** minted into `TermUse` records:
-    SPEC 2.3 specifies exact case-sensitive matching and says nothing about
-    inflection, and the document's own stipulation that "the singular includes
-    the plural and vice versa" is an argument for changing the spec, not for a
-    matcher that quietly does something else. The number is here so that
-    argument can be had with evidence.
-    """
-    taken: dict[str, set[tuple[int, int, str]]] = {}
-    for m in matches:
-        taken.setdefault(m.node_id, set()).add((m.span[0], m.span[1], m.field_name))
-    extra: dict[str, int] = {}
-    total = 0
-    for pid, part in trees.ordered():
-        vocab = vocabularies.get(pid)
-        if vocab is None:
-            continue
-        variants: dict[str, str] = {}
-        for surface in vocab.surfaces.values():
-            for suffix in PLURAL_SUFFIXES:
-                variant = surface.surface + suffix
-                if variant not in vocab.surfaces:
-                    variants.setdefault(variant, surface.term)
-            if surface.surface.endswith("s") and len(surface.surface) > 3:
-                singular = surface.surface[:-1]
-                if singular not in vocab.surfaces:
-                    variants.setdefault(singular, surface.term)
-        if not variants:
-            continue
-        for node in treeio.walk(part):
-            if node.kind == "ref":
-                continue
-            for field_name, value in treeio.own_texts(node):
-                for variant, term in variants.items():
-                    start = value.find(variant)
-                    while start != -1:
-                        end = start + len(variant)
-                        if _boundary_ok(value, start, end) and \
-                                (start, end, field_name) not in taken.get(node.id, ()):
-                            extra[term] = extra.get(term, 0) + 1
-                            total += 1
-                        start = value.find(variant, start + 1)
-    return {
-        "measured_not_applied": True,
-        "reason": "JS1 1.3.1 stipulates that the singular includes the plural and "
-                  "vice versa; SPEC 2.3 specifies exact case-sensitive matching. "
-                  "The gap is reported, not silently closed.",
-        "additional_matches_if_inflection_allowed": total,
-        "by_term": dict(sorted(extra.items(), key=lambda kv: (-kv[1], kv[0]))[:50]),
-    }

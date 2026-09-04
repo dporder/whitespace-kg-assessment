@@ -104,7 +104,10 @@ def test_the_summary_prompt_is_compression_not_advice(tmp_path):
     assert "Keep every capitalised defined term exactly as written" in summaries.PROMPT
 
 
-def test_a_rerun_costs_nothing(tmp_path, fake_openai, monkeypatch):
+def test_a_rerun_costs_nothing_for_vectors(tmp_path, fake_openai, monkeypatch):
+    """The embedding store is this stage's own content-addressed cache, so a
+    rerun re-embeds nothing. Summaries go through pipeline.llm, which owns its
+    replay cache, so those are delegated again and reported as such."""
     install_llm(monkeypatch)
     run(tmp_path)
     calls_before = sum(len(i.calls) for i in fake_openai.instances)
@@ -113,7 +116,7 @@ def test_a_rerun_costs_nothing(tmp_path, fake_openai, monkeypatch):
     summary = json.loads((out / "summary.json").read_text())
     assert summary["vectors"]["api_calls"] == 0
     assert summary["vectors"]["newly_embedded"] == 0
-    assert summary["llm"]["by_state"] == {"replayed": summary["summaries"]["owed"]}
+    assert summary["llm"]["by_state"] == {"delegated": summary["summaries"]["owed"]}
 
 
 def test_the_leaf_window_flag_replaces_leaf_text(tmp_path, fake_openai):

@@ -5,13 +5,15 @@ which does not exist yet. Its contract is `complete(task: str, prompt: str) ->
 str`, with `task` selecting the model from `config.MODELS`. This module is the
 thin layer the three enrichment stages sit behind it:
 
-* it tries to import `pipeline.llm` and, when it is absent or exposes no
-  `complete`, records a **pending** result rather than raising or, worse,
-  inventing content;
-* it keys a replay cache on the exact inputs, `sha1(model|task|prompt_version|
-  prompt)`, under `output/llm_cache/`, so a rerun after the credentials arrive
-  costs nothing for calls that already succeeded, and so a rerun tonight is
-  byte-identical;
+* **it delegates to `pipeline.llm` whenever that module is importable**, which
+  is the SPEC rule of one LLM path: that module then owns the call and its own
+  replay cache, and this one neither second-guesses nor shadows it;
+* when `pipeline/llm.py` is absent it falls back to a local replay cache keyed
+  on `sha1(model|task|prompt_version|prompt)` under `output/llm_cache/`, and
+  records a **pending** result rather than raising or, worse, inventing content.
+  The two caches are keyed differently on purpose: consulting both would let a
+  rerun be served by whichever answered first, and the log would stop describing
+  what actually ran;
 * it appends every call to `output/<run>/llm_log/<stage>.jsonl` with model,
   prompt version and raw response, per SPEC ground rules, and with no clock
   anywhere so two runs over the same input produce the same bytes.
@@ -37,6 +39,7 @@ PENDING_MODULE = "pending_llm_module"
 PENDING_CREDENTIALS = "pending_credentials"
 REPLAYED = "replayed"
 CALLED = "called"
+DELEGATED = "delegated"
 FAILED = "failed"
 DISABLED = "disabled"
 
@@ -59,7 +62,7 @@ class Call:
 
     @property
     def ok(self) -> bool:
-        return self.state in (REPLAYED, CALLED) and self.response is not None
+        return self.state in (REPLAYED, CALLED, DELEGATED) and self.response is not None
 
     @property
     def pending(self) -> bool:
@@ -158,32 +161,43 @@ class Runner:
 
     # -- the call ------------------------------------------------------------
     def complete(self, task: str, prompt_version: str, prompt: str) -> Call:
+        """Delegate to `pipeline.llm` when it is there; fall back when it is not.
+
+        SPEC's rule is one LLM path, so when `pipeline.llm` is importable it owns
+        the call *and its replay cache*: this module does not consult its own
+        cache first, because two caches keyed differently would mean a rerun
+        could be served by whichever happened to answer, and the log would stop
+        describing what actually ran. The local cache below is the documented
+        fallback for the window in which `pipeline/llm.py` does not yet exist.
+        """
         model = config.MODELS.get(task)
         key = cache_key(model, task, prompt_version, prompt)
-        cached = self.read_cache(task, key)
-        if cached is not None:
-            call = Call(task, model, prompt_version, prompt, key, REPLAYED,
-                        cached, "served from the replay cache")
-            return self._record(call)
         if not self.enabled:
             return self._record(Call(task, model, prompt_version, prompt, key,
                                      DISABLED, None, "--no-llm: not called"))
         fn = self.entry_point()
-        if fn is None:
+        if fn is not None:
+            try:
+                raw = fn(task, prompt)
+            except Exception as exc:                       # noqa: BLE001
+                return self._record(Call(task, model, prompt_version, prompt, key,
+                                         _classify(exc),
+                                         None, f"{type(exc).__name__}: {exc}"[:400]))
             return self._record(Call(task, model, prompt_version, prompt, key,
-                                     PENDING_MODULE, None,
-                                     self.availability()["note"]))
-        try:
-            raw = fn(task, prompt)
-        except Exception as exc:                           # noqa: BLE001
-            state = _classify(exc)
-            note = (f"{type(exc).__name__}: {exc}"[:400])
+                                     DELEGATED, raw,
+                                     "delegated to pipeline.llm, which owns the "
+                                     "replay cache"))
+
+        # -- fallback: pipeline/llm.py is absent -----------------------------
+        cached = self.read_cache(task, key)
+        if cached is not None:
             return self._record(Call(task, model, prompt_version, prompt, key,
-                                     state, None, note))
-        call = Call(task, model, prompt_version, prompt, key, CALLED, raw,
-                    "called through pipeline.llm")
-        self.write_cache(call)
-        return self._record(call)
+                                     REPLAYED, cached,
+                                     "served from the local fallback cache; "
+                                     "pipeline.llm is not present"))
+        return self._record(Call(task, model, prompt_version, prompt, key,
+                                 PENDING_MODULE, None,
+                                 self.availability()["note"]))
 
     def _record(self, call: Call) -> Call:
         self.calls.append(call)

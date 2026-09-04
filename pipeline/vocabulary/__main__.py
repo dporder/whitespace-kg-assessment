@@ -295,6 +295,7 @@ def run(args: argparse.Namespace) -> int:
             "by_method": {m: sum(1 for u in kept if u.method == m)
                           for m in sorted({u.method for u in kept})},
             "alias_matches": sum(1 for m in kept if m.is_alias),
+            "inflected_matches": sum(1 for m in kept if m.is_inflected),
             "removed_by_routed_check": len(rejected),
             "on_definition_nodes": sum(
                 1 for m in kept
@@ -316,7 +317,14 @@ def run(args: argparse.Namespace) -> int:
         "routing": routing.summarise(queues),
         "llm": llm.summary(),
         "audit_sample": {k: v for k, v in sample["sample"].items() if k != "cells"},
-        "inflection_gap": matching.inflection_gap(trees, vocabularies, kept),
+        "inflection": {
+            "rule": "JS1 1.3.1, the singular includes the plural and vice versa",
+            "matches_from_inflected_surfaces": sum(1 for m in kept if m.is_inflected),
+            "collisions_with_a_printed_surface": sum(
+                len(v.inflection_collisions) for v in vocabularies.values()),
+            "collision_detail": [c for v in vocabularies.values()
+                                 for c in v.inflection_collisions],
+        },
         "violations": len(violations),
     }
     dump(vocab_dir / "summary.json", summary)

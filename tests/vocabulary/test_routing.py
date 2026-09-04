@@ -94,9 +94,12 @@ def test_items_are_batched_by_kind(tmp_path, monkeypatch):
     assert len(versions) == 3, "each kind must get its own prompt, not one shared"
 
 
-def test_the_task_is_named_and_the_config_gap_is_recorded():
-    assert routing.TASK in config.MODELS
-    assert "config.MODELS has no vocabulary" in routing.TASK_NOTE
+def test_the_routing_model_comes_from_its_own_config_entry():
+    """config.MODELS now carries a vocabulary_routing entry, so the routed
+    checks stop borrowing the reference resolver's model."""
+    assert routing.TASK == "vocabulary_routing"
+    assert config.MODELS[routing.TASK] == "claude-haiku-4-5"
+    assert "vocabulary_routing" in routing.TASK_NOTE
 
 
 # --------------------------------------------------------- pending llm.py
@@ -233,18 +236,41 @@ def test_an_unparseable_reply_fails_the_batch_not_the_run(tmp_path, monkeypatch)
 # --------------------------------------------------------------- the cache
 
 
-def test_a_second_run_replays_from_the_cache_and_calls_nothing(tmp_path, monkeypatch):
+def test_every_call_is_delegated_when_pipeline_llm_is_present(tmp_path, monkeypatch):
+    """SPEC's one-LLM-path rule: when pipeline.llm exists it owns the call and
+    its own replay cache, so this seam neither shadows nor second-guesses it.
+    Consulting a local cache first would let a rerun be served by whichever
+    cache answered, and the log would stop describing what actually ran."""
     fake = FakeLLM(reply_for("use"))
     install(monkeypatch, fake)
-    matches = [make_match("heading")]
-    routing.route(matches, runner(tmp_path), no_definition, no_candidates)
+    routing.route([make_match("heading")], runner(tmp_path), no_definition,
+                  no_candidates)
     assert len(fake.prompts) == 1
     again = [make_match("heading")]
     queues = routing.route(again, runner(tmp_path), no_definition, no_candidates)
-    assert len(fake.prompts) == 1, "the replay cache must serve the second run"
-    assert queues["heading"].batches[0]["call"]["state"] == llmio.REPLAYED
+    assert len(fake.prompts) == 2, "the call is delegated, not served locally"
+    assert queues["heading"].batches[0]["call"]["state"] == llmio.DELEGATED
     kept, _r = routing.apply(again, queues)
     assert kept[0].status == "confident"
+
+
+def test_the_local_cache_serves_only_while_pipeline_llm_is_absent(tmp_path,
+                                                                  monkeypatch):
+    """The documented fallback for the window before pipeline/llm.py lands."""
+    install(monkeypatch, FakeLLM("[]"))
+    r = runner(tmp_path)
+    call = r.complete("vocabulary_routing", "v1", "a prompt")
+    assert call.state == llmio.DELEGATED
+    r.write_cache(call)                       # what the cache warmer does
+
+    monkeypatch.setitem(sys.modules, "pipeline.llm", None)
+    replayed = runner(tmp_path).complete("vocabulary_routing", "v1", "a prompt")
+    assert replayed.state == llmio.REPLAYED
+    assert replayed.response == call.response
+    assert "fallback" in replayed.note
+
+    missing = runner(tmp_path).complete("vocabulary_routing", "v1", "another")
+    assert missing.state == llmio.PENDING_MODULE
 
 
 def test_the_call_log_records_model_prompt_version_and_response(tmp_path, monkeypatch):

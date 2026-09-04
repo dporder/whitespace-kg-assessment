@@ -112,8 +112,18 @@ def run(args: argparse.Namespace) -> int:
                     "id": concept.id,
                     "detail": f"{concept.label} -{relation.label}-> {relation.dst}"})
 
+    # `concepts.json` stays a bare JSON list, because that is what SPEC 3 names
+    # and what the stage 8 loader pins (`[Concept.model_validate(x) for x in d]`);
+    # wrapping it in an object to carry metadata would make every record fail to
+    # load. So the scope rides on each record instead, where a reader of this one
+    # file sees the sample without opening another, and where the frozen model
+    # ignores it as an unknown field rather than rejecting it. `scope.json` holds
+    # the same facts once, and is the copy stage 8 should read.
     dump(run_dir / "concepts.json",
-         [c.model_dump(exclude_none=True) for c in resolution.concepts])
+         [{**c.model_dump(exclude_none=True),
+           "scanned_parts": sorted(trees.parts),
+           "skipped_parts": sorted(skipped)}
+          for c in resolution.concepts])
 
     scan_states: dict[str, int] = {}
     for result in results:
