@@ -505,13 +505,25 @@ function ask() {
   const prose = el('div', 'prose');
   let raw = '', marks = { seen: new Map(), order: [], bad: new Map() };
   const trace = [];
-  let plan = null;
+  let plan = null, narrated = false;
 
   const es = new EventSource('/api/ask?q=' + encodeURIComponent(q));
   es.addEventListener('plan', e => { plan = JSON.parse(e.data); });
   es.addEventListener('tool', e => {
     const d = JSON.parse(e.data); trace.push(d);
-    stxt.textContent = DOING[d.name] || 'Looking…';
+    if (!narrated) stxt.textContent = DOING[d.name] || 'Looking…';
+  });
+  // The model's own words about what it is doing beat any canned string, so
+  // narration becomes the progress line rather than the start of the answer.
+  es.addEventListener('narration', e => {
+    narrated = true;
+    stxt.textContent = JSON.parse(e.data).text;
+  });
+  // That round turned out to be research, not the answer. Drop what it wrote.
+  es.addEventListener('answer_reset', () => {
+    raw = '';
+    if (prose.parentNode) { prose.remove(); msg.append(status); }
+    renderProse(prose, raw, marks);
   });
   es.addEventListener('text', e => {
     if (!prose.parentNode) { status.remove(); said.append(prose); }
