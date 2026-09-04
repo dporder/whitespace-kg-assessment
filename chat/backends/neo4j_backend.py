@@ -26,7 +26,7 @@ from rapidfuzz import fuzz, process
 from .. import config as ui_config
 from .. import crops
 from ..source import part_of
-from .base import VECTOR_PENDING, Direction, ToolBackend
+from .base import VECTOR_PENDING, Direction, ToolBackend, gap
 
 NEO4J = ui_config.pipeline_config.NEO4J
 
@@ -98,6 +98,24 @@ Q_DEFINE = """
 MATCH (t:Term {name: $term})-[d:DEFINED_IN]->(n:Node)
 RETURN t AS t, d AS d, n.path AS definition_path, n.text AS definition_text,
        n.page_start AS page
+"""
+
+# Telling the three kinds of absence apart, in graph terms. The vocabulary tier
+# is loaded by stage 7 as :Term nodes joined to their defining provision by
+# DEFINED_IN, so:
+#   no DEFINED_IN edges at all      -> the vocabulary tier is not loaded
+#   a :Term exists but has no site  -> the part that defines it is not loaded
+#   no :Term with that name         -> the term is genuinely not defined here
+# The label may be declared with zero nodes (a constraint creates it), so
+# counting edges rather than labels is what makes the first test true.
+Q_VOCABULARY_LOADED = """
+MATCH (:Term)-[:DEFINED_IN]->(:Node)
+RETURN count(*) AS n
+"""
+
+Q_TERM_EXISTS = """
+MATCH (t:Term {name: $term})
+RETURN count(t) AS n
 """
 
 Q_TERM_BY_ALIAS = """
@@ -362,7 +380,13 @@ class Neo4jBackend(ToolBackend):
                 term, matched_via = alias[0]["name"], "alias"
                 recs = self._read_records(Q_DEFINE, term=term)
         if not recs:
-            return {"term": term, "found": False, "sites": [], "governs": {}}
+            if self._read(Q_VOCABULARY_LOADED)[0]["n"] == 0:
+                kind = "vocabulary_not_loaded"
+            elif self._read(Q_TERM_EXISTS, term=term)[0]["n"] > 0:
+                kind = "definition_site_not_loaded"
+            else:
+                kind = "term_not_defined"
+            return gap(kind, term=term, sites=[], governs={})
 
         sites, aliases = [], set()
         for rec in recs:
@@ -407,9 +431,11 @@ class Neo4jBackend(ToolBackend):
 
     # --------------------------------------------------------------- concepts
     def find_by_concept(self, label: str) -> dict:
+        # Q_CONCEPTS matches (c:Concept), so no rows means no concept tier at
+        # all — the same absence the file backend reports as concepts_not_loaded.
         recs = self._read_records(Q_CONCEPTS)
         if not recs:
-            return {"label": label, "found": False, "concepts": [], "citable": False}
+            return gap("concepts_not_loaded", label=label, concepts=[], citable=False)
         cons = [dict(r["c"]) for r in recs]
         names = [c.get("label", "") for c in cons]
         scored = process.extract(label, names, scorer=fuzz.WRatio, limit=len(names))
