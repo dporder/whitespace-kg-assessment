@@ -20,7 +20,7 @@ minted (SPEC 2.4, tier 2 outranks tier 3). Collisions are counted here.
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
+from typing import Any, Optional
 
 import config
 from pipeline.eval.context import (CONCEPT_DUPLICATE_RATIO, CONCEPT_PAIR_SCAN_CAP,
@@ -32,15 +32,57 @@ from pipeline.eval.text import normalise, similarity
 SPOT_CHECK_SIZE = 10          # spec-silent; small on purpose, it is human time
 
 
-def scan_units(ctx: Context) -> list[tuple[str, str]]:
+def scan_units(ctx: Context, parts: Optional[list[str]] = None) -> list[tuple[str, str]]:
     """(part, path) of every unit SPEC 2.4 says concepts are extracted over."""
     units: list[tuple[str, str]] = []
     for part, tree in sorted(ctx.inputs.trees.items()):
+        if parts is not None and part not in parts:
+            continue
         units.append((part, tree.path))
         for child in tree.children:
             if child.kind != "ref":
                 units.append((part, child.path))
     return units
+
+
+def concept_scope(ctx: Context) -> dict[str, Any]:
+    """How stage 5 scoped this run, and which loaded parts it covers.
+
+    Absent scope file means stage 5 scanned everything it was given, which is
+    the behaviour this section always had. Present, it names the parts scanned
+    and the parts deliberately skipped, and the two must not be added together:
+    a part with no concepts because nobody looked at it is a different fact from
+    a part the scan looked at and found nothing in, and averaging them produces
+    a coverage number that is wrong in the flattering direction.
+    """
+    loaded = sorted(ctx.inputs.trees)
+    raw = ctx.inputs.concept_scope
+    if not isinstance(raw, dict):
+        return {"sampled": False, "in_scope": loaded, "skipped": [],
+                "unmentioned": [], "declared_scanned": None, "declared_skipped": None,
+                "scanned_but_not_loaded": []}
+
+    def names(key: str) -> list[str]:
+        value = raw.get(key)
+        return sorted(str(x) for x in value) if isinstance(value, list) else []
+
+    scanned, skipped = names("scanned_parts"), names("skipped_parts")
+    in_scope = [p for p in loaded if p in scanned]
+    return {
+        "sampled": True,
+        "source": "concepts/scope.json",
+        "declared_scanned": scanned,
+        "declared_skipped": skipped,
+        "in_scope": in_scope,
+        "skipped": [p for p in loaded if p in skipped],
+        # Loaded, but the scope file mentions it in neither list. Left out of
+        # the denominator, because nothing says it was scanned, and named
+        # rather than quietly bucketed with the skips.
+        "unmentioned": [p for p in loaded if p not in scanned and p not in skipped],
+        # Declared scanned but this run has no tree for it, so its units cannot
+        # be counted either way.
+        "scanned_but_not_loaded": [p for p in scanned if p not in loaded],
+    }
 
 
 def build(ctx: Context) -> Section:
@@ -100,7 +142,10 @@ def build(ctx: Context) -> Section:
     duplicate_rate = Rate(duplicate_members, len(concepts))
 
     # -- coverage ----------------------------------------------------------------
-    units = scan_units(ctx)
+    scope = concept_scope(ctx)
+    units = scan_units(ctx, scope["in_scope"] if scope["sampled"] else None)
+    out_of_scope_units = (len(scan_units(ctx, scope["skipped"] + scope["unmentioned"]))
+                          if scope["sampled"] else 0)
     if units:
         member_nodes = {nid for c in concepts for nid in c.member_node_ids}
         by_id = ctx.inputs.nodes_by_id()
@@ -114,6 +159,11 @@ def build(ctx: Context) -> Section:
             (covered if hit else uncovered).append({"part": part, "path": path})
         coverage = Rate(len(covered), len(units))
         coverage_note = None
+    elif scope["sampled"]:
+        coverage = Rate(0, 0)
+        uncovered = []
+        coverage_note = ("no loaded part is in this run's concept scope, so there is "
+                         "nothing to measure coverage over")
     else:
         coverage = Rate(0, 0)
         uncovered = []
@@ -177,6 +227,11 @@ def build(ctx: Context) -> Section:
         "collision_scan_capped": collision_capped,
         "coverage": coverage.as_dict(),
         "coverage_note": coverage_note,
+        "coverage_is_over": ("the parts stage 5 scanned this run" if scope["sampled"]
+                             else "every loaded part; stage 5 declared no sampling scope"),
+        "concept_scope": scope,
+        "parts_outside_this_runs_concept_scope": len(scope["skipped"]),
+        "scan_units_outside_this_runs_concept_scope": out_of_scope_units,
         "scan_units_with_no_concept": cap(uncovered, LIST_CAP)[0],
         "scan_units_with_no_concept_not_listed": cap(uncovered, LIST_CAP)[1],
         "concept_label_collides_with_a_declared_term": collisions,
@@ -186,11 +241,29 @@ def build(ctx: Context) -> Section:
 
     s.line(f"**{len(concepts)}** concept(s) in scope.")
     s.line()
-    s.table(["measure", "value"],
-            [["duplicate rate after resolution (lexical proxy)", str(duplicate_rate)],
-             ["coverage: scan units with at least one concept", str(coverage)],
-             ["concept labels colliding with a declared term", len(collisions)],
-             ["member node ids not in any loaded tree", len(orphan_members)]])
+    rows = [["duplicate rate after resolution (lexical proxy)", str(duplicate_rate)],
+            ["coverage: in-scope scan units with at least one concept", str(coverage)]]
+    if scope["sampled"]:
+        rows.append(["parts outside this run's concept scope",
+                     f"{len(scope['skipped'])} "
+                     f"({out_of_scope_units} scan unit(s), not counted as misses)"])
+    rows += [["concept labels colliding with a declared term", len(collisions)],
+             ["member node ids not in any loaded tree", len(orphan_members)]]
+    s.table(["measure", "value"], rows)
+    if scope["sampled"]:
+        s.bullet(f"stage 5 sampled this run (`{scope['source']}`): coverage is over "
+                 f"{len(scope['in_scope'])} scanned part(s), "
+                 f"{', '.join(scope['in_scope']) or 'none'}. A part nobody looked at is "
+                 f"not a part the scan missed, so the skipped ones are counted "
+                 f"separately and never folded into the miss rate.")
+        if scope["skipped"]:
+            s.bullet(f"skipped by stage 5: {', '.join(scope['skipped'])}")
+        if scope["unmentioned"]:
+            s.bullet(f"loaded but named in neither list in {scope['source']}, so left "
+                     f"out of the denominator: {', '.join(scope['unmentioned'])}")
+        if scope["scanned_but_not_loaded"]:
+            s.bullet(f"declared scanned but no tree loaded here, so not counted either "
+                     f"way: {', '.join(scope['scanned_but_not_loaded'])}")
     s.bullet(s.data["duplicate_method"])
     s.bullet("duplicates are counted as cluster membership (a cluster of n costs "
              "n-1), not as similar pairs, so the rate cannot exceed 1")
@@ -204,7 +277,9 @@ def build(ctx: Context) -> Section:
         s.bullet(coverage_note)
     if uncovered:
         s.line()
-        s.line(f"**{len(uncovered)}** scan unit(s) received no concept:")
+        s.line(f"**{len(uncovered)}** in-scope scan unit(s) received no concept "
+               f"(the scan looked and found nothing, as distinct from the skipped "
+               f"parts above):")
         s.table(["part", "path"], [[u["part"], u["path"]]
                                    for u in cap(uncovered, LIST_CAP)[0]])
     if collisions:

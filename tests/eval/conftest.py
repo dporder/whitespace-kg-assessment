@@ -69,6 +69,13 @@ class Workspace:
         node.update(changes)
         self.write_tree(part, data)
 
+    def write_concept_scope(self, scanned: list[str], skipped: list[str]) -> None:
+        """Stage 5's sampling scope, output/<run>/concepts/scope.json."""
+        d = self.fixtures / "concepts"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "scope.json").write_text(json.dumps(
+            {"scanned_parts": scanned, "skipped_parts": skipped}, indent=2))
+
     def definition_sites(self) -> list[dict]:
         return json.loads((self.fixtures / "vocab" / "definition_sites.json").read_text())
 
