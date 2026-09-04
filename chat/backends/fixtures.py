@@ -9,6 +9,7 @@ from rapidfuzz import fuzz, process
 
 from .. import config as ui_config
 from .. import crops
+from ..naming import human_citation, name_for_path
 from ..source import Corpus, corpus, parent_path_of_ref, part_of
 from .base import VECTOR_PENDING, Direction, ToolBackend
 
@@ -95,6 +96,9 @@ class FixturesBackend(ToolBackend):
         return {
             "path": path,
             "found": True,
+            # how the agreement itself names this provision, so every surface
+            # can label it without reaching past the tools for it
+            "name": human_citation(self.c, n),
             "kind": n.kind,
             "label": n.label,
             "title": n.title,
@@ -116,9 +120,12 @@ class FixturesBackend(ToolBackend):
 
     # ------------------------------------------------------------------ refs
     def _ref_row(self, ref) -> dict:
+        parent = parent_path_of_ref(ref.path)
         return {
             "ref_path": ref.path,
             "text": ref.text,
+            "from_name": name_for_path(self.c, parent),
+            "target_name": name_for_path(self.c, ref.target_path) if ref.target_path else None,
             "ref_kind": ref.ref_kind,
             "status": ref.status,
             "target_path": ref.target_path,
@@ -127,11 +134,12 @@ class FixturesBackend(ToolBackend):
             "confidence": ref.confidence,
             "group_id": ref.group_id,
             "candidates": [
-                {"path": c.path, "score": c.score, "reason": c.reason} for c in ref.candidates
+                {"path": c.path, "score": c.score, "reason": c.reason,
+                 "name": name_for_path(self.c, c.path)} for c in ref.candidates
             ],
             "char_span": list(ref.char_span) if ref.char_span else None,
             "page": ref.page_start,
-            "from_path": parent_path_of_ref(ref.path),
+            "from_path": parent,
         }
 
     def follow_references(self, path: str, direction: Direction = "outbound") -> dict:
@@ -180,6 +188,7 @@ class FixturesBackend(ToolBackend):
                     "aliases": list(s.aliases),
                     "pointer": s.pointer,
                     "definition_path": node.path if node else None,
+                    "definition_name": human_citation(self.c, node) if node else None,
                     "definition_text": node.text if node else None,
                     "page": node.page_start if node else None,
                 }
@@ -283,6 +292,7 @@ class FixturesBackend(ToolBackend):
         return {
             "path": path,
             "found": True,
+            "name": human_citation(self.c, n),
             "page": box["page"],
             "bbox": box["bbox"],
             "media_type": "image/png",

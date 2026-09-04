@@ -56,9 +56,25 @@ def test_a_full_scripted_turn_runs_the_real_loop(on):
     assert "degraded" not in plan
 
     tools = [p["name"] for e, p in events if e == "tool"]
-    assert tools == ["find_provision", "define", "get_provision",
+    assert tools == ["find_provision", "define", "define", "define", "get_provision",
                      "follow_references", "cite", "get_provision", "get_provision"]
     assert all(p["ok"] for e, p in events if e == "tool")
+
+
+def test_every_term_the_script_wraps_was_actually_defined(on):
+    """Rule 2b: only wrap a term `define` returned. The demo has to obey the
+    rule it demonstrates, or it teaches the model the wrong habit."""
+    import re
+
+    from chat.scripted import IPR
+
+    wrapped = set()
+    for turn in IPR["turns"]:
+        wrapped.update(re.findall(r"\[\[term:([^\]]+)\]\]", turn["text"]))
+    defined = {args["term"] for turn in IPR["turns"] for name, args in turn["tools"]
+               if name == "define"}
+    assert wrapped, "the demo should show the term affordance at all"
+    assert wrapped <= defined, f"wrapped without defining: {wrapped - defined}"
 
 
 def test_scripted_citations_are_checked_not_trusted(on):
