@@ -96,7 +96,7 @@ Ref children are the one exception to how children work, and not to the text rul
 
 The leaf level is the deepest unit the document numbers, the lettered or roman sub paragraph. Do not split leaves into sentences. Sentence precision, where a UI wants it, comes from character offsets into a leaf's text.
 
-Identity is pinned in `schemas.py`, one implementation everyone imports. `id = sha1("{document}|{version}|{path}")`, `lineage_key = sha1("{document}|{path}")`, and `content_hash` is sha1 over a key normalisation (NFC, CRLF to LF, per line trailing whitespace stripped, internal whitespace runs collapsed to one space, ends stripped) that exists for the hash only, stored text is never altered. An intro child takes the path segment `intro`. `order` is the node's preorder position within its part in reading order.
+Identity is pinned in `schemas.py`, one implementation everyone imports. `id = sha1("{document}|{version}|{path}")`, `lineage_key = sha1("{document}|{path}")`, and `content_hash` is sha1 over a key normalisation (NFC, CRLF to LF, per line trailing whitespace stripped, internal whitespace runs collapsed to one space, ends stripped) that exists for the hash only, stored text is never altered. An intro child takes the path segment `intro`. A table cell appends `<row>/<col>` to its table's path; a form row's cells append `label` or `value`. `order` is the node's preorder position within its part in reading order.
 
 Boxes. `bboxes_own` covers the node's own text, `bboxes_extent` covers the node and everything under it, both as one entry per page touched, and overlap between a parent's extent and a child's is expected. Storing both costs eight floats and saves a subtree walk every time a viewer highlights a whole clause.
 
