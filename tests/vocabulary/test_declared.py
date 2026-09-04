@@ -1,0 +1,200 @@
+"""Declared ingestion: the definitions the document sets out."""
+from __future__ import annotations
+
+import config
+from pipeline.vocabulary import declared
+from pipeline.vocabulary.text import quote_shape, term_key
+
+BATCHES = {"B2": {"part": "defs-schedule", "pages": (1, 2), "genre": "definitions"}}
+
+
+def sites_of(part, batches=BATCHES):
+    return {s.term: s for s in declared.ingest_part(part, batches)}
+
+
+# ------------------------------------------------------ the source's defects
+
+
+def test_closing_quote_without_an_opening_one_is_tolerated(document_definitions_part):
+    """206 term cells in the real Joint Schedule 1 print `Term"`. The key must
+    come out clean without the parser being told the quote is balanced."""
+    sites = sites_of(document_definitions_part)
+    assert "Widget" in sites
+    assert sites["Widget"].raw_term_text == 'Widget"'
+    assert "term_cell_closing_quote_without_opening" in sites["Widget"].anomalies
+
+
+def test_a_term_missing_its_first_letter_is_never_completed(document_definitions_part):
+    """`nsurances` is Insurances with the I genuinely absent from the page.
+    Recording it as `Insurances` would be repairing the document."""
+    sites = sites_of(document_definitions_part)
+    assert "nsurances" in sites
+    assert "Insurances" not in sites
+    site = sites["nsurances"]
+    assert site.raw_term_text == 'nsurances"'
+    assert "term_cell_starts_lowercase_first_letter_absent_in_source" in site.anomalies
+
+
+def test_key_normalisation_never_touches_the_letters():
+    assert term_key('  "Widget Register" \n ') == "Widget Register"
+    assert term_key('nsurances"') == "nsurances"          # not "Insurances"
+    assert term_key('Call-Of Contract"') == "Call-Of Contract"   # not "Call-Off"
+    assert quote_shape('Widget"') == "closing_only"
+    assert quote_shape('"Widget"') == "both"
+    assert quote_shape("Widget") == "none"
+
+
+# --------------------------------------------------------------- scope
+
+
+def test_document_scope_comes_from_the_lead_in(document_definitions_part):
+    sites = sites_of(document_definitions_part)
+    assert sites["Widget"].scope == "document"
+    assert sites["Widget"].scope_source == "cue"
+    assert "In each Contract" in (sites["Widget"].cue_text or "")
+
+
+def test_part_local_scope_comes_from_the_lead_in(clauses_part):
+    """"In this Schedule" scopes the block to its part, and the part is not the
+    definitions schedule, so nothing about the part id is doing the work."""
+    sites = sites_of(clauses_part, {})
+    assert sites["Widget"].scope == "part:clauses"
+    assert sites["Widget"].scope_source == "cue"
+
+
+def test_part_identity_is_only_the_fallback(document_definitions_part):
+    """Strip the lead-in and the config genre decides instead, and says so."""
+    head = document_definitions_part.children[0]
+    head.children = [c for c in head.children if c.kind != "intro"]
+    sites = sites_of(document_definitions_part)
+    assert sites["Widget"].scope == "document"
+    assert sites["Widget"].scope_source == "part_identity"
+
+
+def test_the_real_config_names_the_definitions_part():
+    """The genre lookup is config-driven, not a hardcoded part id."""
+    genres = {b["part"]: b["genre"] for b in config.BATCHES.values()}
+    assert genres.get("joint-schedule-1") == "definitions"
+
+
+# ------------------------------------------------------ aliases and pointers
+
+
+def test_a_parenthetical_abbreviation_in_a_term_cell_becomes_an_alias(
+        document_definitions_part):
+    sites = sites_of(document_definitions_part)
+    assert "Holding Body" in sites
+    assert sites["Holding Body"].aliases == ["HB"]
+    assert "HB" not in sites                       # an alias is not its own term
+
+
+def test_a_delegating_definition_records_its_pointer(document_definitions_part):
+    sites = sites_of(document_definitions_part)
+    assert sites["Delegated Item"].pointer == "Schedule 6"
+
+
+def test_pointer_is_none_when_the_definition_states_rather_than_delegates(
+        document_definitions_part):
+    assert sites_of(document_definitions_part)["Widget"].pointer is None
+
+
+# ------------------------------------------------------------ table shape
+
+
+def test_an_ordinary_two_column_table_is_not_a_definitions_table():
+    """A milestones table under no definitions lead-in must not mint vocabulary."""
+    from tests.vocabulary.conftest import cell, mk
+    cells = [cell("p/1/table/0/0", order=2, row=0, col=0, role="label",
+                  text="Stage One"),
+             cell("p/1/table/0/1", order=3, row=0, col=1, role="value",
+                  text="4 weeks"),
+             cell("p/1/table/1/0", order=4, row=1, col=0, role="label",
+                  text="Stage Two"),
+             cell("p/1/table/1/1", order=5, row=1, col=1, role="value",
+                  text="6 weeks")]
+    table = mk("p/1/table", "table", order=1, n_rows=2, n_cols=2, children=cells)
+    head = mk("p/1", "heading", order=1, label="1", title="Timetable",
+              children=[table])
+    part = mk("p", "part", order=0, title="Framework Schedule 8 (Timetable)",
+              part_family="framework-schedule", children=[head])
+    assert declared.ingest_part(part, {}) == []
+
+
+def test_a_definitions_block_flattened_into_its_lead_in_is_still_read():
+    """Call-Off Schedule 9 prints its part-local definitions as a two-column
+    block, and stage 1 flattens that block into the lead-in's own text rather
+    than into a table. The lead-in is what licenses reading a bare quoted phrase
+    as a headword there."""
+    from tests.vocabulary.conftest import mk
+    intro = mk("co9/1/1.1/intro", "intro", order=2, citable=False,
+               text='In this Schedule, the following words shall have the '
+                    'following meanings and they shall supplement the '
+                    'Definitions Schedule: "Breach of Security" the occurrence '
+                    'of:')
+    clause = mk("co9/1/1.1", "clause", order=1, label="1.1", children=[intro])
+    head = mk("co9/1", "heading", order=1, label="1", title="Definitions",
+              children=[clause])
+    part = mk("co9", "part", order=0, title="Call-Off Schedule 9 (Security)",
+              part_family="call-off-schedule", children=[head])
+    sites = sites_of(part, {})
+    assert "Breach of Security" in sites
+    site = sites["Breach of Security"]
+    assert site.scope == "part:co9"
+    assert site.shape == "block_headword"
+    assert any("not_parsed_as_a_table" in a for a in site.anomalies)
+
+
+def test_a_column_interleaved_headword_is_rejected_not_minted():
+    """Call-Off Schedule 9's Part B block really arrives with its two columns
+    interleaved: `"Breach of means the occurrence of: Security"`. A headword
+    rule without the capitalised-phrase guard would mint that as a term."""
+    from tests.vocabulary.conftest import mk
+    intro = mk("co9b/1/1.1/intro", "intro", order=2, citable=False,
+               text='In this Schedule the following words shall have the '
+                    'following meanings and they shall supplement Joint '
+                    'Schedule 1 (Definitions): "Breach of means the occurrence '
+                    'of: Security"')
+    clause = mk("co9b/1/1.1", "clause", order=1, label="1.1", children=[intro])
+    head = mk("co9b/1", "heading", order=1, label="1", title="Definitions",
+              children=[clause])
+    part = mk("co9b", "part", order=0, title="Call-Off Schedule 9 Part B",
+              part_family="call-off-schedule", children=[head])
+    assert declared.ingest_part(part, {}) == []
+
+
+def test_a_quoted_phrase_outside_a_definitions_block_is_not_a_headword():
+    from tests.vocabulary.conftest import mk
+    body = mk("q/1/1.1", "clause", order=2, label="1.1",
+              text='The Supplier shall not describe itself as a "Preferred '
+                   'Bidder" in any material.')
+    head = mk("q/1", "heading", order=1, label="1", title="Publicity",
+              children=[body])
+    part = mk("q", "part", order=0, title="Core Terms", part_family="core",
+              children=[head])
+    assert declared.ingest_part(part, {}) == []
+
+
+def test_a_table_whose_columns_are_reversed_is_reported_not_silently_empty(
+        document_definitions_part):
+    """The hardest failure to notice would be stage 1 labelling the definition
+    column as the term column: every table would quietly fail the shape test and
+    the vocabulary would come out empty with no error anywhere."""
+    from pipeline.vocabulary import treeio
+    for node in treeio.walk(document_definitions_part):
+        if node.kind == "cell":
+            node.cell_role = "value" if node.cell_role == "label" else "label"
+    trees = treeio.Trees(source="test", root=None, run="t",
+                         parts={"defs-schedule": document_definitions_part},
+                         files={})
+    assert declared.ingest(trees, BATCHES) == []
+    diagnostics = declared.table_diagnostics(trees)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["read_as_definitions_table"] is False
+    assert diagnostics[0]["columns_may_be_reversed"] is True
+    assert diagnostics[0]["rows_if_columns_were_reversed"] >= 2
+
+
+def test_prose_definitions_inside_a_declared_block_are_declared(prose_part):
+    sites = {s.term: s for s in declared.ingest_part(prose_part, {})}
+    assert sites["Reference Body"].shape == "prose"
+    assert sites["Reference Body"].scope == "part:prose"
