@@ -74,6 +74,7 @@ EMBEDDING_MODEL = "text-embedding-3-large"   # OpenAI, via OPENAI_API_KEY; swap 
 SUBTREE_EMBED_TOKEN_BUDGET = 512
 LEAF_WINDOW_EMBEDDING = False        # A/B variant: embed leaf with prev+next sibling; replaces leaf_text
 CONCEPT_MERGE_COSINE = 0.80          # near-duplicate concept resolution threshold
+ASSOCIATED_TERM_MIN_SHARE = 0.25     # min share of a concept's provisions using a term for the edge
 
 SALIENCE = {                          # salience = breadth * log(1 + frequency); boost = w * log(1 + salience)
     "retrieval_boost_weight": 0.02,
