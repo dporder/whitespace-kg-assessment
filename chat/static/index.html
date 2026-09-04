@@ -125,8 +125,9 @@
   .cbox { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--border);
           border-radius:16px; padding:9px 9px 9px 16px; }
   .cbox:focus-within { border-color:#4a4c56; }
-  .cbox input { flex:1; border:0; outline:0; font:inherit; font-size:14px; background:transparent; color:#fff; }
-  .cbox input::placeholder { color:var(--muted); }
+  .cbox textarea { flex:1; border:0; outline:0; font:inherit; font-size:14px; background:transparent;
+                   color:#fff; resize:none; max-height:160px; line-height:1.5; padding:3px 0; }
+  .cbox textarea::placeholder { color:var(--muted); }
   .cbox button { width:32px; height:32px; border-radius:8px; background:var(--border); border:0;
                  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
   .cbox button.live { background:var(--action); }
@@ -185,7 +186,10 @@
   .node .num { width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.06);
                color:var(--quiet); font-family:'JetBrains Mono',monospace; font-size:10.5px;
                display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .node .nm { font-size:12.5px; color:var(--copy); }
+  /* a long provision name must not widen a pill into its neighbour */
+  .node .nm { font-size:12.5px; color:var(--copy); max-width:250px; overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; }
+  .node.primary .nm { max-width:300px; }
   .node.primary { background:#1d1a2b; border:1px solid var(--lav); box-shadow:0 0 20px rgba(192,148,255,.5); }
   .node.primary .num { background:var(--lav); color:#14121c; }
   .node.primary .nm { font-size:13.5px; font-weight:600; color:#fff; }
@@ -219,7 +223,7 @@
     <div class="composer">
       <div class="egs" id="egs"></div>
       <div class="cbox">
-        <input id="q" placeholder="Ask a question about the agreement…" autocomplete="off">
+        <textarea id="q" rows="1" placeholder="Ask a question about the agreement…"></textarea>
         <button id="send" title="Send">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10V2M6 2L2.5 5.5M6 2l3.5 3.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -261,11 +265,27 @@
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
-const EXAMPLES = [
+// Fixture vocabulary must never appear against a real document set, so the
+// suggestions follow whatever actually loaded rather than being hardcoded.
+const EXAMPLES_FIXTURES = [
   'Who owns new intellectual property created under a contract?',
   'What does Clause 9.2 say?',
   'What does Central Buying Office mean?'
 ];
+const EXAMPLES_REAL = [
+  'What does Clause 9.2 say?',
+  'What must the Supplier do if there is a Default?',
+  'Which laws does this contract reference?'
+];
+function examples() {
+  // The graph backend decides, not just DATA_SOURCE: the demo runs the real
+  // graph with DATA_SOURCE still on fixtures, and fixture vocabulary must not
+  // appear against it.
+  const src = (health.loaded && health.loaded.data_root) || '';
+  const onFixtures = health.graph_backend === 'fixtures'
+    && health.data_source === 'fixtures' && src.includes('fixtures');
+  return onFixtures ? EXAMPLES_FIXTURES : EXAMPLES_REAL;
+}
 
 // A tool name is machinery. Say what it was doing instead.
 const DOING = {
@@ -312,7 +332,7 @@ async function boot() {
     }
   } catch (e) {}
   const g = $('#egs');
-  EXAMPLES.forEach(t => { const b = el('button', null, t); b.onclick = () => { $('#q').value = t; ask(); }; g.append(b); });
+  examples().forEach(t => { const b = el('button', null, t); b.onclick = () => { $('#q').value = t; ask(); }; g.append(b); });
 }
 
 /* ---------- rendering an answer ---------- */
@@ -384,7 +404,17 @@ async function showCitation(path, page, n, chip) {
   const frame = el('div', 'frame');
   const img = new Image();
   img.alt = 'the page around ' + path;
-  img.onerror = () => frame.replaceChildren(el('div', 'cap', 'No page image recorded for this passage.'));
+  img.onerror = async () => {
+    let why = '';
+    try {
+      const r = await fetch('/api/crop?path=' + encodeURIComponent(path));
+      why = (await r.json()).detail || '';
+    } catch (_) {}
+    const box = el('div', 'warn');
+    box.append(el('div', null, 'Couldn\u2019t render this page region.'));
+    if (why) box.append(el('div', 'cap', why));
+    frame.replaceWith(box);
+  };
   img.onclick = () => window.open('/api/crop?path=' + encodeURIComponent(path), '_blank', 'noopener');
   img.src = '/api/crop?path=' + encodeURIComponent(path);
   frame.append(img); wrap.append(frame);
@@ -440,24 +470,52 @@ async function showConnections(paths) {
   try { g = await (await fetch('/api/answer_graph?paths=' + encodeURIComponent(paths.join(',')))).json(); } catch (e) {}
   if (!g || !g.nodes.length) { body.append(el('div', 'cap', 'Nothing to show.')); return; }
 
+  // Deterministic slots, so nothing can land on anything else. The previous
+  // placement spread every node down one column and collapsed into an
+  // unreadable pile once an answer touched a dozen provisions.
   const W = body.clientWidth, H = body.clientHeight;
+  const ROW = 52, COL = 300, PER_COL = 8;
+
   const primary = g.nodes.find(n => n.state === 'primary') || g.nodes[0];
-  const others = g.nodes.filter(n => n !== primary);
+  const settled = g.nodes.filter(n => n !== primary && n.state !== 'unsettled');
+  const loose = g.nodes.filter(n => n !== primary && n.state === 'unsettled');
+
   const pos = {};
-  pos[primary.id] = { x: Math.max(230, W * 0.24), y: H * 0.48 };
-  const gap = others.length > 1 ? Math.min(120, (H - 140) / (others.length - 1)) : 0;
-  const startY = H * 0.48 - (gap * (others.length - 1)) / 2;
-  others.forEach((n, i) => { pos[n.id] = { x: W * 0.68, y: startY + gap * i }; });
+  const looseH = loose.length ? ROW + 24 : 0;
+  const bandH = Math.max(0, H - looseH);
+
+  pos[primary.id] = { x: 200, y: bandH / 2 };
+
+  // Resolved targets in vertically spaced columns, wrapping past eight.
+  const cols = Math.max(1, Math.ceil(settled.length / PER_COL));
+  settled.forEach((n, i) => {
+    const col = Math.floor(i / PER_COL);
+    const inCol = i % PER_COL;
+    const height = Math.min(PER_COL, settled.length - col * PER_COL);
+    const top = bandH / 2 - ((height - 1) * ROW) / 2;
+    pos[n.id] = { x: Math.min(W - 180, 520 + col * COL), y: top + inCol * ROW };
+  });
+  // Anything unsettled gets its own row along the bottom, out of the flow.
+  loose.forEach((n, i) => {
+    const span = Math.max(1, loose.length);
+    pos[n.id] = { x: (W / (span + 1)) * (i + 1), y: bandH + looseH / 2 };
+  });
+  body.dataset.cols = String(cols);
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('width', W); svg.setAttribute('height', H);
   svg.style.cssText = 'position:absolute;inset:0';
+  // Route to the pill edges rather than their centres, measured after layout
+  // so the line stops at the border instead of running under the label.
+  const halfW = {}, el_ = {};
   g.edges.forEach(e => {
     const a = pos[e.from], b = pos[e.to];
     if (!a || !b) return;
     const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const mx = (a.x + b.x) / 2;
-    p.setAttribute('d', `M${a.x + 90} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x - 110} ${b.y}`);
+    const ax = a.x + (halfW[e.from] || 90) + 6;
+    const bx = b.x - (halfW[e.to] || 110) - 6;
+    p.setAttribute('d', `M${ax} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${bx} ${b.y}`);
     p.setAttribute('stroke', e.state === 'unsettled' ? '#5c5a68' : '#8b6fd4');
     p.setAttribute('stroke-width', '1.4');
     p.setAttribute('stroke-dasharray', e.state === 'unsettled' ? '4 7' : '5 6');
@@ -474,8 +532,56 @@ async function showConnections(paths) {
     if (n.footnote) d.append(el('span', 'num', String(n.footnote)));
     d.append(el('span', 'nm', n.label));
     if (n.note) d.append(el('span', 'note', n.note));
+    d.title = n.label + (n.note ? ' — ' + n.note : '');
     if (n.loaded) d.onclick = () => { $('#cx').classList.add('hide'); showCitation(n.id, n.page, n.footnote, null); };
     body.append(d);
+    halfW[n.id] = d.offsetWidth / 2;      // measured, so connectors stop at the edge
+    el_[n.id] = d;
+  });
+
+  // The bottom row is packed by measured width, not by even division: two long
+  // "unsettled" labels sharing a row would otherwise sit on top of each other.
+  if (loose.length) {
+    const GAP = 22;
+    const widths = loose.map(n => el_[n.id].offsetWidth);
+    const rows = [[]];
+    let used = 0;
+    loose.forEach((n, i) => {
+      if (used + widths[i] + GAP > W - 80 && rows[rows.length - 1].length) {
+        rows.push([]); used = 0;
+      }
+      rows[rows.length - 1].push({ n, w: widths[i] });
+      used += widths[i] + GAP;
+    });
+    const rowH = 46;
+    const firstY = H - (rows.length - 0.5) * rowH;
+    rows.forEach((row, ri) => {
+      const total = row.reduce((a, r) => a + r.w, 0) + GAP * (row.length - 1);
+      let x = (W - total) / 2;
+      row.forEach(r => {
+        pos[r.n.id] = { x: x + r.w / 2, y: firstY + ri * rowH };
+        el_[r.n.id].style.left = pos[r.n.id].x + 'px';
+        el_[r.n.id].style.top = pos[r.n.id].y + 'px';
+        x += r.w + GAP;
+      });
+    });
+  }
+  // re-route now that every pill has a real width
+  body.querySelectorAll('svg path').forEach(pth => pth.remove());
+  g.edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return;
+    const pth = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const mx = (a.x + b.x) / 2;
+    pth.setAttribute('d', `M${a.x + halfW[e.from] + 6} ${a.y} C ${mx} ${a.y}, `
+      + `${mx} ${b.y}, ${b.x - halfW[e.to] - 6} ${b.y}`);
+    pth.setAttribute('stroke', e.state === 'unsettled' ? '#5c5d64' : '#c094ff');
+    pth.setAttribute('stroke-width', '1.5');
+    pth.setAttribute('stroke-linecap', 'round');
+    pth.setAttribute('stroke-dasharray', '6 5');
+    pth.setAttribute('opacity', e.state === 'unsettled' ? '0.55' : '0.75');
+    pth.setAttribute('fill', 'none');
+    svg.append(pth);
   });
 }
 
@@ -632,9 +738,17 @@ function howBox(plan, trace) {
 }
 
 $('#send').onclick = ask;
-$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+// Enter sends, Shift+Enter makes a newline. Without preventDefault the
+// textarea also inserts the newline it was about to.
+$('#q').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  if (!$('#send').disabled) ask();
+});
 $('#q').addEventListener('input', () => {
   $('#send').classList.toggle('live', $('#q').value.trim().length > 0);
+  $('#q').style.height = 'auto';
+  $('#q').style.height = Math.min($('#q').scrollHeight, 160) + 'px';
 });
 boot();
 </script>

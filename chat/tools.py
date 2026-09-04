@@ -274,11 +274,14 @@ class ToolRunner:
 def _summarise(name: str, result: dict, ok: bool) -> str:
     if not ok:
         return "failed"
+    # These strings are read by a person watching the trace, so they say what
+    # happened in ordinary words. No tool names, no internal vocabulary, and a
+    # gap in the loaded data is named as a gap rather than as a null result.
     if name == "find_provision":
         hits = result.get("hits", [])
         arm = result.get("vector_arm", {})
-        extra = "" if arm.get("enabled") else f" · vector arm: {arm.get('status')}"
-        return f"{len(hits)} hit{'s' if len(hits) != 1 else ''}{extra}"
+        extra = "" if arm.get("enabled") else " · keyword search only, semantic index not built yet"
+        return f"{len(hits)} match{'es' if len(hits) != 1 else ''}{extra}"
     if name == "get_provision":
         if not result.get("found"):
             return "not found"
@@ -293,10 +296,14 @@ def _summarise(name: str, result: dict, ok: bool) -> str:
         return f"{len(refs)} {result.get('direction')}" + (f" · {parts}" if parts else "")
     if name == "define":
         if not result.get("found"):
-            return "not defined"
-        return f"{len(result.get('sites', []))} site(s) · governs {len(result.get('governs', {}))} part(s)"
+            return result.get("note") or "no definition of that term in this document set"
+        n = len(result.get("sites", []))
+        where = result["sites"][0].get("definition_name") if result.get("sites") else None
+        return f"defined in {where}" if n == 1 and where else f"{n} definitions found"
     if name == "find_by_concept":
-        return f"{len(result.get('concepts', []))} concept(s) · not citable"
+        if not result.get("found"):
+            return result.get("note") or "no matching topic in this document set"
+        return f"{len(result.get('concepts', []))} topic(s)"
     if name == "history":
         return f"{result.get('count', 0)} version(s)"
     if name == "cite":

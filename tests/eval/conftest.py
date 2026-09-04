@@ -69,6 +69,13 @@ class Workspace:
         node.update(changes)
         self.write_tree(part, data)
 
+    def write_concept_scope(self, scanned: list[str], skipped: list[str]) -> None:
+        """Stage 5's sampling scope, output/<run>/concepts/scope.json."""
+        d = self.fixtures / "concepts"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "scope.json").write_text(json.dumps(
+            {"scanned_parts": scanned, "skipped_parts": skipped}, indent=2))
+
     def definition_sites(self) -> list[dict]:
         return json.loads((self.fixtures / "vocab" / "definition_sites.json").read_text())
 
@@ -96,13 +103,15 @@ class Workspace:
         (self.golden / name).write_text(text)
 
     # -- running the CLI ------------------------------------------------------
-    def run(self, *extra: str, use_pdf: bool = False) -> "Run":
+    def run(self, *extra: str, use_pdf: bool = False, use_llm: bool = False) -> "Run":
         from pipeline.eval.__main__ import main
         args = ["--input", "fixtures",
                 "--fixtures-dir", str(self.fixtures),
                 "--output-dir", str(self.output),
                 "--golden-dir", str(self.golden),
-                "--no-llm", "--quiet", *extra]
+                "--quiet", *extra]
+        if not use_llm:
+            args.append("--no-llm")
         if not use_pdf:
             args.append("--no-pdf")
         code = main(args)

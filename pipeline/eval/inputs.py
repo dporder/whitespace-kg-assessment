@@ -62,6 +62,7 @@ class Inputs:
     definition_sites: Optional[list[DefinitionSite]] = None
     term_uses: Optional[list[TermUse]] = None
     concepts: Optional[list[Concept]] = None
+    concept_scope: Optional[dict] = None    # stage 5 sampling scope, when it sampled
     profile: Optional[dict] = None
 
     # -- convenience views ---------------------------------------------------
@@ -242,6 +243,18 @@ def load(source: str, source_root: Path, run: str, parts: list[str],
     inputs.records.append(rec)
     if rec.ok:
         inputs.concepts = rec.value
+
+    # Stage 5 may sample rather than scan everything. When it does it says so
+    # here, and the coverage denominator has to follow, or a deliberately
+    # skipped part reads as a part the scan missed. Loaded like every other
+    # input so it appears in the input record and in the report's fingerprint:
+    # it changes the headline number, so a run with it and a run without it
+    # must not look identical.
+    rec = _load_one("concept_scope", "concepts",
+                    source_root / "concepts" / "scope.json", lambda d: d)
+    inputs.records.append(rec)
+    if rec.ok:
+        inputs.concept_scope = rec.value
 
     # Stage 0 writes output/profile.json next to the run dirs, not inside one.
     if run_dir is not None:

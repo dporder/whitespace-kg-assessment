@@ -273,6 +273,85 @@ evidence) fixed with regression tests, the verified-typesetting ledger re-keyed 
 and the honest outcome that the real five-check fit quarantines 6 of 48 parts, five of them for
 geometry the ledger independently verified as the document's own typesetting.
 
+## 9. Stages 3 and 7, references and graph load (resolver-builder, gated, fix round running)
+
+**What came back.** Both stages complete and run on the real document, not just fixtures: 139
+references detected in Core Terms (111 clause, 14 schedule, 12 legislation), 108 resolved by the
+stipulated scope rules, 24 unresolved, and every one of the 24 is a citation out to a schedule
+that has not been ingested yet, which is the batch-arrival demonstration sitting ready to flip.
+Legislation parsing handled all three shapes on real ink, including the parenthesised-qualifier
+trap. The load put 591 nodes and 1054 edges into Neo4j reconciling exactly against stage outputs,
+with rollback and sweep proven on the live graph. Its real run surfaced three bugs its fixtures
+never could, the best being rollback deleting shared referents out from under other batches'
+edges. Four spec gaps it stopped and reported (range-member ref paths, heading-title citations,
+ref box granularity, where the document root materialises) were ruled and pinned spec-first.
+
+**The gate split, again, and both halves earned their keep.** The tester passed it end to end and
+proved the milestone: the chat UI answered "What does Clause 9.2 say?" against the real graph,
+both citations verified, the quoted text byte-identical to the source PDF. It also proved the
+suite makes zero live API calls by running it under a socket-level egress block, and filed two
+defects that bite exactly when batch 2 loads (the synthesised document root's id varies by which
+part infers the version; a same-batch reload cannot converge). The adversarial reviewer then
+found two blockers underneath the green: sweep's orphan-referent cleanup is a global DELETE
+ignoring batch and scope, the same bug class as the rollback fix, still live in a second path;
+and the loader reports edges it never created (an endpoint MATCH that misses writes nothing and
+is still counted) while reconciliation forms no edge expectation at all, so the spec's edge-count
+gate could not fail. Salience also proved per-batch where the design says per-graph. All of it is
+one fix round, running now; nothing merges until the reviewer's probes pass as regression tests.
+
+## 10. Stages 4, 5 and 6, vocabulary, concepts, embeddings (enrichment-builder, fix round done, gate pending)
+
+**Numbers that go straight into the submission.** 259 declared terms derived from Joint Schedule
+1, settling the notes' "roughly 300" as high by 14 percent. 2,756 term uses after the plural
+ruling (2,751 confident; 159 resolved by the routing model; 5 held for review). 174 concepts
+minted from 190 proposed with the tier-2-outranks-tier-3 guard genuinely firing, nine proposals
+blocked for colliding with declared terms. 1,361 embeddings whose cache makes a rerun cost zero
+API calls. Concepts were deliberately sampled to the two clause-genre parts on the operator's
+cost ruling, with the full-scope path shipped behind a flag and the sampling declared in the
+output so the eval reports coverage honestly.
+
+**A ruling the document itself forced.** JS1 1.3.1 stipulates the singular includes the plural,
+the same stipulated authority the reference resolver leans on, so inflected matching was adopted
+spec-first after being measured (210 candidate uses). The adoption immediately earned its
+routing: Party and Parties are both declared terms, the checker overrode the naive
+prefer-the-printed-surface default in 52 of 85 collisions, and it caught the one false positive
+the plural rule introduced, "Third Parties Act 1999", a statute not a term use.
+
+**Cross-worker finds.** Its real stage 4 run exposed two parser defects in Call-Off Schedule 9's
+definition blocks (flattened into prose; columns interleaved on Part B). The parser's root cause
+was one line, a rule-thickness cap rejecting the table's heavy border, verified by rendering the
+pages before concluding, and the fix also made Call-Off Schedule 6's 24-row definitions table
+parse for the first time. The four part-local terms now sit as label cells, verbatim.
+
+## 11. Resolver fix round and merge; the chat demo hardening (both merged)
+
+**Resolver.** All gate findings closed with the reviewer's probes as regression tests: the orphan
+referent cleanup now touches only what the load itself asserted (the 4-reported-1-written probe
+and the cross-batch orphan survival are both pinned tests), reconciliation forms a real edge
+expectation the exit code gates on, with deferred edges (far endpoint's batch not yet arrived)
+partitioned and reported rather than silently uncounted. The document root is pinned to
+"as-bound" rather than promoting one part's footer version, on the builder's own reasoning that
+the pack binds ~48 separately versioned templates and the root asserting v3.0.11 would claim
+something the document does not say, accepted as better than the ruling it replaced. Same-batch
+reloads converge via a load-content hash. Its four-part run then proved the demonstration
+mechanics live: 1,843 nodes and 3,299 relationships converging on rerun, 39 cross-part resolved
+references, and salience visibly recomputing when a citing schedule arrives, core-terms/27
+rising from 1.946 to 4.159. A first four-part stage 3 run also surfaced nine same-span duplicate
+ref paths (LLM spans overlapping grammar citations), now deduped at emission under a generalised
+span ordinal pinned in SPEC 2.2.
+
+**Chat, driven by the operator's live testing before his presentation.** Dan's dead-citation
+report traced to two stacked causes the tester had flagged as a hazard: the run-directory picker
+choosing a cache directory, and all-or-nothing source loading that let a missing refs/ take
+working crops down with it. Fixed per-artifact with the loaded state reported in the health
+endpoint. His trace-copy complaints became a shared gap-wording table both backends must use,
+with the Neo4j side distinguishing, in-graph, a term with no definition site loaded from an
+unknown term (by DEFINED_IN edges, not labels, since uniqueness constraints pre-create empty
+labels). Browser-level audit also caught Enter-to-send missing, the connections view collapsing
+into overlapping pills past a dozen nodes (replaced with a deterministic no-overlap layout), and
+fixture vocabulary leaking into suggestion chips against real data. Every fix verified in a
+browser against the live graph before merge.
+
 **Late-arriving sweep, folded in as an addendum.** The researcher had a licence-and-evidence
 sweep of the legal encoder family still running when it reported; it landed afterwards with two
 exclusions that matter commercially (`casehold/*` ships with no licence grant at all, verified

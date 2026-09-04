@@ -239,6 +239,85 @@ def test_two_unrelated_concepts_are_not_duplicates(workspace):
     assert section["duplicate_clusters"] == 0
 
 
+# ------------------------------- stage 5 sampling scope, concepts/scope.json
+
+def test_without_a_scope_file_coverage_counts_every_loaded_part(workspace):
+    """The absent file must change nothing: this is today's behaviour."""
+    section = workspace.run().section("concepts")
+    assert section["coverage"] == {"count": 3, "of": 8, "rate": 0.375}
+    assert section["concept_scope"]["sampled"] is False
+    assert "every loaded part" in section["coverage_is_over"]
+
+
+def test_a_skipped_part_is_not_counted_as_a_scan_miss(workspace):
+    """The reported bug: a sampled run read 44/88 = 0.500 when true in-scope
+    coverage was 43/45 = 0.956, because parts nobody scanned were sitting in
+    the denominator. Same trees and same concepts as the test above; the only
+    difference is the scope file."""
+    workspace.write_concept_scope(scanned=["core-terms"],
+                                  skipped=["award-form", "joint-schedule-1"])
+    section = workspace.run().section("concepts")
+
+    assert section["coverage"] == {"count": 3, "of": 3, "rate": 1.0}
+    assert section["concept_scope"]["sampled"] is True
+    assert section["concept_scope"]["in_scope"] == ["core-terms"]
+    assert section["parts_outside_this_runs_concept_scope"] == 2
+    assert section["scan_units_outside_this_runs_concept_scope"] == 5
+    # The skipped parts' units are named, and named as out of scope, not as misses.
+    assert section["scan_units_with_no_concept"] == []
+    assert "parts outside this run's concept scope" in workspace.run().markdown
+
+
+def test_the_two_kinds_of_zero_stay_distinguishable(workspace):
+    """A part the scan looked at and found nothing in is still a miss; only the
+    skipped ones leave the denominator."""
+    workspace.write_concept_scope(scanned=["core-terms", "award-form"],
+                                  skipped=["joint-schedule-1"])
+    section = workspace.run().section("concepts")
+
+    assert section["coverage"] == {"count": 3, "of": 6, "rate": 0.5}
+    missed = {u["part"] for u in section["scan_units_with_no_concept"]}
+    assert missed == {"award-form"}, "scanned and empty is a miss"
+    assert section["concept_scope"]["skipped"] == ["joint-schedule-1"]
+    assert section["parts_outside_this_runs_concept_scope"] == 1
+
+
+def test_a_loaded_part_the_scope_file_never_mentions_is_named_not_bucketed(workspace):
+    workspace.write_concept_scope(scanned=["core-terms"], skipped=["award-form"])
+    section = workspace.run().section("concepts")
+
+    assert section["concept_scope"]["unmentioned"] == ["joint-schedule-1"]
+    assert section["coverage"]["of"] == 3, "unmentioned parts stay out of the denominator"
+    assert section["parts_outside_this_runs_concept_scope"] == 1
+    assert "named in neither list" in workspace.run().markdown
+
+
+def test_a_scanned_part_with_no_tree_here_is_reported_not_silently_dropped(workspace):
+    workspace.write_concept_scope(scanned=["core-terms", "call-off-schedule-9"],
+                                  skipped=["award-form", "joint-schedule-1"])
+    section = workspace.run().section("concepts")
+    assert section["concept_scope"]["scanned_but_not_loaded"] == ["call-off-schedule-9"]
+    assert section["coverage"]["of"] == 3
+
+
+def test_a_malformed_scope_file_falls_back_to_counting_everything(workspace):
+    (workspace.fixtures / "concepts").mkdir(parents=True, exist_ok=True)
+    (workspace.fixtures / "concepts" / "scope.json").write_text("{ not json")
+    run = workspace.run()
+    assert run.section("concepts")["concept_scope"]["sampled"] is False
+    assert run.section("concepts")["coverage"]["of"] == 8
+    assert [f["key"] for f in run.report["input_source"]["failed"]] == ["concepts"]
+
+
+def test_the_scope_file_is_in_the_inputs_fingerprint(workspace):
+    """It changes the headline number, so two runs with and without it must not
+    look comparable."""
+    before = workspace.run().report["inputs_fingerprint"]["combined"]
+    workspace.write_concept_scope(scanned=["core-terms"], skipped=["award-form"])
+    after = workspace.run().report["inputs_fingerprint"]["combined"]
+    assert before != after
+
+
 def test_a_concept_label_colliding_with_a_declared_term_is_reported(workspace):
     concepts = json.loads((workspace.fixtures / "concepts.json").read_text())
     concepts[0]["label"] = "Good Working Practice"
@@ -279,7 +358,7 @@ def test_the_audit_reports_pending_llm_rather_than_an_agreement_it_did_not_measu
 
     if importlib.util.find_spec("pipeline.llm") is not None:
         pytest.skip("pipeline/llm.py now exists; this path no longer applies")
-    verdicts, note = _run_checker([{"kind": "term_use", "term": "Provider"}])
+    verdicts, note, _diagnostics = _run_checker([{"kind": "term_use", "term": "Provider"}])
     assert verdicts is None
     assert note.startswith("audit runner pending llm.py")
 
