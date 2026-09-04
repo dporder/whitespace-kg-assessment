@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Iterable, Optional
+from typing import Optional
 
 from pipeline.schemas import Node
 from pipeline.vocabulary import treeio
@@ -141,35 +141,56 @@ class Cue:
     sentence: str        # the whole field it was found in, which is what scopes
 
 
-def governing_cue(part: Node, target: Node) -> Optional[Cue]:
-    """The nearest definitions lead-in printed before `target` inside `part`.
+@dataclass
+class CueIndex:
+    """Every definitions lead-in in one part, indexed once.
 
-    Searched first within the target's own top-level section, then across the
-    whole part, so a table sitting under its own paragraph finds that
-    paragraph's lead-in rather than one from three sections earlier.
+    Built per part rather than per table: the real Joint Schedule 1 can present
+    its definitions as hundreds of table nodes, and rescanning the whole part
+    for each one is quadratic on exactly the document this has to survive.
     """
-    sections = {s.path: s for s in treeio.sections(part)}
-    home = treeio.section_of(part).get(target.id)
+    cues: list[Cue]                              # ascending by order
+    section_of: dict[str, str]
 
-    def scan(nodes: Iterable[Node]) -> Optional[Cue]:
+    def governing(self, target: Node) -> Optional[Cue]:
+        """The nearest lead-in printed before `target`.
+
+        Preferring one in the target's own top-level section, so a table under
+        its own paragraph finds that paragraph's lead-in rather than one from
+        three sections earlier.
+        """
+        home = self.section_of.get(target.id)
         best: Optional[Cue] = None
-        best_order = -1
-        for n in nodes:
-            if n.kind == "ref" or n.order >= target.order:
-                continue
-            for value in (n.text, n.title):
-                if not value:
-                    continue
-                marker = _cue_match(value)
-                if marker and n.order > best_order:
-                    best, best_order = Cue(n, marker, value), n.order
-        return best
+        best_local: Optional[Cue] = None
+        for cue in self.cues:
+            if cue.node.order >= target.order:
+                break
+            best = cue
+            if home is not None and self.section_of.get(cue.node.id) == home:
+                best_local = cue
+        return best_local or best
 
-    if home and home in sections:
-        found = scan(treeio.walk(sections[home].node))
-        if found is not None:
-            return found
-    return scan(treeio.walk(part))
+
+def cue_index(part: Node) -> CueIndex:
+    section_of = treeio.section_of(part)
+    cues: list[Cue] = []
+    for node in treeio.walk(part):
+        if node.kind == "ref":
+            continue
+        for value in (node.text, node.title):
+            if not value:
+                continue
+            marker = _cue_match(value)
+            if marker:
+                cues.append(Cue(node, marker, value))
+                break
+    cues.sort(key=lambda c: c.node.order)
+    return CueIndex(cues=cues, section_of=section_of)
+
+
+def governing_cue(part: Node, target: Node) -> Optional[Cue]:
+    """Single-shot convenience wrapper. Callers in a loop build the index once."""
+    return cue_index(part).governing(target)
 
 
 def part_is_document_definitions(part: Node, batches: dict) -> bool:
@@ -307,11 +328,12 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
     sites: list[RawSite] = []
     pid = treeio.part_id(part)
     doc_level_part = part_is_document_definitions(part, batches)
+    index = cue_index(part)
 
     for node in treeio.walk(part):
         if node.kind != "table":
             continue
-        cue = governing_cue(part, node)
+        cue = index.governing(node)
         if not is_definitions_table(node, under_cue=cue is not None):
             continue
         if cue is not None:
@@ -357,7 +379,7 @@ def ingest_part(part: Node, batches: dict) -> list[RawSite]:
             continue
         own_marker = _cue_match(node.text or "") or _cue_match(node.title or "")
         cue = (Cue(node, own_marker, node.text or node.title or "") if own_marker
-               else governing_cue(part, node))
+               else index.governing(node))
         if cue is None:
             continue                                   # discovered only, not declared
         scope, scope_source = _scope_from_cue(cue.sentence, pid)
