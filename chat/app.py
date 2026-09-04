@@ -138,6 +138,77 @@ def crop(
         raise HTTPException(400, str(exc))
 
 
+@app.get("/api/answer_graph")
+def answer_graph(paths: str = Query(..., min_length=1)) -> dict:
+    """The provisions behind an answer and how they point at one another.
+
+    Assembled ONLY from get_provision and follow_references, so SPEC 6's rule
+    that the tools are the only data access still holds — this endpoint has no
+    private route to the trees or the graph.
+    """
+    from .naming import name_for_path
+    from .source import corpus
+
+    wanted = [p.strip() for p in paths.split(",") if p.strip()][:12]
+    if not wanted:
+        raise HTTPException(400, "give at least one path")
+
+    runner = ToolRunner()
+    c = corpus()
+    nodes: dict[str, dict] = {}
+    edges: list[dict] = []
+
+    def add(path: str, state: str, footnote: int | None = None) -> dict:
+        if path in nodes:
+            if footnote and nodes[path]["footnote"] is None:
+                nodes[path]["footnote"] = footnote
+            return nodes[path]
+        got = runner.run("get_provision", {"path": path}).result
+        found = bool(got.get("found"))
+        nodes[path] = {
+            "id": path,
+            "label": name_for_path(c, path),
+            "kind": got.get("kind"),
+            "page": (got.get("page") or {}).get("start") if found else None,
+            "footnote": footnote,
+            "state": state if found else "unsettled",
+            "loaded": found,
+        }
+        return nodes[path]
+
+    for i, path in enumerate(wanted, start=1):
+        add(path, "primary" if i == 1 else "normal", footnote=i)
+
+    for path in list(nodes):
+        if not nodes[path]["loaded"]:
+            continue
+        refs = runner.run("follow_references", {"path": path, "direction": "outbound"}).result
+        for r in refs.get("references", []):
+            target, status = r.get("target_path"), r.get("status")
+            if target:
+                add(target, "normal")
+                edges.append({"from": path, "to": target, "label": "points at",
+                              "state": "settled" if status == "resolved" else "external"})
+            elif status in ("ambiguous", "unresolved"):
+                key = f"unsettled:{r.get('ref_path')}"
+                nodes.setdefault(key, {
+                    "id": key,
+                    "label": f"“{r.get('text')}”",
+                    "kind": "ref", "page": r.get("page"), "footnote": None,
+                    "state": "unsettled", "loaded": False,
+                    "note": "more than one match" if status == "ambiguous"
+                            else "not in this document set yet",
+                })
+                edges.append({"from": path, "to": key, "label": "points at",
+                              "state": "unsettled"})
+
+    return {
+        "nodes": list(nodes.values()),
+        "edges": edges,
+        "tool_calls": len(runner.calls),
+    }
+
+
 @app.get("/api/config")
 def config_view() -> dict:
     return {

@@ -3,352 +3,564 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ask the graph — RM6116</title>
+<title>Ask about the agreement — RM6116</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-  /* Tokens lifted from diagram/Main.dc.html so the trust gradient means the
-     same thing here as on the architecture canvas. */
   :root {
-    --paper:#fbfaf8; --card:#fff; --line:#d8d5cf; --hair:#ece9e4; --sunk:#f5f4f1;
+    --paper:#fbfaf8; --card:#fff; --line:rgba(0,0,0,0.09); --hair:#ece9e4; --sunk:#f5f4f1;
     --ink:#1c1e21; --body:#3a3d42; --muted:#6b6f76; --faint:#9a948f;
-    --det:#3f6396; --det-bg:#eef3fa; --det-line:#c6d2e3;
-    --rule:#2e7373; --rule-bg:#f2f8f8; --rule-line:#c3d9d9;
-    --model:#a16b16; --model-bg:#fbf7ef; --model-line:#e0d0b2;
-    --human:#75589b; --human-bg:#faf7fd; --human-line:#d9cbe8;
+    --det:#3f6396; --rule:#2e7373; --model:#a16b16; --model-bg:#fbf7ef;
+    --human:#75589b; --human-bg:#faf7fd;
+    --dark:#0d0e12; --dark-2:#16171d; --dark-line:#2c2e39; --lav:#8b6fd4; --lav-soft:#b3a5e0;
   }
   * { box-sizing:border-box; }
+  html, body { height:100%; }
   body { margin:0; background:var(--paper); color:var(--ink);
-         font-family:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif; font-size:13px; }
-  a { color:var(--det); } a:hover { color:#2d4a73; }
+         font-family:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif; font-size:13px;
+         display:flex; }
   .mono { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; }
 
-  .wrap { max-width:1440px; margin:0 auto; padding:26px 30px 20px; min-height:100vh; display:flex; flex-direction:column; gap:14px; }
-  header { display:flex; align-items:baseline; justify-content:space-between; gap:14px;
-           border-bottom:2px solid var(--ink); padding-bottom:11px; flex-wrap:wrap; }
-  h1 { font-size:21px; font-weight:700; letter-spacing:-.01em; margin:0; }
-  .sub { font-size:11px; color:var(--muted); }
-  .badges { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; height:100vh; }
+  .top { display:flex; align-items:center; gap:10px; padding:14px 22px; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .avatar { width:22px; height:22px; border-radius:50%; border:1.5px solid var(--det);
+            display:flex; align-items:center; justify-content:center; }
+  .avatar i { width:8px; height:8px; border-radius:50%; background:var(--det); display:block; }
+  .top h1 { font-size:14px; font-weight:600; margin:0; }
+  .top .sub { font-size:11px; color:var(--muted); }
+  .ready { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); }
+  .ready i { width:6px; height:6px; border-radius:50%; background:var(--rule); display:block; }
+  .badge { font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:4px;
+           border:1px solid var(--model); color:var(--model); background:var(--model-bg); }
 
-  .kick { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.08em;
-          text-transform:uppercase; padding:2px 7px; border-radius:3px; color:#fff; }
-  .chip { display:inline-block; font-size:10px; font-weight:500; padding:2px 8px;
-          border-radius:3px; border:1px solid var(--line); color:var(--body); }
-  .colhead { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:4px; }
-  .li { font-size:11.5px; line-height:1.5; color:var(--body); }
+  .scroll { flex:1; overflow-y:auto; padding:26px 0; }
+  .col { max-width:768px; margin:0 auto; padding:0 20px; display:flex; flex-direction:column; gap:22px; }
 
-  .body { display:flex; gap:18px; flex:1; min-height:0; align-items:flex-start; }
-  .col { flex:1; display:flex; flex-direction:column; gap:12px; min-width:0; }
-  .rail { width:344px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; position:sticky; top:20px; }
-  @media (max-width:1080px) { .body { flex-direction:column; } .rail { width:100%; position:static; } }
+  .user { display:flex; justify-content:flex-end; }
+  .user .b { max-width:85%; padding:10px 15px; border-radius:14px 4px 14px 14px; background:#fff;
+             border:1px solid var(--line); font-size:13px; line-height:1.55;
+             box-shadow:0 1px 3px rgba(0,0,0,0.05); }
 
-  .q { display:flex; gap:10px; align-items:flex-start; }
-  .q .txt { font-size:14px; line-height:1.5; font-weight:500; }
+  .who { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .who .a { width:20px; height:20px; border-radius:50%; background:rgba(63,99,150,0.08);
+            border:1px solid rgba(63,99,150,0.2); display:flex; align-items:center; justify-content:center; }
+  .who .a i { width:6px; height:6px; border-radius:50%; background:var(--det); display:block; }
+  .who span { font-size:12px; font-weight:600; color:var(--muted); }
+  .said { padding-left:28px; display:flex; flex-direction:column; gap:13px; }
+  .prose { font-size:13px; line-height:1.65; white-space:pre-wrap; }
 
-  .gate { display:flex; align-items:center; gap:8px; padding-left:46px; flex-wrap:wrap; }
+  sup.fn { font-size:10px; font-weight:600; color:var(--human); cursor:pointer;
+           margin-left:1px; vertical-align:super; }
+  sup.fn:hover { text-decoration:underline; }
+  sup.fn.bad { color:var(--model); cursor:not-allowed; }
+  sup.fn.on { background:var(--human-bg); border-radius:3px; padding:0 2px; }
+  button.term { display:inline-flex; align-items:center; gap:3px; padding:2px 8px 2px 5px; margin:0 2px;
+                border-radius:6px; font:inherit; font-size:11px; font-weight:600; line-height:1.4;
+                vertical-align:middle; cursor:pointer;
+                border:1px solid rgba(46,115,115,0.25); background:rgba(46,115,115,0.09); color:var(--rule); }
+  button.term:hover { background:rgba(46,115,115,0.17); }
+  button.term i { width:5px; height:5px; border-radius:50%; background:var(--rule); display:block; }
 
-  .plan { border-top:3px solid var(--model); padding:12px 14px; display:flex; flex-direction:column; gap:9px; }
-  .batches { display:flex; gap:12px; flex-wrap:wrap; }
-  .batch { flex:1; min-width:220px; border:1px solid var(--model-line); background:var(--model-bg);
-           border-radius:3px; padding:9px 10px; }
-  .batch h4 { margin:0 0 6px; font-size:10px; font-weight:700; color:var(--model);
-              text-transform:uppercase; letter-spacing:.06em; }
-  .batch .qs { display:flex; flex-direction:column; gap:4px; }
-  .batch .qs div { font-size:10.5px; line-height:1.45; }
+  .status { display:flex; align-items:center; gap:9px; padding-left:28px; }
+  .status .dots { display:flex; gap:4px; }
+  .status .dots i { width:5px; height:5px; border-radius:50%; background:var(--faint); display:block;
+                    animation:pulse 1.2s infinite; }
+  .status .dots i:nth-child(2) { animation-delay:.2s; }
+  .status .dots i:nth-child(3) { animation-delay:.4s; }
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .status span { font-size:12px; color:var(--muted); }
 
-  .answer { border-top:3px solid var(--det); padding:14px 16px; display:flex; flex-direction:column; gap:11px; }
-  .prose { font-size:13.5px; line-height:1.75; white-space:pre-wrap; }
-  .cite { font-family:'IBM Plex Mono',Menlo,Consolas,monospace; font-size:10px; color:var(--det);
-          background:var(--det-bg); border:1px solid var(--det-line); border-radius:3px;
-          padding:1px 5px; cursor:pointer; white-space:nowrap; }
-  .cite:hover, .cite.on { color:var(--human); background:var(--human-bg); border-color:var(--human-line); }
-  .cite.bad { color:var(--model); background:var(--model-bg); border-color:var(--model-line); cursor:not-allowed; }
+  .strip { display:flex; align-items:center; gap:16px; margin-top:4px; flex-wrap:wrap; }
+  .strip .m { font-size:11px; color:var(--faint); }
+  .strip .sep { width:1px; height:11px; background:var(--hair); }
+  button.fold { display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:10px;
+                font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+                background:none; border:0; padding:0; cursor:pointer; }
+  button.fold:hover { color:var(--ink); }
+  .warn { border:1px solid var(--model); background:var(--model-bg); border-radius:5px;
+          padding:9px 12px; font-size:12.5px; line-height:1.55; color:var(--body); }
 
-  .ask { display:flex; gap:9px; align-items:center; }
-  .ask input { flex:1; border:1px solid var(--line); border-radius:3px; background:#fff;
-               padding:9px 11px; font:inherit; font-size:12.5px; color:var(--ink); }
-  .ask input:focus { outline:2px solid var(--det-line); outline-offset:-1px; }
-  .ask button { font:inherit; font-size:11px; font-weight:600; background:var(--ink); color:#fff;
-                border:0; border-radius:3px; padding:9px 16px; cursor:pointer; }
-  .ask button:disabled { background:var(--faint); cursor:default; }
+  /* how I found this */
+  .flow { border:1px solid var(--hair); border-radius:7px; background:#fff; padding:18px 20px;
+          display:flex; flex-direction:column; }
+  .stage { display:flex; gap:16px; }
+  .stage .k { width:90px; flex-shrink:0; }
+  .stage .k b { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .stage .k s { display:block; font-size:11px; color:var(--faint); text-decoration:none; margin-top:2px; }
+  .stage .steps { flex:1; border-left:2px solid var(--hair); padding-left:18px; padding-bottom:16px;
+                  position:relative; display:flex; flex-direction:column; gap:9px; }
+  .stage:last-child .steps { border-left-color:transparent; padding-bottom:0; }
+  .stage .steps::before { content:''; position:absolute; left:-7px; top:3px; width:12px; height:12px;
+                          border-radius:50%; background:var(--det); border:2px solid #fff; }
+  .stage:last-child .steps::before { background:var(--rule); }
+  .step .d { font-size:12.5px; line-height:1.5; color:var(--body); }
+  .step .f { font-size:11.5px; color:var(--muted); }
 
-  .cropbox { border:1px solid var(--line); border-radius:3px; overflow:hidden; background:#fff; min-height:60px; }
-  .cropbox img { display:block; width:100%; cursor:zoom-in; }
-  .cropbox img:hover { outline:2px solid var(--human-line); outline-offset:-2px; }
-  .empty { padding:18px 12px; text-align:center; }
+  /* composer */
+  .bottom { flex-shrink:0; padding:16px 0 22px; border-top:1px solid var(--line); }
+  .composer { max-width:768px; margin:0 auto; padding:0 20px; display:flex; flex-direction:column; gap:8px; }
+  .cbox { display:flex; align-items:center; gap:10px; background:#fff; border:1px solid rgba(0,0,0,0.12);
+          border-radius:11px; padding:8px 10px 8px 14px; }
+  .cbox:focus-within { border-color:rgba(0,0,0,0.28); box-shadow:0 0 0 3px rgba(0,0,0,0.05); }
+  .cbox input { flex:1; border:0; outline:0; font:inherit; font-size:14px; background:transparent; color:var(--ink); }
+  .cbox button { width:30px; height:30px; border-radius:8px; background:var(--ink); border:0;
+                 cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cbox button:disabled { background:var(--faint); cursor:default; }
+  .hint { text-align:center; font-size:11px; color:var(--faint); }
+  .egs { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; }
+  .egs button { font:inherit; font-size:11.5px; background:#fff; border:1px solid var(--line);
+                border-radius:14px; padding:5px 11px; cursor:pointer; color:var(--body); }
+  .egs button:hover { border-color:var(--det); color:var(--det); }
 
-  .trace { display:flex; flex-direction:column; gap:3px; border-left:2px solid var(--det-line); padding-left:9px; }
-  .trace.err { border-left-color:var(--model-line); }
-  .traces { display:flex; flex-direction:column; gap:8px; }
+  /* evidence panel — the one destination */
+  .panel { width:380px; flex-shrink:0; background:#f8f7fa; border-left:1px solid #e8e6ec;
+           box-shadow:-8px 0 32px rgba(0,0,0,0.06); height:100vh; display:flex; flex-direction:column; }
+  .panel.hide { display:none; }
+  .ph { padding:14px 16px; border-bottom:1px solid #e8e6ec; display:flex; align-items:flex-start; gap:10px; }
+  .ph .n { width:18px; height:18px; border-radius:4px; background:var(--human); color:#fff;
+           font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .ph .t { flex:1; }
+  .ph .t b { font-size:13px; font-weight:600; display:block; }
+  .ph .t s { font-size:11px; color:var(--muted); text-decoration:none; }
+  .ph .x { cursor:pointer; color:var(--faint); font-size:15px; line-height:1; background:none; border:0; }
+  .pb { padding:14px 16px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+  .klabel { display:flex; align-items:center; gap:7px; margin-bottom:7px; }
+  .klabel i { width:3px; height:13px; background:var(--human); border-radius:2px; display:block; }
+  .klabel span { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--human); }
+  .frame { border:1px solid var(--hair); border-radius:5px; overflow:hidden; background:#fff; }
+  .frame img { display:block; width:100%; cursor:zoom-in; }
+  .cap { font-size:10.5px; color:var(--faint); margin-top:5px; }
+  .words { border:1px solid rgba(161,107,22,0.25); background:rgba(161,107,22,0.07);
+           border-radius:6px; padding:10px 12px; }
+  .words b { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+             color:#8a5c14; display:block; margin-bottom:5px; }
+  .words p { margin:0; font-size:12px; line-height:1.6; color:var(--body); }
+  .plink { font-size:11.5px; color:var(--det); cursor:pointer; }
 
-  .err { border:1px solid var(--model-line); background:var(--model-bg); border-radius:3px;
-         padding:9px 11px; font-size:11.5px; line-height:1.5; color:var(--body); }
-  .examples { display:flex; gap:6px; flex-wrap:wrap; }
-  .examples button { font:inherit; font-size:10.5px; background:#fff; border:1px solid var(--line);
-                     border-radius:3px; padding:4px 9px; cursor:pointer; color:var(--body); }
-  .examples button:hover { border-color:var(--det); color:var(--det); }
-  .hide { display:none; }
+  /* connections overlay */
+  .cx { position:fixed; inset:0; background:var(--dark); z-index:50; display:flex; flex-direction:column;
+        padding:30px 34px; }
+  .cx.hide { display:none; }
+  .cxh { display:flex; align-items:flex-start; justify-content:space-between; }
+  .cxh h2 { margin:0; font-size:18px; font-weight:600; color:#f2f0f7; letter-spacing:-.01em; }
+  .cxh p { margin:4px 0 0; font-size:12.5px; color:#8b8798; }
+  .cxh button { display:flex; align-items:center; gap:7px; border:1px solid var(--dark-line);
+                border-radius:7px; padding:6px 11px; background:none; color:#8b8798;
+                font:inherit; font-size:11.5px; cursor:pointer; }
+  .cxbody { flex:1; position:relative; margin-top:10px; }
+  .cxlegend { display:flex; align-items:center; gap:24px; border-top:1px solid #22242c; padding-top:13px; }
+  .cxlegend .l { display:flex; align-items:center; gap:8px; font-size:9.5px; font-weight:600;
+                 letter-spacing:.09em; text-transform:uppercase; color:#8b8798; }
+  .node { position:absolute; display:flex; align-items:center; gap:10px; padding:10px 16px;
+          border-radius:999px; background:var(--dark-2); border:1px solid var(--dark-line);
+          cursor:pointer; transform:translate(-50%,-50%); white-space:nowrap; }
+  .node:hover { border-color:var(--lav); }
+  .node .num { width:19px; height:19px; border-radius:50%; background:#2f2a44; color:var(--lav-soft);
+               font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .node .nm { font-size:12.5px; color:#ded9ec; }
+  .node.primary { background:#241f36; border:1.5px solid var(--lav); box-shadow:0 0 34px rgba(139,111,212,.42); }
+  .node.primary .num { background:var(--lav); color:#14121c; }
+  .node.primary .nm { font-size:14px; font-weight:600; color:#f4f2fa; }
+  .node.unsettled { background:#131419; border:1px dashed #4a4753; cursor:default; }
+  .node.unsettled .nm { color:#77737f; }
+  .node .note { font-size:11px; color:#6f6b7d; }
+  @media (max-width:1100px) { .panel { display:none; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;">
-      <h1>Ask the graph</h1>
-      <span class="sub mono" id="src">RM6116</span>
+<div class="main">
+  <div class="top">
+    <div class="avatar"><i></i></div>
+    <div style="flex:1">
+      <h1>Network Services 3 — framework agreement</h1>
+      <div class="sub">Ask about anything in the agreement</div>
     </div>
-    <div class="badges" id="badges"></div>
-  </header>
-
-  <div class="ask">
-    <input id="q" placeholder="Ask about a clause, a term, or what depends on a schedule…" autocomplete="off">
-    <button id="send">Send</button>
+    <div id="badges" style="display:flex;gap:8px;align-items:center"></div>
+    <div class="ready"><i></i>Ready</div>
   </div>
-  <div class="examples" id="examples"></div>
 
-  <div class="body">
+  <div class="scroll" id="scroll">
     <div class="col" id="convo"></div>
+  </div>
 
-    <div class="rail">
-      <div class="card" style="border-top:3px solid var(--human);padding:11px 12px;display:flex;flex-direction:column;gap:7px;">
-        <div style="display:flex;align-items:center;gap:7px;">
-          <span class="kick" style="background:var(--human)">Citation</span>
-          <span class="mono" style="font-size:10px;color:var(--body)" id="citepath">click a citation</span>
-        </div>
-        <div class="cropbox" id="cropbox">
-          <div class="empty li" style="color:var(--faint)">Every citation resolves to a page crop, rendered from the stored box at request time.</div>
-        </div>
-        <div class="mono" style="font-size:9.5px;color:var(--muted)" id="citemeta"></div>
+  <div class="bottom">
+    <div class="composer">
+      <div class="egs" id="egs"></div>
+      <div class="cbox">
+        <input id="q" placeholder="Ask a question about the agreement…" autocomplete="off">
+        <button id="send" title="Send">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10V2M6 2L2.5 5.5M6 2l3.5 3.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
-
-      <div class="card" style="padding:11px 12px;display:flex;flex-direction:column;gap:8px;">
-        <div class="colhead">Tool trace</div>
-        <div class="traces" id="traces">
-          <div class="li" style="color:var(--faint)">No calls yet.</div>
-        </div>
-      </div>
-
-      <div class="card" style="background:var(--sunk);padding:11px 12px;">
-        <div class="colhead" style="margin-bottom:5px;">No tool, no claim</div>
-        <div class="li">Citations are copied from tool results, never composed by the model. Each one is checked against what the tools actually returned.</div>
-      </div>
+      <div class="hint">Every statement carries a numbered source you can open.</div>
     </div>
+  </div>
+</div>
+
+<div class="panel hide" id="panel">
+  <div class="ph">
+    <div class="n" id="pn">1</div>
+    <div class="t"><b id="pt">—</b><s id="ps"></s></div>
+    <button class="x" id="px" title="Close">✕</button>
+  </div>
+  <div class="pb" id="pb"></div>
+</div>
+
+<div class="cx hide" id="cx">
+  <div class="cxh">
+    <div>
+      <h2>How these provisions connect</h2>
+      <p>Every part of the agreement this answer drew on, and how they point at one another.</p>
+    </div>
+    <button id="cxclose"><svg width="10" height="10" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1l-9 9" stroke="#8b8798" stroke-width="1.4" stroke-linecap="round"/></svg>Close</button>
+  </div>
+  <div class="cxbody" id="cxbody"></div>
+  <div class="cxlegend">
+    <div class="l"><span style="width:15px;height:15px;border-radius:50%;background:var(--lav);display:block"></span>numbered to match the answer</div>
+    <div class="l"><svg width="26" height="4"><line x1="0" y1="2" x2="26" y2="2" stroke="#8b6fd4" stroke-width="1.4" stroke-dasharray="5 6"/></svg>points at</div>
+    <div class="l"><span style="width:13px;height:13px;border-radius:999px;border:1px dashed #4a4753;display:block"></span>not settled</div>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:#57545f">Click any provision to open its page.</span>
   </div>
 </div>
 
 <script>
 const $ = s => document.querySelector(s);
-const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
 const EXAMPLES = [
-  "Who owns New IPR created under a Contract, and what is that ownership subject to?",
-  "What does Clause 9.2 say?",
-  "What does Central Buying Office mean, and which definition governs?",
-  "What cites Clause 3.1.2?"
+  'Who owns new intellectual property created under a contract?',
+  'What does Clause 9.2 say?',
+  'What does Central Buying Office mean?'
 ];
 
-let health = {};
+// A tool name is machinery. Say what it was doing instead.
+const DOING = {
+  find_provision: 'Looking for the right clause…',
+  define: 'Checking what a term means…',
+  get_provision: 'Reading the clause…',
+  follow_references: 'Following what it points at…',
+  cite: 'Fetching the page…',
+  find_by_concept: 'Looking around the topic…',
+  history: 'Checking earlier versions…'
+};
+const DID = {
+  find_provision: 'Looked for the clause',
+  define: 'Looked up what a term means',
+  get_provision: 'Read the clause in full',
+  follow_references: 'Followed what it points at',
+  cite: 'Cut the page image',
+  find_by_concept: 'Looked around the topic',
+  history: 'Checked earlier versions'
+};
+const STAGE_WORDS = [
+  ['First', 'nothing depends on anything'],
+  ['Then', 'needed the first'],
+  ['Last', 'needed the one before'],
+  ['Finally', 'needed the one before']
+];
+
+let health = {}, LAST = null;
 
 async function boot() {
   try {
     health = await (await fetch('/api/health')).json();
-    const cfg = await (await fetch('/api/config')).json();
-    $('#src').textContent = `RM6116 · data ${health.data_source} · graph ${health.graph_backend}`;
-    const b = $('#badges');
-    b.append(mkChip(`gate ${'haiku'}`), mkChip('plan opus'), mkChip('agent opus'));
     if (health.scripted) {
-      const s = mkChip('scripted model — canned turns, real tools');
-      s.style.cssText = 'border-color:var(--model);color:var(--model);background:var(--model-bg);font-weight:600';
-      b.append(s);
-    } else if (!health.llm_available) {
-      const warn = mkChip('model unavailable'); warn.style.borderColor = 'var(--model)'; warn.style.color = 'var(--model)';
-      b.append(warn);
+      const b = el('span', 'badge', 'scripted answers — real sources');
+      b.title = 'Canned wording, but every source, page image and check below is live.';
+      $('#badges').append(b);
     }
-    if (!health.embedding_search) {
-      const v = mkChip('vector arm pending'); v.style.borderColor = 'var(--model-line)'; v.style.color = 'var(--model)';
-      b.append(v);
-    }
-  } catch (e) { /* health is advisory */ }
-  const ex = $('#examples');
-  EXAMPLES.forEach(t => { const btn = el('button', null, t); btn.onclick = () => { $('#q').value = t; ask(); }; ex.append(btn); });
+  } catch (e) {}
+  const g = $('#egs');
+  EXAMPLES.forEach(t => { const b = el('button', null, t); b.onclick = () => { $('#q').value = t; ask(); }; g.append(b); });
 }
-const mkChip = t => el('span', 'chip', t);
 
-function renderProse(node, raw) {
+/* ---------- rendering an answer ---------- */
+const CITE = /\[\[([^\]|]+)\|([^\]]*)\]\]/g;
+const TERM = /\[\[term:([^\]]+)\]\]/g;
+
+function numberFootnotes(raw) {
+  const order = [], seen = new Map();
+  let m; CITE.lastIndex = 0;
+  while ((m = CITE.exec(raw)) !== null) {
+    const key = m[1].trim() + '|' + m[2].trim();
+    if (!seen.has(key)) { seen.set(key, seen.size + 1); order.push({ path: m[1].trim(), page: m[2].trim(), n: seen.size }); }
+  }
+  return { seen, order };
+}
+
+function renderProse(node, raw, marks) {
   node.replaceChildren();
-  const re = /\[\[([^\]|]+)\|([^\]]*)\]\]/g;
+  // split on either marker, keeping order
+  const re = /(\[\[term:[^\]]+\]\])|(\[\[[^\]|]+\|[^\]]*\]\])/g;
   let last = 0, m;
   while ((m = re.exec(raw)) !== null) {
     if (m.index > last) node.append(document.createTextNode(raw.slice(last, m.index)));
-    const path = m[1].trim(), page = m[2].trim();
-    const c = el('span', 'cite', `${path} · p${page}`);
-    c.dataset.path = path; c.dataset.page = page;
-    c.onclick = () => showCrop(path, page, c);
-    node.append(c);
+    if (m[1]) {
+      const name = m[1].slice(8, -2);
+      const b = el('button', 'term');
+      b.append(el('i'), document.createTextNode(name));
+      b.onclick = () => showTerm(name);
+      node.append(b);
+    } else {
+      const mm = /\[\[([^\]|]+)\|([^\]]*)\]\]/.exec(m[2]);
+      const path = mm[1].trim(), page = mm[2].trim();
+      const key = path + '|' + page;
+      const n = marks.seen.get(key);
+      const s = el('sup', 'fn', String(n || '?'));
+      s.dataset.key = key;
+      const bad = marks.bad && marks.bad.has(key);
+      if (bad) { s.classList.add('bad'); s.title = 'this source did not check out: ' + marks.bad.get(key); }
+      else { s.onclick = () => showCitation(path, page, n, s); s.title = 'open the source'; }
+      node.append(s);
+    }
     last = re.lastIndex;
   }
   if (last < raw.length) node.append(document.createTextNode(raw.slice(last)));
 }
 
-function showCrop(path, page, chip) {
-  document.querySelectorAll('.cite.on').forEach(n => n.classList.remove('on'));
+/* ---------- the one evidence destination ---------- */
+function openPanel() { $('#panel').classList.remove('hide'); }
+$('#px').onclick = () => $('#panel').classList.add('hide');
+
+async function showCitation(path, page, n, chip) {
+  document.querySelectorAll('sup.fn.on').forEach(x => x.classList.remove('on'));
   if (chip) chip.classList.add('on');
-  $('#citepath').textContent = path;
-  $('#citemeta').textContent = `page ${page} · rendered from the stored box`;
-  const box = $('#cropbox');
-  box.replaceChildren();
-  const url = `/api/crop?path=${encodeURIComponent(path)}`;
+  openPanel();
+  $('#pn').textContent = n || '·';
+  $('#pn').style.background = 'var(--human)';
+  $('#pt').textContent = path;
+  $('#ps').textContent = 'loading…';
+  const pb = $('#pb'); pb.replaceChildren();
+
+  let prov = null;
+  try { prov = (await (await fetch('/api/tool/get_provision?path=' + encodeURIComponent(path))).json()).result; } catch (e) {}
+  $('#pt').textContent = (prov && prov.name) || path;
+  $('#ps').textContent = 'page ' + page + ' of the agreement';
+
+  const wrap = el('div');
+  const lab = el('div', 'klabel'); lab.append(el('i'), el('span', null, 'The passage on the page'));
+  wrap.append(lab);
+  const frame = el('div', 'frame');
   const img = new Image();
-  img.alt = `page crop for ${path}`;
-  img.title = 'open the full-size crop';
-  img.onerror = () => { box.replaceChildren(el('div', 'empty li', 'No crop: this node carries no box.')); };
-  img.onclick = () => window.open(url, '_blank', 'noopener');
-  img.src = url;
-  box.append(img);
+  img.alt = 'the page around ' + path;
+  img.onerror = () => frame.replaceChildren(el('div', 'cap', 'No page image recorded for this passage.'));
+  img.onclick = () => window.open('/api/crop?path=' + encodeURIComponent(path), '_blank', 'noopener');
+  img.src = '/api/crop?path=' + encodeURIComponent(path);
+  frame.append(img); wrap.append(frame);
+  wrap.append(el('div', 'cap', 'Cut from the PDF just now, at the coordinates recorded for this passage.'));
+  pb.append(wrap);
+
+  if (prov && prov.text) {
+    const w = el('div', 'words');
+    w.append(el('b', null, 'The words this rests on'));
+    w.append(el('p', null, '“' + prov.text + '”'));
+    pb.append(w);
+  }
+  const link = el('div', 'plink', 'Open the full page ↗');
+  link.onclick = () => window.open('/api/crop?path=' + encodeURIComponent(path), '_blank', 'noopener');
+  pb.append(link);
 }
 
+async function showTerm(name) {
+  openPanel();
+  $('#pn').textContent = '≡';
+  $('#pn').style.background = 'var(--rule)';
+  $('#pt').textContent = name;
+  $('#ps').textContent = 'a term the agreement defines';
+  const pb = $('#pb'); pb.replaceChildren();
+  let d = null;
+  try { d = (await (await fetch('/api/tool/define?term=' + encodeURIComponent(name))).json()).result; } catch (e) {}
+  if (!d || !d.found) { pb.append(el('div', 'cap', 'No definition recorded for this term.')); return; }
+  const site = (d.sites || [])[0] || {};
+  const w = el('div', 'words');
+  w.append(el('b', null, 'What it means here'));
+  w.append(el('p', null, '“' + (site.definition_text || '') + '”'));
+  pb.append(w);
+  const meta = el('div', 'cap');
+  meta.textContent = (site.scope === 'document'
+    ? 'This meaning applies across the whole agreement.'
+    : 'This meaning applies inside ' + (site.scope || '').replace('part:', '') + ' only.')
+    + (site.pointer ? ' The definition points on to ' + site.pointer + '.' : '');
+  pb.append(meta);
+  if ((d.aliases || []).length) pb.append(el('div', 'cap', 'Also written as: ' + d.aliases.join(', ')));
+  if (site.definition_path) {
+    const link = el('div', 'plink', 'See where it is defined ↗');
+    link.onclick = () => showCitation(site.definition_path, site.page, null, null);
+    pb.append(link);
+  }
+}
+
+/* ---------- connections ---------- */
+$('#cxclose').onclick = () => $('#cx').classList.add('hide');
+async function showConnections(paths) {
+  const body = $('#cxbody'); body.replaceChildren();
+  $('#cx').classList.remove('hide');
+  let g = null;
+  try { g = await (await fetch('/api/answer_graph?paths=' + encodeURIComponent(paths.join(',')))).json(); } catch (e) {}
+  if (!g || !g.nodes.length) { body.append(el('div', 'cap', 'Nothing to show.')); return; }
+
+  const W = body.clientWidth, H = body.clientHeight;
+  const primary = g.nodes.find(n => n.state === 'primary') || g.nodes[0];
+  const others = g.nodes.filter(n => n !== primary);
+  const pos = {};
+  pos[primary.id] = { x: Math.max(230, W * 0.24), y: H * 0.48 };
+  const gap = others.length > 1 ? Math.min(120, (H - 140) / (others.length - 1)) : 0;
+  const startY = H * 0.48 - (gap * (others.length - 1)) / 2;
+  others.forEach((n, i) => { pos[n.id] = { x: W * 0.68, y: startY + gap * i }; });
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.style.cssText = 'position:absolute;inset:0';
+  g.edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return;
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const mx = (a.x + b.x) / 2;
+    p.setAttribute('d', `M${a.x + 90} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x - 110} ${b.y}`);
+    p.setAttribute('stroke', e.state === 'unsettled' ? '#5c5a68' : '#8b6fd4');
+    p.setAttribute('stroke-width', '1.4');
+    p.setAttribute('stroke-dasharray', e.state === 'unsettled' ? '4 7' : '5 6');
+    p.setAttribute('opacity', e.state === 'unsettled' ? '0.6' : '0.75');
+    p.setAttribute('fill', 'none');
+    svg.append(p);
+  });
+  body.append(svg);
+
+  g.nodes.forEach(n => {
+    const p = pos[n.id]; if (!p) return;
+    const d = el('div', 'node ' + n.state);
+    d.style.left = p.x + 'px'; d.style.top = p.y + 'px';
+    if (n.footnote) d.append(el('span', 'num', String(n.footnote)));
+    d.append(el('span', 'nm', n.label));
+    if (n.note) d.append(el('span', 'note', n.note));
+    if (n.loaded) d.onclick = () => { $('#cx').classList.add('hide'); showCitation(n.id, n.page, n.footnote, null); };
+    body.append(d);
+  });
+}
+
+/* ---------- a turn ---------- */
 function ask() {
   const q = $('#q').value.trim();
   if (!q) return;
-  $('#send').disabled = true;
-  $('#traces').replaceChildren();
-  const convo = $('#convo');
-  convo.replaceChildren();
+  $('#send').disabled = true; $('#q').value = '';
+  const convo = $('#convo'); convo.replaceChildren();
 
-  const qRow = el('div', 'q');
-  qRow.append(el('span', 'kick', 'You'), el('div', 'txt', q));
-  qRow.querySelector('.kick').style.background = 'var(--ink)';
-  qRow.querySelector('.kick').style.marginTop = '2px';
-  convo.append(qRow);
+  const u = el('div', 'user'); u.append(el('div', 'b', q)); convo.append(u);
 
-  const gateRow = el('div', 'gate hide');
-  convo.append(gateRow);
+  const msg = el('div');
+  const who = el('div', 'who');
+  const av = el('div', 'a'); av.append(el('i'));
+  who.append(av, el('span', null, 'Assistant'));
+  msg.append(who);
+  const said = el('div', 'said'); msg.append(said);
+  convo.append(msg);
 
-  const planCard = el('div', 'card plan hide');
-  convo.append(planCard);
+  const status = el('div', 'status');
+  const dots = el('div', 'dots'); dots.append(el('i'), el('i'), el('i'));
+  const stxt = el('span', null, 'Thinking…');
+  status.append(dots, stxt);
+  msg.append(status);
 
-  const ansCard = el('div', 'card answer hide');
-  const ansHead = el('div'); ansHead.style.cssText = 'display:flex;align-items:center;gap:8px';
-  const kick = el('span', 'kick', 'Answer'); kick.style.background = 'var(--det)';
-  const ansMeta = el('span', 'li'); ansMeta.style.color = 'var(--muted)';
-  ansHead.append(kick, ansMeta);
   const prose = el('div', 'prose');
-  ansCard.append(ansHead, prose);
-  convo.append(ansCard);
+  let raw = '', marks = { seen: new Map(), order: [], bad: new Map() };
+  const trace = [];
+  let plan = null;
 
-  let raw = '';
-  const es = new EventSource(`/api/ask?q=${encodeURIComponent(q)}`);
-
-  es.addEventListener('gate', e => {
-    const d = JSON.parse(e.data);
-    gateRow.classList.remove('hide');
-    const c = el('span', 'chip', `gate · ${d.route}`);
-    c.style.color = d.route === 'research' ? 'var(--model)' : 'var(--det)';
-    c.style.borderColor = d.route === 'research' ? 'var(--model)' : 'var(--det)';
-    c.style.background = d.route === 'research' ? 'var(--model-bg)' : 'var(--det-bg)';
-    const why = el('span', 'li', d.reason); why.style.color = 'var(--muted)';
-    gateRow.append(c, why);
-    if (d.failed_open) { const f = el('span', 'chip', 'failed open'); f.style.color = 'var(--model)'; gateRow.append(f); }
-  });
-
-  es.addEventListener('plan', e => {
-    const d = JSON.parse(e.data);
-    planCard.classList.remove('hide');
-    const head = el('div'); head.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
-    const k = el('span', 'kick', 'Working on'); k.style.background = 'var(--model)';
-    const r = el('span', 'li', d.restated || ''); r.style.color = 'var(--body)';
-    head.append(k, r);
-    planCard.append(head);
-    if (d.degraded) { planCard.append(el('div', 'err', d.degraded)); return; }
-    const wrap = el('div', 'batches');
-    (d.batches || []).forEach(b => {
-      const bx = el('div', 'batch');
-      const h = el('h4', null, `Batch ${b.n}`);
-      bx.append(h);
-      if (b.why) { const w = el('div', 'li', b.why); w.style.color = 'var(--muted)'; w.style.marginBottom = '5px'; bx.append(w); }
-      const qs = el('div', 'qs');
-      (b.queries || []).forEach(x => {
-        const line = el('div');
-        const t = el('span', 'mono', x.tool ? `${x.tool}` : '');
-        t.style.color = 'var(--model)';
-        line.append(t, document.createTextNode(x.tool ? '  ' : ''), document.createTextNode(x.ask || ''));
-        qs.append(line);
-      });
-      bx.append(qs);
-      wrap.append(bx);
-    });
-    planCard.append(wrap);
-  });
-
+  const es = new EventSource('/api/ask?q=' + encodeURIComponent(q));
+  es.addEventListener('plan', e => { plan = JSON.parse(e.data); });
   es.addEventListener('tool', e => {
-    const d = JSON.parse(e.data);
-    const t = el('div', 'trace' + (d.ok ? '' : ' err'));
-    const n = el('div', 'mono', d.name); n.style.cssText = 'font-size:10px';
-    const s = el('div', 'li', d.summary); s.style.color = 'var(--muted)';
-    const a = el('div', 'li', Object.entries(d.args).map(([k, v]) => `${k}=${v}`).join(' · '));
-    a.style.cssText = 'color:var(--faint);word-break:break-all';
-    t.append(n, a, s);
-    $('#traces').append(t);
+    const d = JSON.parse(e.data); trace.push(d);
+    stxt.textContent = DOING[d.name] || 'Looking…';
   });
-
   es.addEventListener('text', e => {
-    ansCard.classList.remove('hide');
+    if (!prose.parentNode) { status.remove(); said.append(prose); }
     raw += JSON.parse(e.data).delta;
-    renderProse(prose, raw);
+    marks = Object.assign(numberFootnotes(raw), { bad: marks.bad });
+    renderProse(prose, raw, marks);
+    $('#scroll').scrollTop = $('#scroll').scrollHeight;
   });
-
   es.addEventListener('citations', e => {
-    const d = JSON.parse(e.data);
-    const cites = d.citations || [];
-    const bad = cites.filter(c => c.status !== 'ok');
+    const cites = JSON.parse(e.data).citations || [];
+    marks.bad = new Map();
+    cites.filter(c => c.status !== 'ok')
+         .forEach(c => marks.bad.set(c.path + '|' + (c.page == null ? '' : c.page), c.status));
+    renderProse(prose, raw, marks);
 
+    const strip = el('div', 'strip');
+    const ok = cites.filter(c => c.status === 'ok');
     if (!cites.length) {
-      // An answer with nothing behind it is the worst case, not the clean one.
-      ansMeta.textContent = 'no citations';
-      ansMeta.style.color = 'var(--model)';
-      ansCard.append(el('div', 'err',
-        'No citation in this answer resolved to tool output, so nothing here is backed by the graph. Treat it as unsourced.'));
+      said.append(el('div', 'warn', 'Nothing in this answer is backed by a source I could check. Treat it as unsourced.'));
     } else {
-      ansMeta.textContent = `${cites.length} citation(s)` +
-        (bad.length ? ` · ${bad.length} unverified` : ' · all verified against tool output');
-      ansMeta.style.color = bad.length ? 'var(--model)' : 'var(--muted)';
+      strip.append(el('span', 'm', `Traced across ${ok.length} provision${ok.length === 1 ? '' : 's'}`));
+      if (marks.bad.size) strip.append(el('span', 'm', `· ${marks.bad.size} could not be checked`));
     }
-
-    if (bad.length) {
-      ansCard.append(el('div', 'err', 'Unverified: ' +
-        bad.map(c => `${c.path}${c.page == null ? '' : ' p' + c.page} (${c.status})`).join(', ')));
-      // Taint the exact chip instance, not every chip sharing the path: the
-      // same provision cited correctly once and wrongly once must not both go amber.
-      document.querySelectorAll('.cite').forEach(n => {
-        const hit = bad.find(b => b.path === n.dataset.path &&
-          String(b.page == null ? '' : b.page) === n.dataset.page);
-        if (hit) { n.classList.add('bad'); n.title = hit.status; n.onclick = null; }
-      });
+    if (trace.length) {
+      strip.append(el('span', 'sep'));
+      const b = el('button', 'fold');
+      b.innerHTML = '<svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 1.5L4 4.5L7 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+      b.append(document.createTextNode('How I found this'));
+      let open = null;
+      b.onclick = () => { if (open) { open.remove(); open = null; } else { open = howBox(plan, trace); said.append(open); } };
+      strip.append(b);
     }
-    const first = cites.find(c => c.status === 'ok');
-    if (first) {
-      const chip = Array.from(document.querySelectorAll('.cite')).find(
-        n => n.dataset.path === first.path && n.dataset.page === String(first.page));
-      showCrop(first.path, first.page, chip);
+    if (ok.length) {
+      strip.append(el('span', 'sep'));
+      const c = el('button', 'fold');
+      c.innerHTML = '<svg width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="2" cy="2" r="1.4" fill="currentColor"/><circle cx="7" cy="3.4" r="1.4" fill="currentColor"/><circle cx="3.4" cy="7" r="1.4" fill="currentColor"/><path d="M2 2L7 3.4M2 2L3.4 7" stroke="currentColor" stroke-width="0.8"/></svg>';
+      c.append(document.createTextNode('See the connections'));
+      c.onclick = () => showConnections([...new Set(ok.map(x => x.path))]);
+      strip.append(c);
     }
+    said.append(strip);
+    LAST = ok;
   });
-
-  es.addEventListener('note', e => { convo.append(el('div', 'err', JSON.parse(e.data).message)); });
   es.addEventListener('error', e => {
-    let msg = 'stream failed';
-    try { msg = JSON.parse(e.data).message; } catch (_) {}
-    convo.append(el('div', 'err', msg));
+    status.remove();
+    let m = 'Something went wrong reaching the assistant.';
+    try { m = JSON.parse(e.data).message; } catch (_) {}
+    said.append(el('div', 'warn', m));
   });
-  es.addEventListener('done', e => {
-    const d = JSON.parse(e.data);
-    const foot = el('div', 'li', `${d.tool_calls} tool call(s) · ${d.rounds} round(s) · graph ${d.backend} · llm ${d.llm}`);
-    foot.style.cssText = 'color:var(--muted);border-top:1px solid var(--hair);padding-top:8px';
-    ansCard.append(foot);
+  es.addEventListener('close', () => { es.close(); status.remove(); $('#send').disabled = false; });
+  es.onerror = () => { es.close(); status.remove(); $('#send').disabled = false; };
+}
+
+function howBox(plan, trace) {
+  const box = el('div', 'flow');
+  // group the calls into the rounds they actually ran in
+  const rounds = [];
+  let cur = [], seen = new Set();
+  trace.forEach(t => {
+    const k = t.name + JSON.stringify(t.args);
+    if (seen.has(k)) { rounds.push(cur); cur = []; seen = new Set(); }
+    seen.add(k); cur.push(t);
   });
-  es.addEventListener('close', () => { es.close(); $('#send').disabled = false; });
-  es.onerror = () => { es.close(); $('#send').disabled = false; };
+  if (cur.length) rounds.push(cur);
+  const groups = rounds.length > 1 ? rounds : [trace];
+
+  groups.forEach((g, i) => {
+    const st = el('div', 'stage');
+    const k = el('div', 'k');
+    const w = STAGE_WORDS[Math.min(i, STAGE_WORDS.length - 1)];
+    k.append(el('b', null, w[0]));
+    k.append(el('s', null, g.length > 1 && i === 0 ? 'all at once' : w[1]));
+    st.append(k);
+    const steps = el('div', 'steps');
+    g.forEach(t => {
+      const s = el('div', 'step');
+      s.append(el('div', 'd', DID[t.name] || 'Looked something up'));
+      s.append(el('div', 'f', t.summary || ''));
+      steps.append(s);
+    });
+    st.append(steps);
+    box.append(st);
+  });
+  const foot = el('div', 'cap');
+  foot.style.marginTop = '10px';
+  foot.textContent = `Every statement above is drawn only from what these steps returned. ${trace.length} lookups.`;
+  box.append(foot);
+  return box;
 }
 
 $('#send').onclick = ask;

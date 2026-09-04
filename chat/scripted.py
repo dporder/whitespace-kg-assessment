@@ -65,19 +65,19 @@ IPR = {
          "tools": [("get_provision", {"path": "core-terms/3/3.1/3.1.1/a"}),
                    ("get_provision", {"path": "core-terms/3/3.1/3.1.2"})]},
         {"text": (
-            "New IPR created under a Contract is owned by the Central Buying Office "
-            "[[core-terms/9/9.2|2]], which Joint Schedule 1 defines document-wide as the "
-            "central purchasing authority [[joint-schedule-1/2/table/2/1|1]].\n\n"
-            "That ownership is expressly subject to Clauses 3.1.1 and 3.1.2 "
-            "[[core-terms/9/9.2|2]]. The first requires the Provider to supply Outputs that "
-            "meet the Requirement and comply with Law [[core-terms/3/3.1/3.1.1/a|1]]; the "
-            "second adds a warranty of at least 90 days from Handover against all obvious "
-            "defects [[core-terms/3/3.1/3.1.2|1]].\n\n"
-            "Two citations in that same sentence I cannot close. Schedule 2 is cited with no "
-            "title parenthetical and sits ambiguous between two candidates at equal score, so "
-            "it is in the review queue rather than in this answer. The Bribery Act 2010 is an "
-            "external legislation node and not part of this corpus."
-        ), "tools": []},
+            "Any new intellectual property created under a contract is owned by the "
+            "[[term:Central Buying Office]] [[core-terms/9/9.2|2]] — the central purchasing "
+            "authority the agreement defines at the front [[joint-schedule-1/2/table/2/1|1]].\n\n"
+            "That ownership is not unconditional. It is expressly subject to the supply "
+            "obligations in Clause 3.1: the [[term:Provider]] must supply [[term:Outputs]] that "
+            "meet the requirement and comply with the law [[core-terms/3/3.1/3.1.1/a|1]], and "
+            "must supply them with a warranty of at least 90 days from handover against all "
+            "obvious defects [[core-terms/3/3.1/3.1.2|1]].\n\n"
+            "Two things in that same sentence I could not settle. It also points at a "
+            "\u201cSchedule 2\u201d without saying which one, and this document set contains more "
+            "than one, so that is sitting in the review queue rather than in this answer. It "
+            "cites the Bribery Act 2010, which is legislation rather than part of this agreement."
+                ), "tools": []},
     ],
 }
 
@@ -93,12 +93,12 @@ CLAUSE_92 = {
         {"text": "", "tools": [("get_provision", {"path": "core-terms/9/9.2"}),
                                ("cite", {"path": "core-terms/9/9.2"})]},
         {"text": (
-            "Clause 9.2 reads: \"Any New IPR created under a Contract is owned by the Central "
+            "Clause 9.2 reads: \u201cAny New IPR created under a Contract is owned by the Central "
             "Buying Office subject to Clauses 3.1.1 and 3.1.2, Schedule 2 and the Bribery Act "
-            "2010.\" [[core-terms/9/9.2|2]]\n\n"
-            "It carries one recorded anomaly, a numbering gap: 9.4 follows it in source order "
-            "[[core-terms/9/9.2|2]]."
-        ), "tools": []},
+            "2010.\u201d [[core-terms/9/9.2|2]]\n\n"
+            "One thing is worth knowing about it: the numbering jumps here — 9.4 follows 9.2 in "
+            "the document, with no 9.3 [[core-terms/9/9.2|2]]."
+                ), "tools": []},
     ],
 }
 

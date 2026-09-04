@@ -30,6 +30,8 @@ if str(ROOT) not in sys.path:
 
 from chat import config as ui_config          # noqa: E402  the one DATA_SOURCE switch
 from chat import crops                        # noqa: E402
+from chat.naming import (FAMILY_WORDS, family_words, human_citation,   # noqa: E402
+                         name_for_path, title_case_part)
 from chat.source import corpus, parent_path_of_ref, part_of   # noqa: E402
 
 REVIEWABLE_REF_STATUS = ("ambiguous", "unresolved")
@@ -50,14 +52,6 @@ _PROPOSED = re.compile(r"'(?P<found>[^']+)'\s+for\s+'(?P<proposed>[^']+)'")
 # reviewer reads is composed here rather than in the page, so it is one place
 # to change and `tests/review_ui/test_copy.py` can hold it to its promises.
 # --------------------------------------------------------------------------
-
-FAMILY_WORDS = {
-    "core-terms": ("the Core Terms", "the clauses that govern the agreement as a whole"),
-    "award-form": ("the Framework Award Form", "the form that records who the agreement is with"),
-    "framework-schedule": ("a Framework Schedule", "part of the framework agreement itself"),
-    "joint-schedule": ("a Joint Schedule", "shared by the framework agreement and the contracts called off under it"),
-    "call-off-schedule": ("a Call-Off Schedule", "part of an individual contract called off under the framework"),
-}
 
 # What each row type asks of a reviewer, shown above its section.
 GUIDELINES = {
@@ -107,102 +101,14 @@ GUIDELINES = {
 }
 
 
-def family_words(path: str) -> tuple[str, str]:
-    """(what it is, what that means) for the part a path belongs to."""
-    part = part_of(path)
-    for prefix, words in FAMILY_WORDS.items():
-        if part == prefix or part.startswith(prefix + "-"):
-            return words
-    return (part.replace("-", " "), "")
-
-
-def title_case_part(part: str) -> str:
-    """`framework-schedule-2` -> `Framework Schedule 2`."""
-    words = []
-    for token in part.split("-"):
-        if token.isdigit():
-            words.append(token)
-        elif token.lower() == "off":
-            words[-1] = words[-1] + "-Off"
-        else:
-            words.append(token.capitalize())
-    return " ".join(words)
-
-
-def human_citation(c, node) -> str:
-    """"Core Terms, Clause 9.2" rather than "core-terms/9/9.2".
-
-    Built from the part's own title and the deepest numbered unit, using the
-    unit label the document itself uses (SPEC 2.1), so the reviewer sees the
-    reference the way the agreement writes it.
-    """
-    if node is None:
-        return ""
-    part_node = c.node(part_of(node.path))
-    part_name = (part_node.title if part_node is not None and part_node.title
-                 else title_case_part(part_of(node.path)))
-    if node.kind == "part":
-        return part_name
-
-    # Cells and intros carry no number of their own, so name them by what they
-    # are rather than by the nearest numbered ancestor, which would read as if
-    # the whole clause were meant.
-    owner = next((n for n in reversed(c.ancestors(node.path)) if n.label), None)
-    if node.kind == "cell":
-        label_cell = _definition_label_cell(c, node)
-        if label_cell is not None and label_cell.text:
-            return f"{part_name}, the definition of {label_cell.text.strip()}"
-        if node.col == 0 and node.text and node.text.strip().startswith('"'):
-            return f"{part_name}, the term {node.text.strip()}"
-        if owner is not None:
-            role = {"label": "the label", "value": "the entry",
-                    "header": "the heading"}.get(node.cell_role or "", "a cell")
-            noun = "row" if owner.kind == "form_row" else (owner.unit_label or "row")
-            return f"{part_name}, {noun} {owner.label}, {role}"
-        return part_name
-    if node.kind == "intro" and owner is not None:
-        return f"{part_name}, {(owner.unit_label or 'Clause')} {owner.label}, opening words"
-
-    chain = [n for n in (c.ancestors(node.path) + [node]) if n.label and n.kind != "part"]
-    if not chain:
-        return part_name
-
-    deepest = chain[-1]
-    unit = deepest.unit_label or {
-        "form_row": "row", "table": "table", "item": "paragraph",
-    }.get(deepest.kind, deepest.kind.capitalize())
-    text = f"{part_name}, {unit} {deepest.label}"
-    if len(chain) > 1 and deepest.label.startswith("("):
-        parent = chain[-2]
-        punit = parent.unit_label or "Clause"
-        text = f"{part_name}, {punit} {parent.label}, {unit.lower()} {deepest.label}"
-    return text
-
-
-def _definition_label_cell(c, node):
-    """For a definitions-table value cell, the cell holding the quoted term."""
-    parts = node.path.rsplit("/", 2)
-    if len(parts) != 3 or node.col in (None, 0):
-        return None
-    return c.node(f"{parts[0]}/{parts[1]}/0")
-
-
 def describe_candidate(c, cand) -> dict:
     """A candidate target in words a contracts reviewer already uses."""
     target = c.node(cand.path)
-    if target is not None:
-        name = human_citation(c, target)
-        _, meaning = family_words(cand.path)
-        loaded = True
-    else:
-        name = title_case_part(cand.path)
-        _, meaning = family_words(cand.path)
-        loaded = False
     return {
         "path": cand.path,
-        "name": name,
-        "meaning": meaning,
-        "loaded": loaded,
+        "name": name_for_path(c, cand.path),
+        "meaning": family_words(cand.path)[1],
+        "loaded": target is not None,
         "score": cand.score,
         "reason": cand.reason,
     }
@@ -211,12 +117,12 @@ def describe_candidate(c, cand) -> dict:
 def _confidence_words(cands: list[dict]) -> str | None:
     """Say what the numbers mean, or say nothing. A bare 0.5 tells a reviewer
     neither what it measures nor which direction is good."""
-    scores = [c["score"] for c in cands if c["score"] is not None]
+    scores = [cd["score"] for cd in cands if cd["score"] is not None]
     if len(scores) < 2:
         return None
     if max(scores) - min(scores) < 0.01:
         return "The system found nothing to prefer one over the other."
-    best = max(cands, key=lambda c: c["score"] if c["score"] is not None else -1)
+    best = max(cands, key=lambda cd: cd["score"] if cd["score"] is not None else -1)
     return f"The system leaned towards {best['name']}, but not enough to be sure."
 
 
