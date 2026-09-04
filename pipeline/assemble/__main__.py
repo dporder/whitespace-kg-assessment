@@ -137,8 +137,13 @@ def _attach_violations(root: Node, report) -> None:
         node = by_path.get(violation.path)
         if node is None:
             continue
-        suffix = f" ({violation.explained.split(':')[0]})" if violation.explained else ""
-        note = f"{violation.check}: {violation.detail}{suffix}"
+        # An explained violation says on the node why it is explained, so a
+        # reviewer reading the tree sees the reasoning rather than a bare
+        # geometric complaint they would have to look up.
+        if violation.explained:
+            note = f"{violation.explained} ({violation.check}: {violation.detail})"
+        else:
+            note = f"{violation.check}: {violation.detail}"
         if note not in node.anomalies:
             node.anomalies.append(note)
 

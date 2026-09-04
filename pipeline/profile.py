@@ -257,6 +257,17 @@ _STYLE_PATTERNS = (
 )
 
 
+# An all-uppercase token in brackets at the start of a line is an abbreviation
+# introduced mid-sentence, not a numbering token: "(DBS) or otherwise), is
+# employed ..." opens a wrapped line on page 432. The rulebook can never match
+# it, so it inflates the unmatched count without being a grammar gap.
+_ABBREVIATION_OPENER = re.compile(r"^\s*\([A-Z]{2,6}\)")
+
+
+def _looks_like_detector_artifact(text: str) -> bool:
+    return bool(_ABBREVIATION_OPENER.match(text))
+
+
 def _numbering_style(text: str) -> str:
     for name, pattern in _STYLE_PATTERNS:
         if pattern.match(text):
@@ -467,15 +478,29 @@ def fit_by_part(numbering: dict, probe: dict, document: DocumentScan, thresholds
         rate = round(bad / counts, 4) if counts else 0.0
         alarms = []
         if rate > limit:
-            alarms.append(
-                {
-                    "check": "unmatched_numbering",
-                    "detail": f"{bad} of {counts} numbered lines in this part match no "
-                    f"rulebook pattern, rate {rate} > {limit}",
-                    "examples": numbering.get("examples_by_part", {}).get(part.slug, [])[:6],
-                    "unmatched_styles": numbering.get("styles_by_part", {}).get(part.slug, {}),
+            examples = numbering.get("examples_by_part", {}).get(part.slug, [])[:6]
+            alarm = {
+                "check": "unmatched_numbering",
+                "detail": f"{bad} of {counts} numbered lines in this part match no "
+                f"rulebook pattern, rate {rate} > {limit}",
+                "examples": examples,
+                "unmatched_styles": numbering.get("styles_by_part", {}).get(part.slug, {}),
+            }
+            suspected = [e for e in examples if _looks_like_detector_artifact(e["text"])]
+            if suspected:
+                # Say so where the quarantine may rest on the shape detector
+                # rather than on the document. A reader of the eval report
+                # should be able to see that without re-deriving it, and the
+                # honest state of a small part failing on one such line is that
+                # the gate held for a reason nobody has confirmed yet.
+                alarm["suspected_detector_artifact"] = {
+                    "note": "these lines are counted as numbering-shaped by the parser's "
+                            "looks_numbered detector but are prose, most likely a bracketed "
+                            "abbreviation opening a wrapped line; the detector was left "
+                            "untouched rather than tuned to clear this gate",
+                    "lines": [{"page": e["page"], "text": e["text"]} for e in suspected],
                 }
-            )
+            alarms.append(alarm)
         if part.slug in deep_by_part:
             alarms.append(
                 {

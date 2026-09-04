@@ -53,6 +53,47 @@ SYSTEMATIC_SHARE = 0.8
 SYSTEMATIC_MIN_COUNT = 3
 
 
+@dataclass(frozen=True)
+class VerifiedRender:
+    """One page whose geometry was checked by rendering it and reading the ink.
+
+    A violation the parser cannot explain from the numbers alone is not
+    necessarily a mis-parse; sometimes the page really is set that way. The
+    only way to tell is to look, so each entry here records a page that was
+    rendered and what was seen on it. Entries are added for pages a person has
+    actually looked at, never to quieten a count: an unverified violation stays
+    unexplained, which is what keeps the number meaningful.
+    """
+    part: str
+    page: int
+    check: str
+    seen: str
+
+
+# Pages rendered at 2x and read during the parser build. Every one of these
+# shows the document printing a child further left than the parent above it,
+# which is this pack's house style for hanging-indented sub-paragraphs, not a
+# mis-parented node.
+VERIFIED_TYPESETTING: tuple[VerifiedRender, ...] = (
+    VerifiedRender(
+        part="call-off-schedule-9", page=344, check="child_left_of_parent",
+        seen="paragraph 5.2.1 is printed at the left margin, left of its parent 5.2",
+    ),
+    VerifiedRender(
+        part="call-off-schedule-9", page=347, check="child_left_of_parent",
+        seen="paragraphs 2.3.1 and 2.3.2 are printed left of their parent 2.3",
+    ),
+    VerifiedRender(
+        part="framework-schedule-7", page=95, check="child_left_of_parent",
+        seen="the lettered items under 3.1.4 hang left of the number above them",
+    ),
+    VerifiedRender(
+        part="framework-schedule-7", page=97, check="child_left_of_parent",
+        seen="every lettered item on the page hangs left of its parent's number",
+    ),
+)
+
+
 @dataclass
 class Violation:
     check: str
@@ -63,6 +104,7 @@ class Violation:
     kind: str
     parent_kind: Optional[str]
     explained: Optional[str] = None
+    page: Optional[int] = None
 
     def as_json(self) -> dict:
         return {
@@ -71,6 +113,7 @@ class Violation:
             "parent_path": self.parent_path,
             "kind": self.kind,
             "parent_kind": self.parent_kind,
+            "page": self.page,
             "detail": self.detail,
             "measure": round(self.measure, 2),
             "explained": self.explained,
@@ -157,8 +200,21 @@ def _check_left(node: Node, parent: Node, report: InvariantReport) -> None:
     parent_own = _own_boxes(parent) or parent.bboxes_extent
     if not own or not parent_own:
         return
-    left = min(b.bbox[0] for b in own)
-    parent_left = min(b.bbox[0] for b in parent_own)
+    # Indentation only means anything within one page. A node that wraps over a
+    # page break resumes at the next page's left margin, which is further left
+    # than its own number was, and comparing that against a parent whose number
+    # sits on the previous page compares two different pages' margins. Where
+    # parent and child share a page, that page decides; otherwise the child's
+    # first page is compared against the parent's nearest box.
+    shared = sorted({b.page for b in own} & {b.page for b in parent_own})
+    if shared:
+        page = shared[0]
+        left = min(b.bbox[0] for b in own if b.page == page)
+        parent_left = min(b.bbox[0] for b in parent_own if b.page == page)
+    else:
+        page = min(b.page for b in own)
+        left = min(b.bbox[0] for b in own if b.page == page)
+        parent_left = min(b.bbox[0] for b in parent_own)
     report.record_test("child_left_of_parent", parent.kind, node.kind)
     if left < parent_left - INDENT_TOLERANCE:
         report.violations.append(
@@ -170,6 +226,7 @@ def _check_left(node: Node, parent: Node, report: InvariantReport) -> None:
                 parent_kind=parent.kind,
                 detail=f"left {left:.1f} is left of parent's {parent_left:.1f}",
                 measure=parent_left - left,
+                page=page,
             )
         )
 
@@ -357,7 +414,27 @@ def _check_extent(node: Node, parent: Node, report: InvariantReport) -> None:
 
 
 def _explain(report: InvariantReport) -> None:
-    """Label violations that fire uniformly across a level as typesetting."""
+    """Label the violations that are explainable, leaving the rest to be seen.
+
+    Two grounds, and only two. A page someone rendered and read is explained by
+    what they saw. A violation firing uniformly across a whole level of a part
+    is explained by the part's typesetting. Everything else stays unexplained
+    and keeps the exit code honest.
+    """
+    for violation in report.violations:
+        for verified in VERIFIED_TYPESETTING:
+            if (
+                verified.part == report.part
+                and verified.check == violation.check
+                and verified.page == violation.page
+            ):
+                violation.explained = (
+                    f"geometry_is_document_typesetting: page {verified.page} rendered and "
+                    f"read, {verified.seen}; the ink is genuinely left of the parent and "
+                    f"the parse is correct"
+                )
+                break
+
     populations: dict[tuple[str, str, str], int] = {}
     for v in report.violations:
         if v.parent_kind is None:
