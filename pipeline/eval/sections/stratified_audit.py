@@ -259,16 +259,23 @@ def _guidance(batch: list[dict[str, Any]]) -> str:
         lines += [f"  - {s}: {REF_STATUS_GLOSSARY[s]}" for s in statuses
                   if s in REF_STATUS_GLOSSARY]
     if any(item.get("one_of_a_split_phrase") for item in batch):
+        # Facts only. An earlier version ended "judge whether this member points
+        # at the right target, not whether one member covers the whole range",
+        # and that clause did real damage: the checker answered the membership
+        # question and stopped checking the target, rubber-stamping two
+        # references that resolved into the wrong sub-part. It had caught both
+        # the run before. Telling a checker which question to skip is a nudge
+        # even when it contains no agreeing words, so the guidance now states
+        # what the pipeline did and leaves the judging alone.
         lines.append(
             "Split list phrases: a phrase citing several targets is emitted as "
             "one reference per target, each anchored to its own characters and "
             "sharing a group_id. An item carrying one_of_a_split_phrase is one "
             "member of such a group, not the whole citation, and its "
-            "sibling_targets are the other members. Joint Schedule 1 paragraph "
-            "1.3.10 stipulates: \"references to a series of Clauses or "
-            "Paragraphs shall be inclusive of the clause numbers specified\". "
-            "Judge whether this member points at the right target, not whether "
-            "one member covers the whole range.")
+            "sibling_targets are the other members of the same phrase. Joint "
+            "Schedule 1 paragraph 1.3.10 stipulates: \"references to a series "
+            "of Clauses or Paragraphs shall be inclusive of the clause numbers "
+            "specified\".")
     if any(item.get("kind") == "term_use" for item in batch):
         lines.append(
             "Term uses: a term's declared aliases are listed with the item. A "
