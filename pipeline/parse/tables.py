@@ -22,11 +22,21 @@ from .geometry import Box, union
 from .model import Cell, SourceLine
 from .words import merge_visual_lines
 
-# A drawn rectangle counts as a rule when one side is hairline and the other is
-# long enough to bound a cell. Table borders in this pack are filled rectangles
-# roughly 0.5 to 1.0pt thick.
-RULE_THICKNESS = 2.0
+# A drawn rectangle is a rule when it is long and thin. Thickness alone is the
+# wrong test: Joint Schedule 1 draws its definition tables with 0.6pt hairlines
+# but Call-Off Schedule 9 draws the same shape with a 3.0pt outer border, and a
+# 2.0pt ceiling silently rejected the outer border, leaving one vertical rule,
+# which is not a grid. That dropped the whole definitions table back into the
+# prose path, where merging by vertical overlap interleaved the two columns into
+# "Breach of means the occurrence of: Security".
+#
+# So a rule must also be far longer than it is thick. That readmits a heavy
+# border while still rejecting the 3.0 x 3.0 corner squares this pack draws at
+# each border join, which are square and would otherwise register as both a
+# vertical and a horizontal rule.
+RULE_THICKNESS = 4.0
 RULE_MIN_LENGTH = 5.0
+RULE_MIN_ASPECT = 5.0
 
 # Rules drawn twice, or drawn as two abutting segments, land within a point of
 # each other and mean one boundary.
@@ -101,9 +111,17 @@ def page_grids(page: pymupdf.Page, page_number: int) -> list[Grid]:
     horizontals: list[tuple[float, float, float]] = []  # y, x0, x1
     for item in page.get_drawings():
         r = item["rect"]
-        if r.width <= RULE_THICKNESS and r.height >= RULE_MIN_LENGTH:
+        if (
+            r.width <= RULE_THICKNESS
+            and r.height >= RULE_MIN_LENGTH
+            and r.height >= r.width * RULE_MIN_ASPECT
+        ):
             verticals.append((r.x0, r.y0, r.y1))
-        elif r.height <= RULE_THICKNESS and r.width >= RULE_MIN_LENGTH:
+        elif (
+            r.height <= RULE_THICKNESS
+            and r.width >= RULE_MIN_LENGTH
+            and r.width >= r.height * RULE_MIN_ASPECT
+        ):
             horizontals.append((r.y0, r.x0, r.x1))
     if not verticals or not horizontals:
         return []
@@ -238,6 +256,19 @@ def fill_cells(
                     "unpaired_closing_quote_in_cell: the page carries the closing "
                     "quotation mark but no opening one; recorded verbatim"
                 )
+            gap = _internal_gap(content)
+            if gap is not None and role == "label":
+                # The source did not rule a boundary here, so two definitions
+                # share one cell: Call-Off Schedule 6 page 302 runs "Commercial
+                # off the shelf Software" straight into "Core Network" with no
+                # horizontal rule between them, verified by rendering the page.
+                # Recorded as the source's own omission, never repaired by
+                # inventing a row the document does not draw.
+                anomalies.append(
+                    f"cell_spans_an_undrawn_row_boundary: a vertical gap of {gap:.0f}pt "
+                    f"inside this cell suggests the source omitted a row rule, so the "
+                    f"cell holds more than one entry; recorded verbatim"
+                )
             if text and role == "label" and _STRAY_LEADING_CHAR.match(text):
                 anomalies.append(
                     f"stray_character_in_label: {text.split()[0]!r} opens lower case "
@@ -257,6 +288,32 @@ def fill_cells(
                 )
             )
     return cells, outside
+
+
+# A blank line's worth of space inside one cell. Lines of a wrapped term sit a
+# single leading apart; anything approaching double that is a gap the source put
+# there on purpose.
+UNDRAWN_ROW_GAP = 1.8
+
+
+def _internal_gap(lines: list[SourceLine]) -> Optional[float]:
+    """The largest vertical gap between consecutive lines of one cell, when it
+    is big enough to read as a missing row boundary. None otherwise."""
+    inked = sorted(
+        (l for l in lines if l.text.strip()), key=lambda l: (l.bbox[1], l.bbox[0])
+    )
+    if len(inked) < 2:
+        return None
+    heights = sorted(l.bbox[3] - l.bbox[1] for l in inked)
+    typical = heights[len(heights) // 2]
+    if typical <= 0:
+        return None
+    worst = 0.0
+    for first, second in zip(inked, inked[1:]):
+        gap = second.bbox[1] - first.bbox[3]
+        if gap > worst:
+            worst = gap
+    return worst if worst > typical * UNDRAWN_ROW_GAP else None
 
 
 def _split_by_column(grid: Grid, line: SourceLine, words: list) -> list[tuple[int, SourceLine]]:

@@ -69,6 +69,7 @@ class FixturesBackend(ToolBackend):
             hits.append(
                 {
                     "path": path,
+                    "name": human_citation(self.c, n),
                     "kind": n.kind,
                     "label": n.label,
                     "title": n.title,

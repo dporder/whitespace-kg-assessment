@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
@@ -171,25 +172,46 @@ def plan(question: str, route: str) -> dict:
                     "content": f"Route: {route}\nQuestion: {question}",
                 }
             ],
-            max_tokens=900,
+            # The prompt permits 3 batches of 4 queries plus a `why` each, and
+            # reasoning tokens come out of the same allowance. At 900 the cap
+            # contradicted the prompt: the JSON was cut off mid-string and the
+            # whole plan was thrown away, leaving "working on" blank for the
+            # 10-14s the planner takes. Give it room to say what it is allowed
+            # to say.
+            max_tokens=2000,
             temperature=0,
         )
     except llm_client.LLMUnavailable as exc:
-        return {
-            "restated": question,
-            "batches": [],
-            "degraded": f"planner unavailable ({exc})",
-        }
+        return _plan_failed(question, f"planner unavailable ({exc})")
+
     text = r.text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
     try:
         parsed = json.loads(text)
-    except json.JSONDecodeError:
-        return {"restated": question, "batches": [], "degraded": "planner returned non-JSON"}
+    except json.JSONDecodeError as exc:
+        why = ("planner ran out of output tokens and its JSON was cut off"
+               if r.stop_reason == "max_tokens"
+               else f"planner returned text that is not JSON ({exc})")
+        return _plan_failed(question, why, raw=text, stop_reason=r.stop_reason)
+
     parsed.setdefault("restated", question)
     parsed.setdefault("batches", [])
     return parsed
+
+
+def _plan_failed(question: str, why: str, raw: str = "", stop_reason: str | None = None) -> dict:
+    """A discarded plan is a user-visible regression, so it never fails quietly.
+
+    The planner's output is the "working on" panel, which is the only thing on
+    screen during the ten-odd seconds it takes. Losing it silently is how a
+    blank panel got shipped, so this shouts on the way out.
+    """
+    print(f"[chat.plan] PLAN DISCARDED: {why}"
+          + (f" | stop_reason={stop_reason}" if stop_reason else "")
+          + (f" | {len(raw)} chars salvageable" if raw else ""),
+          file=sys.stderr, flush=True)
+    return {"restated": question, "batches": [], "degraded": why}
 
 
 # --------------------------------------------------------------------------
@@ -249,6 +271,15 @@ def run_turn(question: str, runner: ToolRunner | None = None) -> Iterator[tuple[
             if not response.tool_uses:
                 break
 
+            # This round's prose came alongside tool calls, so it was narration
+            # ("I'll start by locating Clause 9.2."), not the answer. It is
+            # useful as progress and useless glued to the front of the answer,
+            # so it moves to the status line and the answer buffer is emptied.
+            if response.text.strip():
+                yield ("narration", {"text": response.text.strip()})
+            answer_parts.clear()
+            yield ("answer_reset", {})
+
             assistant_content: list[dict] = []
             if response.text:
                 assistant_content.append({"type": "text", "text": response.text})
@@ -293,7 +324,41 @@ def run_turn(question: str, runner: ToolRunner | None = None) -> Iterator[tuple[
                 )
             messages.append({"role": "user", "content": results})
         else:
-            yield ("note", {"message": f"stopped at the {ui_config.MAX_TOOL_ROUNDS}-round bound"})
+            # The bound is a retrieval budget, not a gag. Spending it used to
+            # cost the reader the entire answer: the loop stopped mid-research
+            # and delivered only round-one narration with no citations, on the
+            # very question shape the walkthrough is built around. So make one
+            # more turn with the tools withheld, and let the model compose from
+            # what it has already gathered.
+            yield ("note", {"message": (
+                f"reached the {ui_config.MAX_TOOL_ROUNDS}-round retrieval budget; "
+                "answering from what the tools returned so far")})
+
+            # Appended to the existing tool-result message rather than as a new
+            # one: two user messages back to back is not a shape the API
+            # promises to accept, and this needs to be reliable.
+            messages[-1]["content"].append({
+                "type": "text",
+                "text": (
+                    "You have now spent the retrieval budget for this question and no "
+                    "further tools are available. Answer now, using only what the tool "
+                    "results above actually contain, with a citation on every claim. "
+                    "Where those results do not settle part of the question, say so "
+                    "plainly and briefly rather than filling the gap."
+                ),
+            })
+            answer_parts.clear()
+            yield ("answer_reset", {})
+            for event, payload in llm_client.stream(
+                task="chat_agent",
+                model=pipeline_config.MODELS["chat_agent"],
+                system=AGENT_SYSTEM,
+                messages=messages,
+                max_tokens=2048,          # no tools: this turn can only compose
+            ):
+                if event == "text":
+                    answer_parts.append(payload)
+                    yield ("text", {"delta": payload})
     except llm_client.LLMUnavailable as exc:
         yield ("error", {"message": f"model unavailable: {exc}"})
         return
